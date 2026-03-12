@@ -1,5 +1,11 @@
-import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getSheetData } from "../../../lib/sheets";
+import Container from "../../../components/ui/Container";
+import Section from "../../../components/ui/Section";
+import SectionHeading from "../../../components/ui/SectionHeading";
+import ProductCard from "../../../components/cards/ProductCard";
+import ButtonLink from "../../../components/ui/ButtonLink";
+import { buildPageMetadata } from "../../../lib/seo";
 
 type ProductItem = {
   id?: string;
@@ -15,6 +21,49 @@ type ProductItem = {
   created_at?: string;
   updated_at?: string;
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
+
+  try {
+    const items = (await getSheetData("Products")) as ProductItem[];
+    const product =
+      items.find(
+        (item) =>
+          String(item.slug || "").trim().toLowerCase() === decodedSlug &&
+          String(item.status || "").trim().toLowerCase() === "published"
+      ) || null;
+
+    if (!product) {
+      return buildPageMetadata({
+        title: "Product Not Found",
+        description: "The requested product could not be found.",
+        path: `/products/${decodedSlug}`,
+      });
+    }
+
+    return buildPageMetadata({
+      title: product.title || "Product",
+      description:
+        product.short_description ||
+        product.description ||
+        "Explore this hospitality textile product.",
+      image: product.image || "",
+      path: `/products/${decodedSlug}`,
+    });
+  } catch {
+    return buildPageMetadata({
+      title: "Products",
+      description: "Explore hospitality textile products by Patak Textile.",
+      path: `/products/${decodedSlug}`,
+    });
+  }
+}
 
 export default async function ProductDetailPage({
   params,
@@ -63,48 +112,27 @@ export default async function ProductDetailPage({
     }
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred.";
+      error instanceof Error ? error.message : "Unknown error occurred.";
   }
 
   if (errorMessage) {
     return (
-      <div className="simple-page">
-        <div className="container">
-          <Link
-            href="/products"
-            className="btn-secondary"
-            style={{ marginBottom: 18 }}
-          >
-            ← Products
-          </Link>
+      <Section>
+        <Container>
+          <ButtonLink href="/products" variant="secondary">
+            ← Back to Products
+          </ButtonLink>
 
-          <div className="data-box">
-            <h3>Error</h3>
-            <pre>{errorMessage}</pre>
+          <div className="empty-state" style={{ marginTop: 20 }}>
+            <strong>Error:</strong> {errorMessage}
           </div>
-        </div>
-      </div>
+        </Container>
+      </Section>
     );
   }
 
   if (!product) {
-    return (
-      <div className="simple-page">
-        <div className="container">
-          <Link
-            href="/products"
-            className="btn-secondary"
-            style={{ marginBottom: 18 }}
-          >
-            ← Products
-          </Link>
-
-          <div className="empty-state">
-            Product not found or not published.
-          </div>
-        </div>
-      </div>
-    );
+    notFound();
   }
 
   const imageUrl =
@@ -112,151 +140,147 @@ export default async function ProductDetailPage({
     "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=80";
 
   return (
-    <div className="simple-page">
-      <div className="container">
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/products" className="btn-secondary">
-            ← Products
-          </Link>
-        </div>
+    <>
+      <Section tight>
+        <Container>
+          <ButtonLink href="/products" variant="secondary">
+            ← Back to Products
+          </ButtonLink>
+        </Container>
+      </Section>
 
-        <section
-          style={{
-            marginBottom: 30,
-            padding: "32px 0 8px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <span className="card-kicker">
-            {product.collection_slug || "Product"}
-          </span>
-          <h1 style={{ maxWidth: 980 }}>
-            {product.title || "Untitled Product"}
-          </h1>
-          {product.short_description ? (
-            <p className="lead" style={{ maxWidth: 860, marginBottom: 0 }}>
-              {product.short_description}
-            </p>
-          ) : null}
-        </section>
-
-        <section
-          className="section"
-          style={{ paddingTop: 0, paddingBottom: 34 }}
-        >
-          <div className="split-section">
+      <Section>
+        <Container>
+          <div className="home-split">
             <div
-              className="image-feature"
-              style={{
-                backgroundImage: `url("${imageUrl}")`,
-                minHeight: 620,
-              }}
-            />
+              className="content-card"
+              style={{ overflow: "hidden", minHeight: 520 }}
+            >
+              <div
+                className="content-card__media"
+                style={{
+                  aspectRatio: "4 / 4",
+                  minHeight: 520,
+                  backgroundImage: `url(${imageUrl})`,
+                }}
+              />
+            </div>
 
-            <div className="split-card">
-              <span className="card-kicker">Product Overview</span>
-              <h2 style={{ maxWidth: 680 }}>
-                Hospitality presentation with clearer structure and stronger
-                detail
-              </h2>
-
-              <p>{product.description || "No description added yet."}</p>
-
-              <div className="feature-list">
-                <div className="feature-row">
-                  <strong>Collection</strong>
-                  <span>{product.collection_slug || "-"}</span>
-                </div>
-
-                <div className="feature-row">
-                  <strong>Status</strong>
-                  <span>{product.status || "-"}</span>
-                </div>
-
-                <div className="feature-row">
-                  <strong>Featured</strong>
-                  <span>{product.featured || "false"}</span>
-                </div>
+            <div className="home-split__panel">
+              <div className="section-heading__kicker">
+                {product.collection_slug || "Product"}
               </div>
+
+              <h1
+                style={{
+                  margin: "0 0 16px",
+                  fontSize: "clamp(34px, 5vw, 64px)",
+                  lineHeight: "0.95",
+                  letterSpacing: "-0.04em",
+                }}
+              >
+                {product.title || "Untitled Product"}
+              </h1>
+
+              {product.short_description ? (
+                <p
+                  style={{
+                    margin: "0 0 18px",
+                    fontSize: 18,
+                    lineHeight: 1.8,
+                    color: "var(--muted)",
+                  }}
+                >
+                  {product.short_description}
+                </p>
+              ) : null}
+
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  lineHeight: 1.9,
+                  color: "var(--muted)",
+                }}
+              >
+                {product.description || "No description added yet."}
+              </p>
 
               <div
                 style={{
-                  display: "flex",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  marginTop: 24,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                  gap: 14,
+                  marginTop: 28,
                 }}
               >
+                <div className="feature-card" style={{ padding: 18 }}>
+                  <span className="feature-card__index">Collection</span>
+                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
+                    {product.collection_slug || "-"}
+                  </h3>
+                </div>
+
+                <div className="feature-card" style={{ padding: 18 }}>
+                  <span className="feature-card__index">Status</span>
+                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
+                    {product.status || "-"}
+                  </h3>
+                </div>
+
+                <div className="feature-card" style={{ padding: 18 }}>
+                  <span className="feature-card__index">Featured</span>
+                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
+                    {product.featured || "false"}
+                  </h3>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
                 {product.collection_slug ? (
-                  <Link
+                  <ButtonLink
                     href={`/collections/${product.collection_slug}`}
-                    className="btn-primary"
+                    variant="secondary"
                   >
                     View Collection
-                  </Link>
+                  </ButtonLink>
                 ) : null}
 
-                <Link href="/contact-us" className="btn-secondary">
-                  Contact Us
-                </Link>
+                <ButtonLink href="/contact-us">Contact Us</ButtonLink>
               </div>
             </div>
           </div>
-        </section>
+        </Container>
+      </Section>
 
-        {relatedProducts.length > 0 ? (
-          <section className="section" style={{ paddingTop: 0 }}>
-            <div className="section-head">
-              <div>
-                <h2>Related Products</h2>
-              </div>
-              <p>Other published products from the same collection.</p>
+      {relatedProducts.length > 0 ? (
+        <Section tone="soft">
+          <Container>
+            <SectionHeading
+              kicker="Related Products"
+              title="Other published products from the same collection"
+              text="These items belong to the same collection and help visitors continue browsing with a clearer structure."
+            />
+
+            <div className="cards-grid cards-grid--3">
+              {relatedProducts.map((item, index) => (
+                <ProductCard
+                  key={`${item.slug || item.title || "related-product"}-${index}`}
+                  title={item.title || "Untitled Product"}
+                  description={
+                    item.short_description ||
+                    item.description ||
+                    "No description added yet."
+                  }
+                  image={item.image || ""}
+                  href={`/products/${item.slug || ""}`}
+                  collectionLabel={item.collection_slug || "Product"}
+                />
+              ))}
             </div>
-
-            <div className="cards-3">
-              {relatedProducts.map((item, index) => {
-                const relatedImage =
-                  item.image?.trim() ||
-                  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1200&q=80";
-
-                return (
-                  <article className="card" key={item.id || item.slug || index}>
-                    <div
-                      className="card-media"
-                      style={{
-                        backgroundImage: `url(${relatedImage})`,
-                        aspectRatio: "4 / 4.5",
-                      }}
-                    />
-                    <div className="card-body">
-                      <span className="card-kicker">
-                        {item.collection_slug || "Product"}
-                      </span>
-                      <h3>{item.title || "Untitled Product"}</h3>
-                      <p>
-                        {item.short_description ||
-                          item.description ||
-                          "No description added yet."}
-                      </p>
-
-                      {item.slug ? (
-                        <div style={{ marginTop: 18 }}>
-                          <Link
-                            href={`/products/${item.slug}`}
-                            className="btn-primary"
-                          >
-                            View Product
-                          </Link>
-                        </div>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-      </div>
-    </div>
+          </Container>
+        </Section>
+      ) : null}
+    </>
   );
 }

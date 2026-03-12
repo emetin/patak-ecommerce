@@ -1,5 +1,11 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { getSheetData } from "../../lib/sheets";
+import Container from "../../components/ui/Container";
+import Section from "../../components/ui/Section";
+import SectionHeading from "../../components/ui/SectionHeading";
+import BlogCard from "../../components/cards/BlogCard";
+import ButtonLink from "../../components/ui/ButtonLink";
+import { buildPageMetadata } from "../../lib/seo";
 
 type BlogItem = {
   id?: string;
@@ -14,171 +20,131 @@ type BlogItem = {
   updated_at?: string;
 };
 
+export const metadata: Metadata = buildPageMetadata({
+  title: "Blog",
+  description:
+    "Read editorial stories, hospitality textile insights, product updates and brand content from Patak Textile.",
+  path: "/blog",
+});
+
 export default async function BlogPage() {
   let posts: BlogItem[] = [];
   let errorMessage = "";
 
   try {
     const data = await getSheetData("Blog");
+
     posts = (data as BlogItem[]).filter(
       (item) => String(item.status || "").trim().toLowerCase() === "published"
     );
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
+      error instanceof Error ? error.message : "Unknown error occurred.";
   }
 
-  const featuredPosts = posts.filter(
-    (item) => String(item.featured || "").trim().toLowerCase() === "true"
-  );
+  const featuredPosts = posts
+    .filter((item) => String(item.featured || "").trim().toLowerCase() === "true")
+    .slice(0, 3);
 
   return (
-    <div className="simple-page">
-      <div className="container">
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/" className="btn-secondary">
-            ← Home
-          </Link>
-        </div>
-
-        <section
-          style={{
-            marginBottom: 32,
-            padding: "32px 0 8px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <span className="card-kicker">Editorial Content</span>
-          <h1 style={{ maxWidth: 980 }}>
-            Hospitality textile insights, stories and brand-driven articles
-          </h1>
-          <p className="lead" style={{ maxWidth: 880, marginBottom: 0 }}>
-            The blog supports trust, expertise and premium perception with a
-            cleaner editorial layout that fits the overall hospitality-focused
-            presentation.
-          </p>
-        </section>
-
-        {errorMessage ? (
-          <div className="data-box">
-            <h3>Hata</h3>
-            <pre>{errorMessage}</pre>
+    <>
+      <section className="page-hero">
+        <Container>
+          <div className="page-hero__inner">
+            <div className="page-hero__kicker">Blog</div>
+            <h1 className="page-hero__title">
+              Editorial stories, updates and hospitality textile insights
+            </h1>
+            <p className="page-hero__text">
+              The blog supports brand perception, product storytelling and long-term
+              SEO visibility through cleaner editorial presentation.
+            </p>
           </div>
-        ) : posts.length === 0 ? (
-          <div className="empty-state">
-            Henüz yayınlanmış blog yazısı bulunamadı. Google Sheets içindeki{" "}
-            <strong>Blog</strong> tabında <strong>status</strong> alanı{" "}
-            <strong>published</strong> olan kayıtlar burada görünecek.
-          </div>
-        ) : (
-          <>
-            {featuredPosts.length > 0 ? (
-              <section className="section" style={{ paddingTop: 0, paddingBottom: 34 }}>
-                <div className="section-head">
-                  <div>
-                    <h2>Featured Articles</h2>
-                  </div>
-                  <p>
-                    Highlighted editorial pieces strengthen brand voice and help
-                    build authority in the hospitality textile space.
-                  </p>
-                </div>
+        </Container>
+      </section>
 
-                <div className="cards-2">
-                  {featuredPosts.slice(0, 2).map((post, index) => {
-                    const imageUrl =
-                      post.image?.trim() ||
-                      "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80";
+      <Section tight>
+        <Container>
+          <ButtonLink href="/" variant="secondary">
+            ← Back to Home
+          </ButtonLink>
+        </Container>
+      </Section>
 
-                    return (
-                      <article className="card" key={post.id || post.slug || index}>
-                        <div
-                          className="card-media"
-                          style={{
-                            backgroundImage: `url(${imageUrl})`,
-                            aspectRatio: "16 / 10",
-                          }}
-                        />
-                        <div className="card-body">
-                          <span className="card-kicker">Featured Article</span>
-                          <h3>{post.title || "Untitled Post"}</h3>
-                          <p>
-                            {post.excerpt ||
-                              post.content?.slice(0, 180) ||
-                              "No excerpt added yet."}
-                          </p>
-
-                          <div style={{ marginTop: 18 }}>
-                            {post.slug ? (
-                              <Link
-                                href={`/blog/${post.slug}`}
-                                className="btn-primary"
-                              >
-                                Read Article
-                              </Link>
-                            ) : null}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            <div className="section-head">
-              <div>
-                <h2>All Articles</h2>
-              </div>
-              <p>
-                Published articles are listed in a simpler editorial structure
-                with stronger readability and cleaner visual rhythm.
-              </p>
+      {errorMessage ? (
+        <Section>
+          <Container>
+            <div className="empty-state">
+              <strong>Error:</strong> {errorMessage}
             </div>
+          </Container>
+        </Section>
+      ) : posts.length === 0 ? (
+        <Section>
+          <Container>
+            <div className="empty-state">
+              No published blog posts found yet. Items with status set to
+              <strong> published</strong> in the Blog sheet will appear here.
+            </div>
+          </Container>
+        </Section>
+      ) : (
+        <>
+          {featuredPosts.length > 0 ? (
+            <Section tone="soft">
+              <Container>
+                <SectionHeading
+                  kicker="Featured Articles"
+                  title="Highlighted content that supports premium brand perception"
+                  text="Selected editorial articles help establish trust, communicate expertise and strengthen the hospitality textile narrative."
+                />
 
-            <div className="cards-3">
-              {posts.map((post, index) => {
-                const imageUrl =
-                  post.image?.trim() ||
-                  "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80";
-
-                return (
-                  <article className="card" key={post.id || post.slug || index}>
-                    <div
-                      className="card-media"
-                      style={{
-                        backgroundImage: `url(${imageUrl})`,
-                        aspectRatio: "4 / 4.6",
-                      }}
+                <div className="cards-grid cards-grid--3">
+                  {featuredPosts.map((post, index) => (
+                    <BlogCard
+                      key={`${post.slug || post.title || "featured-blog"}-${index}`}
+                      title={post.title || "Untitled Article"}
+                      excerpt={
+                        post.excerpt ||
+                        post.content ||
+                        "Read more from our editorial perspective."
+                      }
+                      image={post.image || ""}
+                      href={`/blog/${post.slug || ""}`}
                     />
-                    <div className="card-body">
-                      <span className="card-kicker">Blog Post</span>
-                      <h3>{post.title || "Untitled Post"}</h3>
-                      <p>
-                        {post.excerpt ||
-                          post.content?.slice(0, 160) ||
-                          "No excerpt added yet."}
-                      </p>
+                  ))}
+                </div>
+              </Container>
+            </Section>
+          ) : null}
 
-                      <div style={{ marginTop: 18 }}>
-                        {post.slug ? (
-                          <Link href={`/blog/${post.slug}`} className="btn-primary">
-                            Read Article
-                          </Link>
-                        ) : (
-                          <span style={{ color: "rgba(0,0,0,0.55)" }}>
-                            Slug not defined
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          <Section>
+            <Container>
+              <SectionHeading
+                kicker="All Articles"
+                title="The editorial archive"
+                text="Articles are presented with a more structured layout to support readability, browsing flow and organic visibility."
+              />
+
+              <div className="cards-grid cards-grid--3">
+                {posts.map((post, index) => (
+                  <BlogCard
+                    key={`${post.slug || post.title || "blog"}-${index}`}
+                    title={post.title || "Untitled Article"}
+                    excerpt={
+                      post.excerpt ||
+                      post.content ||
+                      "Read more from our editorial perspective."
+                    }
+                    image={post.image || ""}
+                    href={`/blog/${post.slug || ""}`}
+                  />
+                ))}
+              </div>
+            </Container>
+          </Section>
+        </>
+      )}
+    </>
   );
 }

@@ -13,10 +13,10 @@ export default function ButtonLink({
 }: ButtonLinkProps) {
   const className =
     variant === "secondary"
-      ? "btn-secondary"
+      ? "button-link btn-secondary"
       : variant === "dark"
-      ? "btn-dark"
-      : "btn-primary";
+        ? "button-link btn-dark"
+        : "button-link btn-primary";
 
   return (
     <Link href={href} className={className}>

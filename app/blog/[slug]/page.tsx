@@ -1,5 +1,11 @@
-import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getSheetData } from "../../../lib/sheets";
+import Container from "../../../components/ui/Container";
+import Section from "../../../components/ui/Section";
+import SectionHeading from "../../../components/ui/SectionHeading";
+import BlogCard from "../../../components/cards/BlogCard";
+import ButtonLink from "../../../components/ui/ButtonLink";
+import { buildPageMetadata } from "../../../lib/seo";
 
 type BlogItem = {
   id?: string;
@@ -13,6 +19,49 @@ type BlogItem = {
   created_at?: string;
   updated_at?: string;
 };
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
+
+  try {
+    const items = (await getSheetData("Blog")) as BlogItem[];
+    const post =
+      items.find(
+        (item) =>
+          String(item.slug || "").trim().toLowerCase() === decodedSlug &&
+          String(item.status || "").trim().toLowerCase() === "published"
+      ) || null;
+
+    if (!post) {
+      return buildPageMetadata({
+        title: "Article Not Found",
+        description: "The requested article could not be found.",
+        path: `/blog/${decodedSlug}`,
+      });
+    }
+
+    return buildPageMetadata({
+      title: post.title || "Blog Article",
+      description:
+        post.excerpt ||
+        post.content ||
+        "Read more from Patak Textile editorial content.",
+      image: post.image || "",
+      path: `/blog/${decodedSlug}`,
+    });
+  } catch {
+    return buildPageMetadata({
+      title: "Blog",
+      description: "Editorial content and hospitality textile insights.",
+      path: `/blog/${decodedSlug}`,
+    });
+  }
+}
 
 export default async function BlogDetailPage({
   params,
@@ -50,188 +99,137 @@ export default async function BlogDetailPage({
     }
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "An unknown error occurred.";
+      error instanceof Error ? error.message : "Unknown error occurred.";
   }
 
   if (errorMessage) {
     return (
-      <div className="simple-page">
-        <div className="container">
-          <Link
-            href="/blog"
-            className="btn-secondary"
-            style={{ marginBottom: 18 }}
-          >
-            ← Blog
-          </Link>
+      <Section>
+        <Container>
+          <ButtonLink href="/blog" variant="secondary">
+            ← Back to Blog
+          </ButtonLink>
 
-          <div className="data-box">
-            <h3>Error</h3>
-            <pre>{errorMessage}</pre>
+          <div className="empty-state" style={{ marginTop: 20 }}>
+            <strong>Error:</strong> {errorMessage}
           </div>
-        </div>
-      </div>
+        </Container>
+      </Section>
     );
   }
 
   if (!post) {
-    return (
-      <div className="simple-page">
-        <div className="container">
-          <Link
-            href="/blog"
-            className="btn-secondary"
-            style={{ marginBottom: 18 }}
-          >
-            ← Blog
-          </Link>
-
-          <div className="empty-state">
-            Blog post not found or not published.
-          </div>
-        </div>
-      </div>
-    );
+    notFound();
   }
 
-  const imageUrl =
+  const heroImage =
     post.image?.trim() ||
-    "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80";
+    "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1600&q=80";
 
   return (
-    <div className="simple-page">
-      <div className="container">
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/blog" className="btn-secondary">
-            ← Blog
-          </Link>
-        </div>
+    <>
+      <Section tight>
+        <Container>
+          <ButtonLink href="/blog" variant="secondary">
+            ← Back to Blog
+          </ButtonLink>
+        </Container>
+      </Section>
 
-        <section
-          style={{
-            marginBottom: 30,
-            padding: "32px 0 8px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <span className="card-kicker">Blog Post</span>
-          <h1 style={{ maxWidth: 980 }}>{post.title || "Untitled Post"}</h1>
-          {post.excerpt ? (
-            <p className="lead" style={{ maxWidth: 860, marginBottom: 0 }}>
-              {post.excerpt}
-            </p>
-          ) : null}
-        </section>
-
-        <section
-          className="section"
-          style={{ paddingTop: 0, paddingBottom: 34 }}
-        >
-          <div
-            className="card"
-            style={{
-              borderRadius: "0",
-              overflow: "hidden",
-            }}
-          >
+      <Section>
+        <Container>
+          <div className="home-split">
             <div
-              className="card-media"
-              style={{
-                backgroundImage: `url(${imageUrl})`,
-                aspectRatio: "16 / 7",
-              }}
-            />
-
-            <div className="card-body" style={{ padding: 34 }}>
+              className="content-card"
+              style={{ overflow: "hidden", minHeight: 520 }}
+            >
               <div
+                className="content-card__media"
                 style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  marginBottom: 18,
+                  aspectRatio: "4 / 4",
+                  minHeight: 520,
+                  backgroundImage: `url(${heroImage})`,
+                }}
+              />
+            </div>
+
+            <div className="home-split__panel">
+              <div className="section-heading__kicker">Editorial</div>
+
+              <h1
+                style={{
+                  margin: "0 0 16px",
+                  fontSize: "clamp(34px, 5vw, 64px)",
+                  lineHeight: "0.95",
+                  letterSpacing: "-0.04em",
                 }}
               >
-                <span className="status-pill">
-                  Status: {post.status || "-"}
-                </span>
-                <span className="status-pill">
-                  Featured: {post.featured || "false"}
-                </span>
-              </div>
+                {post.title || "Untitled Article"}
+              </h1>
 
-              <div
-                className="data-box"
-                style={{
-                  padding: 28,
-                  borderRadius: "0",
-                  lineHeight: 1.85,
-                  fontSize: 18,
-                }}
-              >
-                <div
+              {post.excerpt ? (
+                <p
                   style={{
-                    whiteSpace: "pre-wrap",
-                    color: "rgba(0,0,0,0.75)",
+                    margin: "0 0 18px",
+                    fontSize: 18,
+                    lineHeight: 1.8,
+                    color: "var(--muted)",
                   }}
                 >
-                  {post.content || "No content added yet."}
-                </div>
+                  {post.excerpt}
+                </p>
+              ) : null}
+
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  lineHeight: 1.9,
+                  color: "var(--muted)",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {post.content || "No content added yet."}
+              </p>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
+                <ButtonLink href="/contact-us">Contact Us</ButtonLink>
+                <ButtonLink href="/blog" variant="secondary">
+                  Back to Articles
+                </ButtonLink>
               </div>
             </div>
           </div>
-        </section>
+        </Container>
+      </Section>
 
-        {relatedPosts.length > 0 ? (
-          <section className="section" style={{ paddingTop: 0 }}>
-            <div className="section-head">
-              <div>
-                <h2>More Articles</h2>
-              </div>
-              <p>Other published editorial pieces from the blog.</p>
+      {relatedPosts.length > 0 ? (
+        <Section tone="soft">
+          <Container>
+            <SectionHeading
+              kicker="More Articles"
+              title="Continue exploring the editorial archive"
+              text="Additional content helps visitors discover more about the brand, product world and hospitality textile perspective."
+            />
+
+            <div className="cards-grid cards-grid--3">
+              {relatedPosts.map((item, index) => (
+                <BlogCard
+                  key={`${item.slug || item.title || "related-blog"}-${index}`}
+                  title={item.title || "Untitled Article"}
+                  excerpt={
+                    item.excerpt ||
+                    item.content ||
+                    "Read more from our editorial perspective."
+                  }
+                  image={item.image || ""}
+                  href={`/blog/${item.slug || ""}`}
+                />
+              ))}
             </div>
-
-            <div className="cards-3">
-              {relatedPosts.map((item, index) => {
-                const relatedImage =
-                  item.image?.trim() ||
-                  "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80";
-
-                return (
-                  <article className="card" key={item.id || item.slug || index}>
-                    <div
-                      className="card-media"
-                      style={{
-                        backgroundImage: `url(${relatedImage})`,
-                        aspectRatio: "4 / 4.6",
-                      }}
-                    />
-                    <div className="card-body">
-                      <span className="card-kicker">Blog Post</span>
-                      <h3>{item.title || "Untitled Post"}</h3>
-                      <p>
-                        {item.excerpt ||
-                          item.content?.slice(0, 160) ||
-                          "No excerpt added yet."}
-                      </p>
-
-                      {item.slug ? (
-                        <div style={{ marginTop: 18 }}>
-                          <Link
-                            href={`/blog/${item.slug}`}
-                            className="btn-primary"
-                          >
-                            Read Article
-                          </Link>
-                        </div>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        ) : null}
-      </div>
-    </div>
+          </Container>
+        </Section>
+      ) : null}
+    </>
   );
 }

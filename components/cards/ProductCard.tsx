@@ -16,66 +16,23 @@ export default function ProductCard({
   collectionLabel,
 }: ProductCardProps) {
   return (
-    <article
-      className="card"
-      style={{
-        overflow: "hidden",
-        border: "1px solid rgba(0,0,0,0.08)",
-      }}
-    >
+    <article className="content-card">
       <div
-        className="card-media"
+        className="content-card__media"
         style={{
-          backgroundImage: `url(${image})`,
-          aspectRatio: "4 / 4.8",
-          backgroundPosition: "center",
+          backgroundImage: `url(${image || "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80"})`,
         }}
       />
-
-      <div
-        className="card-body"
-        style={{
-          paddingTop: 24,
-          paddingBottom: 24,
-        }}
-      >
-        <span
-          className="card-kicker"
-          style={{
-            display: "inline-block",
-            marginBottom: 10,
-          }}
-        >
-          {collectionLabel || "Product"}
-        </span>
-
-        <h3
-          style={{
-            marginBottom: 12,
-            lineHeight: 1.18,
-          }}
-        >
-          {title}
-        </h3>
-
-        <p
-          style={{
-            minHeight: 72,
-            color: "rgba(0,0,0,0.68)",
-            lineHeight: 1.75,
-          }}
-        >
+      <div className="content-card__body">
+        <div className="content-card__eyebrow">{collectionLabel || "Product"}</div>
+        <h3 className="content-card__title">{title}</h3>
+        <p className="content-card__text">
           {description || "Explore this hospitality textile product."}
         </p>
-
-        <div
-          style={{
-            marginTop: 22,
-            paddingTop: 18,
-            borderTop: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <ButtonLink href={href}>View Product</ButtonLink>
+        <div className="content-card__footer">
+          <ButtonLink href={href} variant="secondary">
+            View Product
+          </ButtonLink>
         </div>
       </div>
     </article>

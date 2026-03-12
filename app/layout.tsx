@@ -9,10 +9,54 @@ const assistant = Assistant({
   variable: "--font-assistant",
 });
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://www.pataktextile.com";
+
 export const metadata: Metadata = {
-  title: "Patak Textile",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Patak Textile",
+    template: "%s | Patak Textile",
+  },
   description:
     "Premium hospitality textile collections, hotel bedding, towels, bathrobes and curated textile solutions by Patak Textile.",
+  keywords: [
+    "Patak Textile",
+    "hospitality textiles",
+    "hotel bedding",
+    "hotel towels",
+    "bathrobes",
+    "luxury textile",
+    "hotel linen supplier",
+    "hospitality bedding",
+    "resort textiles",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Patak Textile",
+    description:
+      "Premium hospitality textile collections, hotel bedding, towels, bathrobes and curated textile solutions by Patak Textile.",
+    url: SITE_URL,
+    siteName: "Patak Textile",
+    type: "website",
+    images: [
+      {
+        url: "/og-default.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Patak Textile",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Patak Textile",
+    description:
+      "Premium hospitality textile collections, hotel bedding, towels, bathrobes and curated textile solutions by Patak Textile.",
+    images: ["/og-default.jpg"],
+  },
 };
 
 export default function RootLayout({
@@ -21,85 +65,83 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={assistant.variable}>
-      <body>
+    <html lang="en">
+      <body className={assistant.variable}>
         <div className="site-shell">
-          <div className="topbar">
-            <div className="container topbar-inner">
-              <div className="topbar-left">
-                <span>Premium Hospitality Textile Solutions</span>
-                <span>Hotel • Residence • Resort • Spa</span>
-              </div>
-              <div className="topbar-right">
-                <span>Trusted by Hotels & Residences</span>
-              </div>
+          <div className="site-topbar">
+            <div className="container site-topbar__inner">
+              Premium Hospitality Textile Solutions for Hotel, Residence, Resort and Spa
             </div>
           </div>
 
           <header className="site-header">
-            <div className="container site-header-inner">
-              <Link href="/" className="brand">
-                <span className="brand-mark">
-                  PATAK <span>TEXTILE</span>
-                </span>
-                <span className="brand-sub">
-                  HOSPITALITY TEXTILE PRESENTATION
-                </span>
+            <div className="container site-header__inner">
+              <Link href="/" className="site-logo" aria-label="Patak Textile Home">
+                <span className="site-logo__eyebrow">Trusted by Hotels & Residences</span>
+                <span className="site-logo__title">Patak Textile</span>
               </Link>
 
-              <nav className="nav">
+              <nav className="site-nav" aria-label="Main navigation">
                 <Link href="/">Home</Link>
                 <Link href="/about-us">About Us</Link>
                 <Link href="/collections">Collections</Link>
+                <Link href="/products">Products</Link>
+                <Link href="/blog">Blog</Link>
                 <Link href="/contact-us">Contact Us</Link>
                 <Link href="/faq">FAQ</Link>
               </nav>
 
-              <div className="header-actions">
-                <Link href="/products" className="btn-primary">
+              <div className="site-header__actions">
+                <Link href="/products" className="button-link btn-primary">
                   View Products
                 </Link>
               </div>
             </div>
           </header>
 
-          <main>{children}</main>
+          <main className="site-main">{children}</main>
 
-          <footer className="footer">
-            <div className="container footer-inner">
-              <div className="footer-brand">
-                <h3>PATAK TEXTILE</h3>
-                <p>
-                  A cleaner and more prestigious digital presentation for hotel
-                  textiles, product collections, editorial content and
-                  hospitality-focused textile storytelling.
-                </p>
-              </div>
+          <footer className="site-footer">
+            <div className="site-footer__panel">
+              <div className="container">
+                <div className="site-footer__grid">
+                  <div className="site-footer__brand">
+                    <h3>PATAK TEXTILE</h3>
+                    <p>
+                      A cleaner and more prestigious digital presentation for hotel textiles,
+                      product collections, editorial content and hospitality-focused textile
+                      storytelling.
+                    </p>
+                  </div>
 
-              <div className="footer-links">
-                <div className="footer-col">
-                  <strong>Quick Links</strong>
-                  <Link href="/about-us">About Us</Link>
-                  <Link href="/services">Services</Link>
-                  <Link href="/careers">Careers</Link>
-                  <Link href="/press-release">Press Release</Link>
-                  <Link href="/policies/cookie-policy">Cookie Policy</Link>
+                  <div className="site-footer__column">
+                    <h4>Quick Links</h4>
+                    <div className="site-footer__links">
+                      <Link href="/about-us">About Us</Link>
+                      <Link href="/services">Services</Link>
+                      <Link href="/careers">Careers</Link>
+                      <Link href="/press-release">Press Release</Link>
+                      <Link href="/policies">Policies</Link>
+                    </div>
+                  </div>
+
+                  <div className="site-footer__column">
+                    <h4>Explore</h4>
+                    <div className="site-footer__links">
+                      <Link href="/blog">Blog</Link>
+                      <Link href="/collections">Collections</Link>
+                      <Link href="/our-brands">Our Brands</Link>
+                      <Link href="/our-ceo">Our CEO</Link>
+                      <Link href="/contact-us">Contact Us</Link>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="footer-col">
-                  <strong>Customer Services</strong>
-                  <Link href="/blog">Blog</Link>
-                  <Link href="/collections">Collections</Link>
-                  <Link href="/our-brands">Our Brands</Link>
-                  <Link href="/our-ceo">Our CEO</Link>
-                  <Link href="/policies/kvkk">KVKK</Link>
+                <div className="site-footer__bottom">
+                  © 2026 Patak Textile. Custom Next.js frontend with Google Sheets based
+                  content management.
                 </div>
               </div>
-            </div>
-
-            <div className="container footer-bottom">
-              © 2026 Patak Textile. Custom Next.js frontend with Google Sheets
-              based content management.
             </div>
           </footer>
         </div>

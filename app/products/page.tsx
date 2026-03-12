@@ -1,5 +1,11 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { getSheetData } from "../../lib/sheets";
+import Container from "../../components/ui/Container";
+import Section from "../../components/ui/Section";
+import SectionHeading from "../../components/ui/SectionHeading";
+import ProductCard from "../../components/cards/ProductCard";
+import ButtonLink from "../../components/ui/ButtonLink";
+import { buildPageMetadata } from "../../lib/seo";
 
 type ProductItem = {
   id?: string;
@@ -16,213 +22,134 @@ type ProductItem = {
   updated_at?: string;
 };
 
+export const metadata: Metadata = buildPageMetadata({
+  title: "Products",
+  description:
+    "Explore premium hospitality textile products including bedding, towels, bathrobes and curated hotel textile solutions by Patak Textile.",
+  path: "/products",
+});
+
 export default async function ProductsPage() {
   let products: ProductItem[] = [];
   let errorMessage = "";
 
   try {
     const data = await getSheetData("Products");
+
     products = (data as ProductItem[]).filter(
       (item) => String(item.status || "").trim().toLowerCase() === "published"
     );
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
+      error instanceof Error ? error.message : "Unknown error occurred.";
   }
 
-  const featuredProducts = products.filter(
-    (item) => String(item.featured || "").trim().toLowerCase() === "true"
-  );
+  const featuredProducts = products
+    .filter((item) => String(item.featured || "").trim().toLowerCase() === "true")
+    .slice(0, 3);
 
   return (
-    <div className="simple-page">
-      <div className="container">
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/" className="btn-secondary">
-            ← Home
-          </Link>
-        </div>
-
-        <section
-          style={{
-            marginBottom: 32,
-            padding: "32px 0 8px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <span className="card-kicker">Products</span>
-          <h1 style={{ maxWidth: 980 }}>
-            Premium hospitality textile products with a cleaner presentation
-          </h1>
-          <p className="lead" style={{ maxWidth: 880, marginBottom: 0 }}>
-            Bedding, towels, robes and hospitality essentials are displayed in a
-            more structured system that supports better navigation, stronger
-            trust and a more polished buying experience.
-          </p>
-        </section>
-
-        {errorMessage ? (
-          <div className="data-box">
-            <h3>Hata</h3>
-            <pre>{errorMessage}</pre>
+    <>
+      <section className="page-hero">
+        <Container>
+          <div className="page-hero__inner">
+            <div className="page-hero__kicker">Products</div>
+            <h1 className="page-hero__title">
+              Premium hospitality textile products with a cleaner presentation
+            </h1>
+            <p className="page-hero__text">
+              Bedding, towels, robes and hospitality essentials are displayed in a
+              more structured system that supports better navigation and a stronger
+              premium perception.
+            </p>
           </div>
-        ) : products.length === 0 ? (
-          <div className="empty-state">
-            Henüz yayınlanmış ürün bulunamadı. Google Sheets içindeki{" "}
-            <strong>Products</strong> tabında <strong>status</strong> alanı{" "}
-            <strong>published</strong> olan kayıtlar burada görünecek.
-          </div>
-        ) : (
-          <>
-            {featuredProducts.length > 0 ? (
-              <section className="section" style={{ paddingTop: 0, paddingBottom: 34 }}>
-                <div className="section-head">
-                  <div>
-                    <h2>Featured Products</h2>
-                  </div>
-                  <p>
-                    Highlighted textile products can guide visitors into the
-                    collection system and create stronger first impressions.
-                  </p>
-                </div>
+        </Container>
+      </section>
 
-                <div className="cards-2">
-                  {featuredProducts.slice(0, 2).map((product, index) => {
-                    const imageUrl =
-                      product.image?.trim() ||
-                      "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80";
+      <Section tight>
+        <Container>
+          <ButtonLink href="/" variant="secondary">
+            ← Back to Home
+          </ButtonLink>
+        </Container>
+      </Section>
 
-                    return (
-                      <article
-                        className="card"
-                        key={product.id || product.slug || index}
-                      >
-                        <div
-                          className="card-media"
-                          style={{
-                            backgroundImage: `url(${imageUrl})`,
-                            aspectRatio: "16 / 10",
-                          }}
-                        />
-                        <div className="card-body">
-                          <span className="card-kicker">
-                            {product.collection_slug || "Featured"}
-                          </span>
-                          <h3>{product.title || "Untitled Product"}</h3>
-                          <p>
-                            {product.short_description ||
-                              product.description ||
-                              "No description added yet."}
-                          </p>
-
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: 10,
-                              flexWrap: "wrap",
-                              marginTop: 18,
-                            }}
-                          >
-                            {product.slug ? (
-                              <Link
-                                href={`/products/${product.slug}`}
-                                className="btn-primary"
-                              >
-                                View Product
-                              </Link>
-                            ) : null}
-
-                            {product.collection_slug ? (
-                              <Link
-                                href={`/collections/${product.collection_slug}`}
-                                className="btn-secondary"
-                              >
-                                Collection
-                              </Link>
-                            ) : null}
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ) : null}
-
-            <div className="section-head">
-              <div>
-                <h2>All Products</h2>
-              </div>
-              <p>
-                The full product archive stays organized through consistent
-                cards, structure and collection-linked navigation.
-              </p>
+      {errorMessage ? (
+        <Section>
+          <Container>
+            <div className="empty-state">
+              <strong>Error:</strong> {errorMessage}
             </div>
+          </Container>
+        </Section>
+      ) : products.length === 0 ? (
+        <Section>
+          <Container>
+            <div className="empty-state">
+              No published products found yet. Items with status set to
+              <strong> published</strong> in the Products sheet will appear here.
+            </div>
+          </Container>
+        </Section>
+      ) : (
+        <>
+          {featuredProducts.length > 0 ? (
+            <Section tone="soft">
+              <Container>
+                <SectionHeading
+                  kicker="Featured Products"
+                  title="Highlighted textile products for a stronger first impression"
+                  text="Featured items help guide visitors into the product system and support a more curated hospitality presentation."
+                />
 
-            <div className="cards-3">
-              {products.map((product, index) => {
-                const imageUrl =
-                  product.image?.trim() ||
-                  "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80";
-
-                return (
-                  <article className="card" key={product.id || product.slug || index}>
-                    <div
-                      className="card-media"
-                      style={{
-                        backgroundImage: `url(${imageUrl})`,
-                        aspectRatio: "4 / 4.5",
-                      }}
+                <div className="cards-grid cards-grid--3">
+                  {featuredProducts.map((product, index) => (
+                    <ProductCard
+                      key={`${product.slug || product.title || "featured-product"}-${index}`}
+                      title={product.title || "Untitled Product"}
+                      description={
+                        product.short_description ||
+                        product.description ||
+                        "No description added yet."
+                      }
+                      image={product.image || ""}
+                      href={`/products/${product.slug || ""}`}
+                      collectionLabel={product.collection_slug || "Featured"}
                     />
-                    <div className="card-body">
-                      <span className="card-kicker">
-                        {product.collection_slug || "Product"}
-                      </span>
-                      <h3>{product.title || "Untitled Product"}</h3>
-                      <p>
-                        {product.short_description ||
-                          product.description ||
-                          "No description added yet."}
-                      </p>
+                  ))}
+                </div>
+              </Container>
+            </Section>
+          ) : null}
 
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          flexWrap: "wrap",
-                          marginTop: 18,
-                        }}
-                      >
-                        {product.slug ? (
-                          <Link
-                            href={`/products/${product.slug}`}
-                            className="btn-primary"
-                          >
-                            View Product
-                          </Link>
-                        ) : (
-                          <span style={{ color: "rgba(0,0,0,0.55)" }}>
-                            Slug not defined
-                          </span>
-                        )}
+          <Section>
+            <Container>
+              <SectionHeading
+                kicker="All Products"
+                title="The complete hospitality product archive"
+                text="The full product archive stays organized through consistent cards, collection-linked navigation and a more elegant visual structure."
+              />
 
-                        {product.collection_slug ? (
-                          <Link
-                            href={`/collections/${product.collection_slug}`}
-                            className="btn-secondary"
-                          >
-                            Collection
-                          </Link>
-                        ) : null}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+              <div className="cards-grid cards-grid--3">
+                {products.map((product, index) => (
+                  <ProductCard
+                    key={`${product.slug || product.title || "product"}-${index}`}
+                    title={product.title || "Untitled Product"}
+                    description={
+                      product.short_description ||
+                      product.description ||
+                      "No description added yet."
+                    }
+                    image={product.image || ""}
+                    href={`/products/${product.slug || ""}`}
+                    collectionLabel={product.collection_slug || "Product"}
+                  />
+                ))}
+              </div>
+            </Container>
+          </Section>
+        </>
+      )}
+    </>
   );
 }
