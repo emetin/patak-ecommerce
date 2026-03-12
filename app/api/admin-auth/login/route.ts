@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-
-const ADMIN_COOKIE_NAME = "ptx_admin_auth";
+import { ADMIN_COOKIE_NAME } from "../../../../lib/admin-auth";
 
 export async function POST(req: Request) {
   try {
