@@ -15,7 +15,8 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function NewCollectionPage() {
@@ -56,10 +57,10 @@ export default function NewCollectionPage() {
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Collection eklenemedi.");
+        throw new Error(data?.error || "Failed to create the collection.");
       }
 
-      setResultMessage("Collection başarıyla eklendi.");
+      setResultMessage("Collection created successfully.");
 
       setTitle("");
       setSlug("");
@@ -68,7 +69,7 @@ export default function NewCollectionPage() {
       setStatus("draft");
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setLoading(false);
@@ -88,8 +89,7 @@ export default function NewCollectionPage() {
 
         <h1>New Collection</h1>
         <p className="lead">
-          Buradan yeni koleksiyon ekleyebilirsin. Koleksiyonlar ürünlerin daha
-          düzenli ve premium görünmesini sağlar.
+          Create a new collection record for the Sheets-based catalog.
         </p>
 
         <form onSubmit={handleSubmit} className="data-box">
@@ -120,7 +120,7 @@ export default function NewCollectionPage() {
                 style={inputStyle}
               />
               <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Önerilen slug: <strong>{suggestedSlug || "-"}</strong>
+                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
 
@@ -152,13 +152,15 @@ export default function NewCollectionPage() {
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Koleksiyon açıklaması"
+                placeholder="Collection description"
                 style={{ ...inputStyle, minHeight: 180, resize: "vertical" }}
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+          >
             <button type="submit" className="btn-primary" disabled={loading}>
               {loading ? "Saving..." : "Create Collection"}
             </button>
@@ -168,13 +170,8 @@ export default function NewCollectionPage() {
             </Link>
           </div>
 
-          {resultMessage ? (
-            <div style={successBoxStyle}>{resultMessage}</div>
-          ) : null}
-
-          {resultError ? (
-            <div style={errorBoxStyle}>{resultError}</div>
-          ) : null}
+          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
+          {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
         </form>
       </div>
     </div>

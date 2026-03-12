@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { getSheetData } from "../../lib/sheets";
+import { useEffect, useMemo, useState } from "react";
 
 type CollectionItem = {
   id?: string;
@@ -12,152 +14,201 @@ type CollectionItem = {
   updated_at?: string;
 };
 
-export default async function CollectionsPage() {
-  let collections: CollectionItem[] = [];
-  let errorMessage = "";
+export default function AdminCollectionsPage() {
+  const [items, setItems] = useState<CollectionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  try {
-    const data = await getSheetData("Collections");
-    collections = (data as CollectionItem[]).filter(
-      (item) => (item.status || "").toLowerCase() === "published"
-    );
-  } catch (error) {
-    errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
-  }
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  useEffect(() => {
+    async function loadCollections() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
+
+        const response = await fetch("/api/collections/list", {
+          cache: "no-store",
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data?.error || "Failed to load collections.");
+        }
+
+        setItems(data.items || []);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "An unknown error occurred."
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadCollections();
+  }, []);
+
+  const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const title = String(item.title || "").toLowerCase();
+      const slug = String(item.slug || "").toLowerCase();
+      const description = String(item.description || "").toLowerCase();
+      const status = String(item.status || "").toLowerCase();
+
+      const matchesSearch =
+        !normalizedSearch ||
+        title.includes(normalizedSearch) ||
+        slug.includes(normalizedSearch) ||
+        description.includes(normalizedSearch);
+
+      const matchesStatus =
+        statusFilter === "all" || status === statusFilter.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [items, search, statusFilter]);
 
   return (
     <div className="simple-page">
       <div className="container">
-        <div style={{ marginBottom: 20 }}>
-          <Link href="/" className="btn-secondary">
-            ← Home
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 20,
+          }}
+        >
+          <Link href="/admin" className="btn-secondary">
+            ← Admin
+          </Link>
+          <Link href="/admin/collections/new" className="btn-primary">
+            + New Collection
           </Link>
         </div>
 
-        <section
-          className="card"
-          style={{
-            marginBottom: 30,
-            overflow: "hidden",
-            background:
-              "linear-gradient(120deg, rgba(20,17,15,0.94), rgba(42,34,28,0.90))",
-            color: "#fff",
-            border: "1px solid rgba(176, 138, 90, 0.18)",
-          }}
-        >
+        <h1>Collections Admin</h1>
+        <p className="lead">
+          Search, filter, and manage collection records from the Sheets-based system.
+        </p>
+
+        <div className="data-box" style={{ marginBottom: 24 }}>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.05fr 0.95fr",
-              gap: 0,
+              gridTemplateColumns: "2fr 1fr",
+              gap: 14,
             }}
           >
-            <div style={{ padding: 38 }}>
-              <span
-                className="card-kicker"
-                style={{ color: "#e4c79c", marginBottom: 14 }}
-              >
-                Collections
-              </span>
-
-              <h1 style={{ marginTop: 0, marginBottom: 14, color: "#fff" }}>
-                Curated textile collections for hospitality presentation
-              </h1>
-
-              <p
-                className="lead"
-                style={{
-                  marginBottom: 0,
-                  color: "rgba(255,255,255,0.76)",
-                  maxWidth: 760,
-                }}
-              >
-                Premium collection structure helps hospitality clients move
-                through bedding, towel, bathrobe and related textile families in
-                a cleaner and more trusted way.
-              </p>
+            <div>
+              <label style={labelStyle}>Search</label>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by title, slug, or description"
+                style={inputStyle}
+              />
             </div>
 
-            <div
-              style={{
-                minHeight: 280,
-                backgroundImage:
-                  'linear-gradient(120deg, rgba(0,0,0,0.18), rgba(0,0,0,0.08)), url("https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1600&q=80")',
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            />
+            <div>
+              <label style={labelStyle}>Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="all">all</option>
+                <option value="published">published</option>
+                <option value="draft">draft</option>
+                <option value="archived">archived</option>
+              </select>
+            </div>
           </div>
-        </section>
 
-        {errorMessage ? (
+          <div style={{ marginTop: 14, color: "#6d655b" }}>
+            Total records: <strong>{items.length}</strong> | Filtered:{" "}
+            <strong>{filteredItems.length}</strong>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="data-box">Loading...</div>
+        ) : errorMessage ? (
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{errorMessage}</pre>
           </div>
-        ) : collections.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="empty-state">
-            Henüz yayınlanmış koleksiyon bulunamadı. Google Sheets içindeki
-            <strong> Collections </strong>
-            tabında status alanı
-            <strong> published </strong>
-            olan kayıtlar burada görünecek.
+            No collections matched your search or filters.
           </div>
         ) : (
-          <>
-            <div className="section-head">
-              <div>
-                <h2>All Collections</h2>
-              </div>
-              <p>
-                Her koleksiyon, ürün anlatımını daha güçlü hale getiren bir ana
-                giriş noktası olarak çalışır.
-              </p>
-            </div>
-
-            <div className="cards-3">
-              {collections.map((collection, index) => {
-                const imageUrl =
-                  collection.image?.trim() ||
-                  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1200&q=80";
-
-                return (
-                  <article
-                    className="card"
-                    key={collection.id || collection.slug || index}
-                  >
-                    <div
-                      className="card-media"
-                      style={{ backgroundImage: `url(${imageUrl})` }}
-                    />
-                    <div className="card-body">
-                      <span className="card-kicker">Collection</span>
-                      <h3>{collection.title || "Untitled Collection"}</h3>
-                      <p>
-                        {collection.description || "No description added yet."}
-                      </p>
-
-                      <div style={{ marginTop: 18 }}>
-                        {collection.slug ? (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Slug</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item, index) => (
+                  <tr key={item.id || item.slug || index}>
+                    <td>{item.title || "-"}</td>
+                    <td>{item.slug || "-"}</td>
+                    <td>{item.status || "-"}</td>
+                    <td>{item.updated_at || "-"}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {item.slug ? (
                           <Link
-                            href={`/collections/${collection.slug}`}
-                            className="btn-primary"
+                            href={`/admin/collections/${item.slug}`}
+                            className="btn-secondary"
                           >
-                            View Collection
+                            Edit
                           </Link>
-                        ) : (
-                          <span style={{ color: "#6d655b" }}>Slug not defined</span>
-                        )}
+                        ) : null}
+
+                        {item.slug ? (
+                          <Link
+                            href={`/collections/${item.slug}`}
+                            className="btn-secondary"
+                          >
+                            View
+                          </Link>
+                        ) : null}
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 8,
+  fontWeight: 700,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  minHeight: 48,
+  padding: "12px 14px",
+  borderRadius: 14,
+  border: "1px solid #ddd3c5",
+  background: "#fff",
+  outline: "none",
+};

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type CollectionItem = {
@@ -26,7 +27,8 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function AdminCollectionEditPage({
@@ -34,7 +36,8 @@ export default function AdminCollectionEditPage({
 }: {
   params: { slug: string };
 }) {
-  const originalSlug = decodeURIComponent(params.slug);
+  const router = useRouter();
+  const originalSlug = decodeURIComponent(params.slug).trim().toLowerCase();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -58,31 +61,32 @@ export default function AdminCollectionEditPage({
         setLoading(true);
         setLoadError("");
 
-        const response = await fetch("/api/collections/list");
+        const response = await fetch("/api/collections/list", {
+          cache: "no-store",
+        });
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Collection listesi alınamadı.");
+          throw new Error(data?.error || "Failed to load collections.");
         }
 
         const item = (data.items as CollectionItem[]).find(
           (collection) =>
-            String(collection.slug || "").trim().toLowerCase() ===
-            originalSlug.toLowerCase()
+            String(collection.slug || "").trim().toLowerCase() === originalSlug
         );
 
         if (!item) {
-          throw new Error("Collection kaydı bulunamadı.");
+          throw new Error("Collection was not found.");
         }
 
         setTitle(item.title || "");
         setSlug(item.slug || "");
         setDescription(item.description || "");
         setImage(item.image || "");
-        setStatus((item.status || "draft").toLowerCase());
+        setStatus(String(item.status || "draft").toLowerCase());
       } catch (error) {
         setLoadError(
-          error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+          error instanceof Error ? error.message : "An unknown error occurred."
         );
       } finally {
         setLoading(false);
@@ -118,13 +122,19 @@ export default function AdminCollectionEditPage({
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Collection güncellenemedi.");
+        throw new Error(data?.error || "Failed to update the collection.");
       }
 
-      setResultMessage("Collection başarıyla güncellendi.");
+      const updatedSlug = String(data?.item?.slug || slug || originalSlug).trim();
+
+      setResultMessage("Collection updated successfully.");
+
+      if (updatedSlug && updatedSlug.toLowerCase() !== originalSlug) {
+        router.replace(`/admin/collections/${updatedSlug}`);
+      }
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setSaving(false);
@@ -133,10 +143,12 @@ export default function AdminCollectionEditPage({
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      "Bu collection kaydını silmek istediğine emin misin?"
+      "Are you sure you want to delete this collection?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeleting(true);
@@ -156,13 +168,14 @@ export default function AdminCollectionEditPage({
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Collection silinemedi.");
+        throw new Error(data?.error || "Failed to delete the collection.");
       }
 
-      window.location.href = "/admin/collections";
+      router.push("/admin/collections");
+      router.refresh();
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setDeleting(false);
@@ -173,7 +186,7 @@ export default function AdminCollectionEditPage({
     return (
       <div className="simple-page">
         <div className="container">
-          <div className="data-box">Yükleniyor...</div>
+          <div className="data-box">Loading...</div>
         </div>
       </div>
     );
@@ -183,11 +196,15 @@ export default function AdminCollectionEditPage({
     return (
       <div className="simple-page">
         <div className="container">
-          <Link href="/admin/collections" className="btn-secondary" style={{ marginBottom: 20 }}>
+          <Link
+            href="/admin/collections"
+            className="btn-secondary"
+            style={{ marginBottom: 20 }}
+          >
             ← Collections Admin
           </Link>
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{loadError}</pre>
           </div>
         </div>
@@ -198,13 +215,17 @@ export default function AdminCollectionEditPage({
   return (
     <div className="simple-page">
       <div className="container" style={{ maxWidth: 900 }}>
-        <Link href="/admin/collections" className="btn-secondary" style={{ marginBottom: 20 }}>
+        <Link
+          href="/admin/collections"
+          className="btn-secondary"
+          style={{ marginBottom: 20 }}
+        >
           ← Collections Admin
         </Link>
 
         <h1>Edit Collection</h1>
         <p className="lead">
-          Bu ekranda collection kaydını güncelleyebilir veya silebilirsin.
+          Update the collection record or remove it from the system.
         </p>
 
         <form onSubmit={handleSubmit} className="data-box">
@@ -233,7 +254,7 @@ export default function AdminCollectionEditPage({
                 style={inputStyle}
               />
               <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Önerilen slug: <strong>{suggestedSlug || "-"}</strong>
+                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
 
@@ -269,7 +290,9 @@ export default function AdminCollectionEditPage({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+          >
             <button type="submit" className="btn-primary" disabled={saving}>
               {saving ? "Saving..." : "Save Changes"}
             </button>
