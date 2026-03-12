@@ -20,7 +20,7 @@ export default async function BlogDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const decodedSlug = decodeURIComponent(slug);
+  const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
 
   let post: BlogItem | null = null;
   let relatedPosts: BlogItem[] = [];
@@ -32,8 +32,7 @@ export default async function BlogDetailPage({
     const foundPost =
       items.find(
         (item) =>
-          String(item.slug || "").trim().toLowerCase() ===
-            decodedSlug.toLowerCase() &&
+          String(item.slug || "").trim().toLowerCase() === decodedSlug &&
           String(item.status || "").trim().toLowerCase() === "published"
       ) || null;
 
@@ -45,15 +44,13 @@ export default async function BlogDetailPage({
           const itemSlug = String(item.slug || "").trim().toLowerCase();
           const itemStatus = String(item.status || "").trim().toLowerCase();
 
-          return (
-            itemSlug !== decodedSlug.toLowerCase() && itemStatus === "published"
-          );
+          return itemSlug !== decodedSlug && itemStatus === "published";
         })
         .slice(0, 3);
     }
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
+      error instanceof Error ? error.message : "An unknown error occurred.";
   }
 
   if (errorMessage) {
@@ -69,7 +66,7 @@ export default async function BlogDetailPage({
           </Link>
 
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{errorMessage}</pre>
           </div>
         </div>
@@ -90,7 +87,7 @@ export default async function BlogDetailPage({
           </Link>
 
           <div className="empty-state">
-            Blog yazısı bulunamadı veya yayınlanmamış durumda.
+            Blog post not found or not published.
           </div>
         </div>
       </div>
@@ -118,9 +115,7 @@ export default async function BlogDetailPage({
           }}
         >
           <span className="card-kicker">Blog Post</span>
-          <h1 style={{ maxWidth: 980 }}>
-            {post.title || "Untitled Post"}
-          </h1>
+          <h1 style={{ maxWidth: 980 }}>{post.title || "Untitled Post"}</h1>
           {post.excerpt ? (
             <p className="lead" style={{ maxWidth: 860, marginBottom: 0 }}>
               {post.excerpt}
@@ -128,7 +123,10 @@ export default async function BlogDetailPage({
           ) : null}
         </section>
 
-        <section className="section" style={{ paddingTop: 0, paddingBottom: 34 }}>
+        <section
+          className="section"
+          style={{ paddingTop: 0, paddingBottom: 34 }}
+        >
           <div
             className="card"
             style={{
@@ -170,7 +168,12 @@ export default async function BlogDetailPage({
                   fontSize: 18,
                 }}
               >
-                <div style={{ whiteSpace: "pre-wrap", color: "rgba(0,0,0,0.75)" }}>
+                <div
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    color: "rgba(0,0,0,0.75)",
+                  }}
+                >
                   {post.content || "No content added yet."}
                 </div>
               </div>
@@ -184,9 +187,7 @@ export default async function BlogDetailPage({
               <div>
                 <h2>More Articles</h2>
               </div>
-              <p>
-                Other published editorial pieces from the blog.
-              </p>
+              <p>Other published editorial pieces from the blog.</p>
             </div>
 
             <div className="cards-3">
@@ -215,7 +216,10 @@ export default async function BlogDetailPage({
 
                       {item.slug ? (
                         <div style={{ marginTop: 18 }}>
-                          <Link href={`/blog/${item.slug}`} className="btn-primary">
+                          <Link
+                            href={`/blog/${item.slug}`}
+                            className="btn-primary"
+                          >
                             Read Article
                           </Link>
                         </div>
