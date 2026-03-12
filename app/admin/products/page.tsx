@@ -39,13 +39,13 @@ export default function AdminProductsPage() {
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Ürünler alınamadı.");
+          throw new Error(data?.error || "Failed to load products.");
         }
 
         setItems(data.items || []);
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+          error instanceof Error ? error.message : "An unknown error occurred."
         );
       } finally {
         setLoading(false);
@@ -68,6 +68,8 @@ export default function AdminProductsPage() {
   }, [items]);
 
   const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
     return items.filter((item) => {
       const title = String(item.title || "").toLowerCase();
       const slug = String(item.slug || "").toLowerCase();
@@ -75,10 +77,10 @@ export default function AdminProductsPage() {
       const status = String(item.status || "").toLowerCase();
 
       const matchesSearch =
-        !search.trim() ||
-        title.includes(search.trim().toLowerCase()) ||
-        slug.includes(search.trim().toLowerCase()) ||
-        collectionSlug.includes(search.trim().toLowerCase());
+        !normalizedSearch ||
+        title.includes(normalizedSearch) ||
+        slug.includes(normalizedSearch) ||
+        collectionSlug.includes(normalizedSearch);
 
       const matchesStatus =
         statusFilter === "all" || status === statusFilter.toLowerCase();
@@ -112,8 +114,7 @@ export default function AdminProductsPage() {
 
         <h1>Products Admin</h1>
         <p className="lead">
-          Ürünleri ara, filtrele ve düzenle. Liste doğrudan Google Sheets
-          verisinden geliyor.
+          Search, filter, and manage product records from the Sheets-based system.
         </p>
 
         <div className="data-box" style={{ marginBottom: 24 }}>
@@ -129,7 +130,7 @@ export default function AdminProductsPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Title, slug veya collection ara"
+                placeholder="Search by title, slug, or collection"
                 style={inputStyle}
               />
             </div>
@@ -166,21 +167,21 @@ export default function AdminProductsPage() {
           </div>
 
           <div style={{ marginTop: 14, color: "#6d655b" }}>
-            Toplam kayıt: <strong>{items.length}</strong> | Filtrelenen:{" "}
+            Total records: <strong>{items.length}</strong> | Filtered:{" "}
             <strong>{filteredItems.length}</strong>
           </div>
         </div>
 
         {loading ? (
-          <div className="data-box">Yükleniyor...</div>
+          <div className="data-box">Loading...</div>
         ) : errorMessage ? (
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{errorMessage}</pre>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="empty-state">
-            Aramana veya filtrelerine uygun ürün bulunamadı.
+            No products matched your search or filters.
           </div>
         ) : (
           <div className="table-wrap">

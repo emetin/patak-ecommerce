@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type ProductItem = {
@@ -30,7 +31,8 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function AdminProductEditPage({
@@ -38,7 +40,8 @@ export default function AdminProductEditPage({
 }: {
   params: { slug: string };
 }) {
-  const originalSlug = decodeURIComponent(params.slug);
+  const router = useRouter();
+  const originalSlug = decodeURIComponent(params.slug).trim().toLowerCase();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -66,21 +69,22 @@ export default function AdminProductEditPage({
         setLoading(true);
         setLoadError("");
 
-        const response = await fetch("/api/products/list");
+        const response = await fetch("/api/products/list", {
+          cache: "no-store",
+        });
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Ürün listesi alınamadı.");
+          throw new Error(data?.error || "Failed to load products.");
         }
 
         const item = (data.items as ProductItem[]).find(
           (product) =>
-            String(product.slug || "").trim().toLowerCase() ===
-            originalSlug.toLowerCase()
+            String(product.slug || "").trim().toLowerCase() === originalSlug
         );
 
         if (!item) {
-          throw new Error("Ürün bulunamadı.");
+          throw new Error("Product was not found.");
         }
 
         setTitle(item.title || "");
@@ -90,11 +94,11 @@ export default function AdminProductEditPage({
         setImage(item.image || "");
         setGallery(item.gallery || "");
         setCollectionSlug(item.collection_slug || "");
-        setStatus((item.status || "draft").toLowerCase());
-        setFeatured((item.featured || "false").toLowerCase());
+        setStatus(String(item.status || "draft").toLowerCase());
+        setFeatured(String(item.featured || "false").toLowerCase());
       } catch (error) {
         setLoadError(
-          error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+          error instanceof Error ? error.message : "An unknown error occurred."
         );
       } finally {
         setLoading(false);
@@ -134,13 +138,19 @@ export default function AdminProductEditPage({
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Ürün güncellenemedi.");
+        throw new Error(data?.error || "Failed to update the product.");
       }
 
-      setResultMessage("Ürün başarıyla güncellendi.");
+      const updatedSlug = String(data?.item?.slug || slug || originalSlug).trim();
+
+      setResultMessage("Product updated successfully.");
+
+      if (updatedSlug && updatedSlug.toLowerCase() !== originalSlug) {
+        router.replace(`/admin/products/${updatedSlug}`);
+      }
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setSaving(false);
@@ -149,10 +159,12 @@ export default function AdminProductEditPage({
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      "Bu ürünü silmek istediğine emin misin?"
+      "Are you sure you want to delete this product?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeleting(true);
@@ -172,13 +184,14 @@ export default function AdminProductEditPage({
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Ürün silinemedi.");
+        throw new Error(data?.error || "Failed to delete the product.");
       }
 
-      window.location.href = "/admin/products";
+      router.push("/admin/products");
+      router.refresh();
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setDeleting(false);
@@ -189,7 +202,7 @@ export default function AdminProductEditPage({
     return (
       <div className="simple-page">
         <div className="container">
-          <div className="data-box">Yükleniyor...</div>
+          <div className="data-box">Loading...</div>
         </div>
       </div>
     );
@@ -199,11 +212,16 @@ export default function AdminProductEditPage({
     return (
       <div className="simple-page">
         <div className="container">
-          <Link href="/admin/products" className="btn-secondary" style={{ marginBottom: 20 }}>
+          <Link
+            href="/admin/products"
+            className="btn-secondary"
+            style={{ marginBottom: 20 }}
+          >
             ← Products Admin
           </Link>
+
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{loadError}</pre>
           </div>
         </div>
@@ -214,13 +232,17 @@ export default function AdminProductEditPage({
   return (
     <div className="simple-page">
       <div className="container" style={{ maxWidth: 900 }}>
-        <Link href="/admin/products" className="btn-secondary" style={{ marginBottom: 20 }}>
+        <Link
+          href="/admin/products"
+          className="btn-secondary"
+          style={{ marginBottom: 20 }}
+        >
           ← Products Admin
         </Link>
 
         <h1>Edit Product</h1>
         <p className="lead">
-          Bu ekranda ürün kaydını güncelleyebilir veya silebilirsin.
+          Update the product record or remove it from the system.
         </p>
 
         <form onSubmit={handleSubmit} className="data-box">
@@ -249,7 +271,7 @@ export default function AdminProductEditPage({
                 style={inputStyle}
               />
               <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Önerilen slug: <strong>{suggestedSlug || "-"}</strong>
+                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
 
@@ -324,7 +346,9 @@ export default function AdminProductEditPage({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+          >
             <button type="submit" className="btn-primary" disabled={saving}>
               {saving ? "Saving..." : "Save Changes"}
             </button>

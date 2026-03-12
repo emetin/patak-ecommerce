@@ -15,7 +15,8 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function NewProductPage() {
@@ -64,10 +65,10 @@ export default function NewProductPage() {
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Ürün eklenemedi.");
+        throw new Error(data?.error || "Failed to create the product.");
       }
 
-      setResultMessage("Ürün başarıyla eklendi.");
+      setResultMessage("Product created successfully.");
 
       setTitle("");
       setSlug("");
@@ -80,7 +81,7 @@ export default function NewProductPage() {
       setFeatured("false");
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setLoading(false);
@@ -90,14 +91,17 @@ export default function NewProductPage() {
   return (
     <div className="simple-page">
       <div className="container" style={{ maxWidth: 900 }}>
-        <Link href="/admin/products" className="btn-secondary" style={{ marginBottom: 20 }}>
+        <Link
+          href="/admin/products"
+          className="btn-secondary"
+          style={{ marginBottom: 20 }}
+        >
           ← Products Admin
         </Link>
 
         <h1>New Product</h1>
         <p className="lead">
-          Buradan Google Sheets tabanlı sistem için yeni ürün ekleyebilirsin.
-          İlk sürümde sade ama çalışan bir yapı kuruyoruz.
+          Create a new product record for the Google Sheets based catalog.
         </p>
 
         <form onSubmit={handleSubmit} className="data-box">
@@ -109,9 +113,7 @@ export default function NewProductPage() {
             }}
           >
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Title
-              </label>
+              <label style={labelStyle}>Title</label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -122,9 +124,7 @@ export default function NewProductPage() {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Slug
-              </label>
+              <label style={labelStyle}>Slug</label>
               <input
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
@@ -132,14 +132,12 @@ export default function NewProductPage() {
                 style={inputStyle}
               />
               <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Önerilen slug: <strong>{suggestedSlug || "-"}</strong>
+                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Collection Slug
-              </label>
+              <label style={labelStyle}>Collection Slug</label>
               <input
                 value={collectionSlug}
                 onChange={(e) => setCollectionSlug(e.target.value)}
@@ -149,9 +147,7 @@ export default function NewProductPage() {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Status
-              </label>
+              <label style={labelStyle}>Status</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
@@ -164,9 +160,7 @@ export default function NewProductPage() {
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Featured
-              </label>
+              <label style={labelStyle}>Featured</label>
               <select
                 value={featured}
                 onChange={(e) => setFeatured(e.target.value)}
@@ -178,9 +172,7 @@ export default function NewProductPage() {
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Image URL
-              </label>
+              <label style={labelStyle}>Image URL</label>
               <input
                 value={image}
                 onChange={(e) => setImage(e.target.value)}
@@ -190,43 +182,39 @@ export default function NewProductPage() {
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Gallery
-              </label>
+              <label style={labelStyle}>Gallery</label>
               <textarea
                 value={gallery}
                 onChange={(e) => setGallery(e.target.value)}
-                placeholder="İleride çoklu görsel için virgülle ayrılmış url veya json kullanılabilir."
+                placeholder="Comma-separated image URLs or a JSON string."
                 style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
               />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Short Description
-              </label>
+              <label style={labelStyle}>Short Description</label>
               <textarea
                 value={shortDescription}
                 onChange={(e) => setShortDescription(e.target.value)}
-                placeholder="Kısa ürün özeti"
+                placeholder="Short product summary"
                 style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
               />
             </div>
 
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 700 }}>
-                Description
-              </label>
+              <label style={labelStyle}>Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Uzun açıklama"
+                placeholder="Full product description"
                 style={{ ...inputStyle, minHeight: 180, resize: "vertical" }}
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+          >
             <button type="submit" className="btn-primary" disabled={loading}>
               {loading ? "Saving..." : "Create Product"}
             </button>
@@ -236,39 +224,19 @@ export default function NewProductPage() {
             </Link>
           </div>
 
-          {resultMessage ? (
-            <div
-              style={{
-                marginTop: 18,
-                padding: 14,
-                borderRadius: 14,
-                background: "#eef8f0",
-                border: "1px solid #cfe5d4",
-              }}
-            >
-              {resultMessage}
-            </div>
-          ) : null}
-
-          {resultError ? (
-            <div
-              style={{
-                marginTop: 18,
-                padding: 14,
-                borderRadius: 14,
-                background: "#fff1f1",
-                border: "1px solid #efc9c9",
-                color: "#7a2222",
-              }}
-            >
-              {resultError}
-            </div>
-          ) : null}
+          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
+          {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
         </form>
       </div>
     </div>
   );
 }
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 8,
+  fontWeight: 700,
+};
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -278,4 +246,21 @@ const inputStyle: React.CSSProperties = {
   border: "1px solid #ddd3c5",
   background: "#fff",
   outline: "none",
+};
+
+const successBoxStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: 14,
+  borderRadius: 14,
+  background: "#eef8f0",
+  border: "1px solid #cfe5d4",
+};
+
+const errorBoxStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: 14,
+  borderRadius: 14,
+  background: "#fff1f1",
+  border: "1px solid #efc9c9",
+  color: "#7a2222",
 };
