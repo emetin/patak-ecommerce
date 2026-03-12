@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import { appendSheetRow, getSheetData } from "../../../../lib/sheets";
 
+type CollectionRecord = {
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  image?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+const ALLOWED_STATUS = ["published", "draft", "archived"];
+
 function makeSlug(text: string) {
   return text
     .toLowerCase()
@@ -13,22 +26,34 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
+}
+
+function normalizeStatus(value: unknown) {
+  return String(value || "draft").trim().toLowerCase();
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const title = String(body?.title || "").trim();
-    const slugInput = String(body?.slug || "").trim();
-    const description = String(body?.description || "").trim();
-    const image = String(body?.image || "").trim();
-    const status = String(body?.status || "draft").trim().toLowerCase();
+    const title = normalizeText(body?.title);
+    const slugInput = normalizeText(body?.slug);
+    const description = normalizeText(body?.description);
+    const image = normalizeText(body?.image);
+    const status = normalizeStatus(body?.status);
 
     if (!title) {
       return NextResponse.json(
-        { ok: false, error: "Title alanı zorunludur." },
+        {
+          ok: false,
+          error: "Title is required.",
+        },
         { status: 400 }
       );
     }
@@ -37,29 +62,55 @@ export async function POST(req: Request) {
 
     if (!finalSlug) {
       return NextResponse.json(
-        { ok: false, error: "Geçerli bir slug oluşturulamadı." },
+        {
+          ok: false,
+          error: "A valid slug could not be generated.",
+        },
         { status: 400 }
       );
     }
 
-    if (!["published", "draft", "archived"].includes(status)) {
+    if (!ALLOWED_STATUS.includes(status)) {
       return NextResponse.json(
-        { ok: false, error: "Status yalnızca published, draft veya archived olabilir." },
+        {
+          ok: false,
+          error: 'Status must be one of: "published", "draft", or "archived".',
+        },
         { status: 400 }
       );
     }
 
-    const existingCollections = (await getSheetData("Collections")) as Array<{
-      slug?: string;
-    }>;
+    const existingCollections = (await getSheetData(
+      "Collections"
+    )) as CollectionRecord[];
+
+    const normalizedTitle = title.toLowerCase();
+    const normalizedSlug = finalSlug.toLowerCase();
 
     const slugExists = existingCollections.some(
-      (item) => String(item.slug || "").trim().toLowerCase() === finalSlug
+      (item) => String(item.slug || "").trim().toLowerCase() === normalizedSlug
     );
 
     if (slugExists) {
       return NextResponse.json(
-        { ok: false, error: "Bu slug zaten kullanılıyor." },
+        {
+          ok: false,
+          error: "This slug is already in use.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const titleExists = existingCollections.some(
+      (item) => String(item.title || "").trim().toLowerCase() === normalizedTitle
+    );
+
+    if (titleExists) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "A collection with this title already exists.",
+        },
         { status: 400 }
       );
     }
@@ -78,15 +129,23 @@ export async function POST(req: Request) {
       now,
     ]);
 
-    return NextResponse.json({
-      ok: true,
-      message: "Collection başarıyla eklendi.",
-      item: {
-        id,
-        title,
-        slug: finalSlug,
+    return NextResponse.json(
+      {
+        ok: true,
+        message: "Collection created successfully.",
+        item: {
+          id,
+          title,
+          slug: finalSlug,
+          description,
+          image,
+          status,
+          created_at: now,
+          updated_at: now,
+        },
       },
-    });
+      { status: 201 }
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -94,7 +153,7 @@ export async function POST(req: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "Collection eklenirken bilinmeyen bir hata oluştu.",
+            : "An unexpected error occurred while creating the collection.",
       },
       { status: 500 }
     );
