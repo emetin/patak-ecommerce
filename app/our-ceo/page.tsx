@@ -1,66 +1,85 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+import PageHero from "../../components/sections/PageHero";
+import InfoSplit from "../../components/sections/InfoSplit";
+import HighlightGrid from "../../components/sections/HighlightGrid";
+import Section from "../../components/ui/Section";
+import Container from "../../components/ui/Container";
+import ButtonLink from "../../components/ui/ButtonLink";
+import { buildPageMetadata } from "../../lib/seo";
 
-export default function OurCEOPage() {
+export const metadata: Metadata = buildPageMetadata({
+  title: "Our CEO",
+  description:
+    "Learn more about the leadership vision behind Patak Textile and our commitment to quality, customer trust and long-term business growth.",
+  path: "/our-ceo",
+});
+
+export default function OurCeoPage() {
   return (
-    <div className="simple-page">
-      <div className="container">
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/" className="btn-secondary">
-            ← Home
-          </Link>
-        </div>
+    <>
+      <PageHero
+        kicker="Our CEO"
+        title="Leadership shaped by quality, responsibility and long-term vision"
+        text="Patak Textile’s leadership approach is built on trust, consistency and a commitment to creating stronger value for customers through better service, better presentation and better textile solutions."
+      />
 
-        <section
-          style={{
-            marginBottom: 34,
-            padding: "32px 0 8px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <span className="card-kicker">Our CEO</span>
-          <h1 style={{ maxWidth: 920 }}>
-            Leadership, vision and the perspective behind the brand
-          </h1>
-          <p className="lead" style={{ maxWidth: 860, marginBottom: 0 }}>
-            This page can later introduce leadership, company direction and the
-            premium hospitality perspective that shapes Patak Textile.
-          </p>
-        </section>
+      <InfoSplit
+        kicker="Leadership"
+        title="A more structured vision for growth and trust"
+        text="Our leadership perspective is centered on sustainable growth, operational discipline and customer-focused decision making. The goal is to strengthen Patak Textile not only as a product supplier, but as a more reliable and refined business partner for hospitality and residential textile projects."
+        image="https://images.unsplash.com/photo-1556157382-97eda2f9e2bf?auto=format&fit=crop&w=1400&q=80"
+        imageAlt="CEO leadership visual"
+      />
 
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="split-section">
-            <div
-              className="image-feature"
-              style={{
-                backgroundImage:
-                  'url("https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=1600&q=80")',
-                minHeight: 560,
-              }}
-            />
+      <HighlightGrid
+        kicker="Core Principles"
+        title="What defines our leadership mindset"
+        items={[
+          {
+            title: "Consistency",
+            text: "A stable and disciplined business approach helps build confidence across every stage of the customer relationship.",
+          },
+          {
+            title: "Responsibility",
+            text: "Leadership means taking ownership of quality, communication and long-term brand reputation.",
+          },
+          {
+            title: "Adaptability",
+            text: "We continue improving our processes and presentation to meet changing market expectations more effectively.",
+          },
+          {
+            title: "Partnership",
+            text: "We value long-term partnerships built on trust, service quality and a shared focus on results.",
+          },
+        ]}
+      />
 
-            <div className="split-card">
-              <span className="card-kicker">Leadership Profile</span>
-              <h2>A dedicated space for company vision and executive narrative</h2>
-              <p>
-                This page is designed to become a polished leadership profile
-                page with biography, vision statement, strategic direction and
-                company philosophy.
-              </p>
-              <p>
-                Later, we can add structured biography sections, a timeline,
-                mission statements and leadership messaging aligned with the
-                hospitality textile brand image.
-              </p>
+      <InfoSplit
+        kicker="Forward Outlook"
+        title="Building a stronger future for Patak Textile"
+        text="The future of Patak Textile depends on combining operational strength with a more modern brand presence. By improving how we present ourselves and how we support our customers, we aim to grow with greater confidence in hospitality, residential and project-based textile supply."
+        image="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1400&q=80"
+        imageAlt="Forward outlook visual"
+        reverse
+      />
 
-              <div style={{ marginTop: 22 }}>
-                <Link href="/about-us" className="btn-primary">
-                  About the Company
-                </Link>
-              </div>
+      <Section tight>
+        <Container>
+          <div className="cta-panel">
+            <h2>Explore the vision behind the brand</h2>
+            <p>
+              Discover the collections, product categories and structured business
+              approach that shape Patak Textile’s next stage.
+            </p>
+            <div className="cta-panel__actions">
+              <ButtonLink href="/products">View Products</ButtonLink>
+              <ButtonLink href="/contact-us" variant="secondary">
+                Contact Us
+              </ButtonLink>
             </div>
           </div>
-        </section>
-      </div>
-    </div>
+        </Container>
+      </Section>
+    </>
   );
 }

@@ -65,20 +65,21 @@ export default async function HomePage() {
     <>
       <section className="hero">
         <Container>
-          <div className="hero__card">
-            <div className="hero__overlay" />
+          <div className="hero__wrap">
             <div className="hero__content">
-              <div className="hero__eyebrow">Hospitality Textile</div>
+              <div className="hero__eyebrow">Trusted by Hotels & Residences</div>
 
               <h1 className="hero__title">
-                Premium textile collections designed for hotels and hospitality
-                spaces
+                Excellence in textile supply for hospitality and home
               </h1>
 
+              <p className="hero__subheadline">Softness You’ll Love</p>
+
               <p className="hero__text">
-                Patak Textile presents bedding, towels, bathrobes and curated
-                hospitality products through a cleaner, more structured and more
-                prestigious digital experience.
+                Welcome to Patak Textile, your trusted partner in premium textile
+                solutions for distinguished hotels and residences. We bring together
+                Turkish craftsmanship, hospitality-focused quality and a cleaner
+                digital presentation that feels both corporate and prestigious.
               </p>
 
               <div className="hero__actions">
@@ -90,25 +91,30 @@ export default async function HomePage() {
 
               <div className="hero__stats">
                 <div className="hero__stat">
-                  <span className="hero__stat-value">Premium</span>
+                  <span className="hero__stat-value">Sustainable</span>
                   <span className="hero__stat-label">
-                    Refined product presentation for hospitality textile categories
+                    Responsible production and carefully selected materials.
                   </span>
                 </div>
+
                 <div className="hero__stat">
-                  <span className="hero__stat-value">Organized</span>
+                  <span className="hero__stat-value">Reliable</span>
                   <span className="hero__stat-label">
-                    Structured discovery across collections, products and editorial
-                    content
+                    Strong customer communication and a dependable supply approach.
                   </span>
                 </div>
+
                 <div className="hero__stat">
-                  <span className="hero__stat-value">Focused</span>
+                  <span className="hero__stat-value">Refined</span>
                   <span className="hero__stat-label">
-                    Built around hotel, resort, residence and spa textile needs
+                    Hospitality textile collections built for comfort and long-term use.
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="hero__media">
+              <div className="hero__media-badge">Premium Hospitality Textile</div>
             </div>
           </div>
         </Container>
@@ -116,26 +122,68 @@ export default async function HomePage() {
 
       <Section tight>
         <Container>
+          <div className="feature-grid">
+            <article className="feature-card">
+              <span className="feature-card__index">01 / Production</span>
+              <h3>Sustainable production</h3>
+              <p>
+                We support responsible textile manufacturing with a more conscious
+                approach to production and material selection.
+              </p>
+            </article>
+
+            <article className="feature-card">
+              <span className="feature-card__index">02 / Communication</span>
+              <h3>Professional support</h3>
+              <p>
+                Clear customer communication and responsive support help create
+                stronger long-term business partnerships.
+              </p>
+            </article>
+
+            <article className="feature-card">
+              <span className="feature-card__index">03 / Supply Chain</span>
+              <h3>Fast and reliable supply</h3>
+              <p>
+                Our supply approach is structured to support hospitality projects
+                with consistency and dependable fulfillment.
+              </p>
+            </article>
+
+            <article className="feature-card">
+              <span className="feature-card__index">04 / Quality</span>
+              <h3>Quality control</h3>
+              <p>
+                We maintain strict quality standards to ensure long-lasting
+                performance and a stronger guest experience.
+              </p>
+            </article>
+          </div>
+        </Container>
+      </Section>
+
+      <Section>
+        <Container>
           <div className="home-split">
             <div className="home-split__panel">
               <SectionHeading
-                kicker="Hospitality Focus"
-                title="A clearer structure for hospitality textile collections"
-                text="Our product organization is built around the needs of hotel, resort and residence environments. The goal is to simplify discovery while preserving a premium visual language."
+                kicker="About Patak Textile"
+                title="A cleaner and more trusted presentation for premium textile supply"
+                text="Based in Denizli, Patak Textile combines Turkish textile expertise with hospitality-driven quality standards. This renewed structure aims to present the brand in a way that feels clearer, more modern and more prestigious."
               />
               <p>
-                This project combines clarity, premium presentation and organized
-                product grouping. Instead of overwhelming visitors, it guides them
-                toward the right collection, product family and textile category
-                with a more editorial flow.
+                Instead of overwhelming visitors, the homepage now guides them through
+                the brand story, product families and editorial content with better
+                rhythm. The result is a stronger balance between clean corporate trust
+                and premium visual perception.
               </p>
             </div>
 
             <div className="home-split__quote">
               <div className="home-split__quote-inner">
                 <p className="home-split__quote-text">
-                  Designed to present hospitality textiles with greater elegance,
-                  clarity and confidence.
+                  Premium Turkish cotton hotel textiles designed to elevate comfort,
+                  aesthetics and reliability.
                 </p>
               </div>
             </div>
@@ -146,48 +194,9 @@ export default async function HomePage() {
       <Section tone="soft">
         <Container>
           <SectionHeading
-            kicker="Brand Structure"
-            title="A premium presentation system for textile categories"
-            text="The homepage now introduces Patak Textile through a more polished hierarchy, making collections and products easier to browse while supporting a stronger hospitality image."
-          />
-
-          <div className="feature-grid">
-            <article className="feature-card">
-              <span className="feature-card__index">01 / Collections</span>
-              <h3>Category-driven discovery</h3>
-              <p>
-                Visitors can move through organized hospitality product groups
-                instead of facing a disconnected catalog experience.
-              </p>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-card__index">02 / Products</span>
-              <h3>Clear product storytelling</h3>
-              <p>
-                Product blocks highlight essentials with a more curated editorial
-                rhythm suitable for premium textile positioning.
-              </p>
-            </article>
-
-            <article className="feature-card">
-              <span className="feature-card__index">03 / Editorial</span>
-              <h3>Stronger brand perception</h3>
-              <p>
-                Blog and content areas support trust, presentation quality and
-                long-term SEO growth for the public-facing site.
-              </p>
-            </article>
-          </div>
-        </Container>
-      </Section>
-
-      <Section>
-        <Container>
-          <SectionHeading
             kicker="Collections"
             title="Curated hospitality textile groups"
-            text="Explore key collection families structured for hospitality use cases."
+            text="Explore collection families built to make hospitality textile discovery cleaner, faster and more professional."
           />
 
           {featuredCollections.length > 0 ? (
@@ -211,12 +220,12 @@ export default async function HomePage() {
         </Container>
       </Section>
 
-      <Section tone="soft">
+      <Section>
         <Container>
           <SectionHeading
             kicker="Products"
-            title="Featured hospitality products"
-            text="A quick look at selected items from the current catalog."
+            title="Premium quality hospitality textile products"
+            text="Selected products are presented with a more refined card system while keeping the browsing flow simple and corporate."
           />
 
           {featuredProducts.length > 0 ? (
@@ -242,12 +251,12 @@ export default async function HomePage() {
         </Container>
       </Section>
 
-      <Section>
+      <Section tone="soft">
         <Container>
           <SectionHeading
             kicker="Editorial"
             title="Insights, updates and brand perspective"
-            text="Editorial content supports both presentation quality and discoverability."
+            text="Editorial content supports trust, discoverability and a more complete brand experience."
           />
 
           {blogPosts.length > 0 ? (
@@ -275,15 +284,17 @@ export default async function HomePage() {
       <Section tight>
         <Container>
           <div className="cta-panel">
-            <h2>Explore hospitality textile collections with a clearer structure</h2>
+            <h2>Explore Patak Textile with a more refined and structured experience</h2>
             <p>
-              Browse the product catalog, review collection groupings and discover a
-              more polished digital presentation built for Patak Textile.
+              Discover collections, browse products and review editorial content
+              through a digital presentation that combines corporate clarity with a
+              more prestigious visual layer.
             </p>
+
             <div className="cta-panel__actions">
               <ButtonLink href="/collections">View Collections</ButtonLink>
-              <ButtonLink href="/products" variant="secondary">
-                Browse Products
+              <ButtonLink href="/contact-us" variant="secondary">
+                Contact Us
               </ButtonLink>
             </div>
           </div>

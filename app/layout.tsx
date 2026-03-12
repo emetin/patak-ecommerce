@@ -70,7 +70,14 @@ export default function RootLayout({
         <div className="site-shell">
           <div className="site-topbar">
             <div className="container site-topbar__inner">
-              Premium Hospitality Textile Solutions for Hotel, Residence, Resort and Spa
+              <div className="site-topbar__left">
+                <span>customerservice@globaltexusa.com</span>
+                <span>+90 (258) 408 47 57</span>
+              </div>
+
+              <div className="site-topbar__right">
+                <span>Premium Turkish Cotton Hotel Textiles</span>
+              </div>
             </div>
           </div>
 
@@ -86,14 +93,13 @@ export default function RootLayout({
                 <Link href="/about-us">About Us</Link>
                 <Link href="/collections">Collections</Link>
                 <Link href="/products">Products</Link>
-                <Link href="/blog">Blog</Link>
                 <Link href="/contact-us">Contact Us</Link>
                 <Link href="/faq">FAQ</Link>
               </nav>
 
               <div className="site-header__actions">
-                <Link href="/products" className="button-link btn-primary">
-                  View Products
+                <Link href="/collections" className="button-link btn-primary">
+                  Explore Collections
                 </Link>
               </div>
             </div>
@@ -102,46 +108,63 @@ export default function RootLayout({
           <main className="site-main">{children}</main>
 
           <footer className="site-footer">
-            <div className="site-footer__panel">
-              <div className="container">
-                <div className="site-footer__grid">
-                  <div className="site-footer__brand">
-                    <h3>PATAK TEXTILE</h3>
-                    <p>
-                      A cleaner and more prestigious digital presentation for hotel textiles,
-                      product collections, editorial content and hospitality-focused textile
-                      storytelling.
-                    </p>
-                  </div>
+            <div className="container site-footer__top">
+              <div className="site-footer__grid">
+                <div className="site-footer__brand">
+                  <img
+                    src="https://www.pataktextile.com/cdn/shop/files/PATAK_LOGO_BEYAZ-01_170x.png?v=1716291308"
+                    alt="Patak Textile"
+                  />
+                  <p>
+                    Premium hospitality textile solutions for hotels, residences and
+                    refined accommodation projects with a stronger digital presentation.
+                  </p>
 
-                  <div className="site-footer__column">
-                    <h4>Quick Links</h4>
-                    <div className="site-footer__links">
-                      <Link href="/about-us">About Us</Link>
-                      <Link href="/services">Services</Link>
-                      <Link href="/careers">Careers</Link>
-                      <Link href="/press-release">Press Release</Link>
-                      <Link href="/policies">Policies</Link>
-                    </div>
-                  </div>
-
-                  <div className="site-footer__column">
-                    <h4>Explore</h4>
-                    <div className="site-footer__links">
-                      <Link href="/blog">Blog</Link>
-                      <Link href="/collections">Collections</Link>
-                      <Link href="/our-brands">Our Brands</Link>
-                      <Link href="/our-ceo">Our CEO</Link>
-                      <Link href="/contact-us">Contact Us</Link>
-                    </div>
+                  <div className="site-footer__meta">
+                    <span>Phone: +90 (258) 408 47 57</span>
+                    <span>
+                      Address: Selcukbey Mah. Evora Houses, C1 Block 9/A Floor:17 No:156,
+                      Merkezefendi / Denizli / Türkiye
+                    </span>
                   </div>
                 </div>
 
-                <div className="site-footer__bottom">
-                  © 2026 Patak Textile. Custom Next.js frontend with Google Sheets based
-                  content management.
+                <div className="site-footer__column">
+                  <h4>Quick Links</h4>
+                  <div className="site-footer__links">
+                    <Link href="/about-us">About Us</Link>
+                    <Link href="/services">Services</Link>
+                    <Link href="/careers">Careers</Link>
+                    <Link href="/press-release">Press Release</Link>
+                    <Link href="/policies">Cookie Policy</Link>
+                  </div>
+                </div>
+
+                <div className="site-footer__column">
+                  <h4>Customer Services</h4>
+                  <div className="site-footer__links">
+                    <Link href="/blog">Blog</Link>
+                    <Link href="/collections">Collections</Link>
+                    <Link href="/our-brands">Our Brands</Link>
+                    <Link href="/our-ceo">Our CEO</Link>
+                    <Link href="/contact-us">Contact Us</Link>
+                  </div>
+                </div>
+
+                <div className="site-footer__newsletter">
+                  <h4>Subscribe to our newsletter</h4>
+                  <p>Be the first to know about new collections and exclusive offers.</p>
+
+                  <form className="site-footer__newsletter-form">
+                    <input type="email" placeholder="Email" />
+                    <button type="submit">Submit</button>
+                  </form>
                 </div>
               </div>
+            </div>
+
+            <div className="container site-footer__bottom">
+              © 2026 Patak Textile. All Rights Reserved.
             </div>
           </footer>
         </div>

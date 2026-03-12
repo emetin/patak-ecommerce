@@ -1,61 +1,85 @@
-import Link from "next/link";
+import type { Metadata } from "next";
+import PageHero from "../../components/sections/PageHero";
+import InfoSplit from "../../components/sections/InfoSplit";
+import HighlightGrid from "../../components/sections/HighlightGrid";
+import Section from "../../components/ui/Section";
+import Container from "../../components/ui/Container";
+import ButtonLink from "../../components/ui/ButtonLink";
+import { buildPageMetadata } from "../../lib/seo";
 
-const brandBlocks = [
-  {
-    title: "Brand Ecosystem",
-    text: "This page can present connected brand structures, business units or related hospitality textile identities.",
-  },
-  {
-    title: "Positioning Clarity",
-    text: "A dedicated brand page helps visitors understand how different names or collections connect to the wider textile group.",
-  },
-  {
-    title: "Premium Narrative",
-    text: "Strong brand grouping supports trust, scale perception and a more complete corporate presentation.",
-  },
-];
+export const metadata: Metadata = buildPageMetadata({
+  title: "Our Brands",
+  description:
+    "Explore the brand universe behind Patak Textile and our approach to presenting textile quality through a cleaner and more trusted structure.",
+  path: "/our-brands",
+});
 
 export default function OurBrandsPage() {
   return (
-    <div className="simple-page">
-      <div className="container">
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/" className="btn-secondary">
-            ← Home
-          </Link>
-        </div>
+    <>
+      <PageHero
+        kicker="Our Brands"
+        title="A more refined way to present our textile world"
+        text="Our brands reflect product quality, presentation standards and a structured approach to hospitality and residential textile supply."
+      />
 
-        <section
-          style={{
-            marginBottom: 34,
-            padding: "32px 0 8px",
-            borderBottom: "1px solid rgba(0,0,0,0.08)",
-          }}
-        >
-          <span className="card-kicker">Our Brands</span>
-          <h1 style={{ maxWidth: 920 }}>
-            A structured page for connected brands and textile identities
-          </h1>
-          <p className="lead" style={{ maxWidth: 860, marginBottom: 0 }}>
-            This section can later present the wider brand universe behind Patak
-            Textile in a cleaner and more confident way.
-          </p>
-        </section>
+      <InfoSplit
+        kicker="Brand Perspective"
+        title="Each brand expression should feel clear, trusted and premium"
+        text="A strong brand structure helps customers understand not only what we sell, but also how we think about quality, category organization and long-term service. Our goal is to create a brand experience that feels more consistent, more professional and more aligned with premium hospitality expectations."
+        image="https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1400&q=80"
+        imageAlt="Our brands visual"
+      />
 
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="cards-3">
-            {brandBlocks.map((item) => (
-              <article className="card" key={item.title}>
-                <div className="card-body">
-                  <span className="card-kicker">Brand Layer</span>
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                </div>
-              </article>
-            ))}
+      <HighlightGrid
+        kicker="Brand Strength"
+        title="What our brand structure should communicate"
+        items={[
+          {
+            title: "Trust",
+            text: "A cleaner visual system helps establish stronger confidence in the brand and its capabilities.",
+          },
+          {
+            title: "Clarity",
+            text: "Organized categories and clear messaging make it easier for customers to understand our offer.",
+          },
+          {
+            title: "Continuity",
+            text: "A consistent brand language supports long-term perception and recognition.",
+          },
+          {
+            title: "Prestige",
+            text: "Subtle refinement in presentation strengthens the quality image of our textile products.",
+          },
+        ]}
+      />
+
+      <InfoSplit
+        kicker="Brand Direction"
+        title="From product supplier to stronger brand presence"
+        text="We are building a more cohesive brand language that supports both hospitality projects and premium residential positioning. This direction helps bridge clean corporate communication with a more elevated visual identity."
+        image="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1400&q=80"
+        imageAlt="Brand direction visual"
+        reverse
+      />
+
+      <Section tight>
+        <Container>
+          <div className="cta-panel">
+            <h2>Explore our collections through a stronger brand structure</h2>
+            <p>
+              Review our curated categories and product groups with a cleaner and
+              more premium presentation layer.
+            </p>
+            <div className="cta-panel__actions">
+              <ButtonLink href="/collections">View Collections</ButtonLink>
+              <ButtonLink href="/products" variant="secondary">
+                Browse Products
+              </ButtonLink>
+            </div>
           </div>
-        </section>
-      </div>
-    </div>
+        </Container>
+      </Section>
+    </>
   );
 }
