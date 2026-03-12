@@ -1,19 +1,29 @@
 import { google } from "googleapis";
+import {
+  deleteCache,
+  deleteCacheByPrefix,
+  getCache,
+  setCache,
+} from "../lib/cache";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
+const DEFAULT_TTL_SECONDS = 60;
+const DEFAULT_RETRY_COUNT = 3;
+const DEFAULT_RETRY_DELAY_MS = 500;
+
 if (!SHEET_ID) {
-  throw new Error("GOOGLE_SHEET_ID eksik.");
+  throw new Error("Missing GOOGLE_SHEET_ID.");
 }
 
 if (!CLIENT_EMAIL) {
-  throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL eksik.");
+  throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL.");
 }
 
 if (!PRIVATE_KEY) {
-  throw new Error("GOOGLE_PRIVATE_KEY eksik.");
+  throw new Error("Missing GOOGLE_PRIVATE_KEY.");
 }
 
 function getAuth() {
@@ -33,19 +43,94 @@ function getSheetsClient() {
   });
 }
 
-export async function getSheetRows(sheetName: string) {
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  retries = DEFAULT_RETRY_COUNT,
+  delayMs = DEFAULT_RETRY_DELAY_MS
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < retries) {
+        await sleep(delayMs * attempt);
+      }
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Google Sheets request failed.");
+}
+
+function getRowsCacheKey(sheetName: string) {
+  return `sheet:rows:${sheetName}`;
+}
+
+function getHeadersCacheKey(sheetName: string) {
+  return `sheet:headers:${sheetName}`;
+}
+
+function getObjectsCacheKey(sheetName: string) {
+  return `sheet:objects:${sheetName}`;
+}
+
+function getMetaCacheKey(sheetName: string) {
+  return `sheet:meta:${sheetName}`;
+}
+
+function clearSheetCache(sheetName: string) {
+  deleteCache(getRowsCacheKey(sheetName));
+  deleteCache(getHeadersCacheKey(sheetName));
+  deleteCache(getObjectsCacheKey(sheetName));
+  deleteCache(getMetaCacheKey(sheetName));
+  deleteCacheByPrefix(`sheet:${sheetName}:`);
+}
+
+export async function getSheetRows(
+  sheetName: string,
+  options?: { forceFresh?: boolean; ttlSeconds?: number }
+) {
+  const forceFresh = options?.forceFresh ?? false;
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const cacheKey = getRowsCacheKey(sheetName);
+
+  if (!forceFresh) {
+    const cached = getCache<string[][]>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+  }
+
   const sheets = getSheetsClient();
 
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: `${sheetName}!A:Z`,
+  const rows = await withRetry(async () => {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A:Z`,
+    });
+
+    return (response.data.values || []) as string[][];
   });
 
-  return response.data.values || [];
+  setCache(cacheKey, rows, ttlSeconds);
+
+  return rows;
 }
 
 export function rowsToObjects(rows: string[][]) {
-  if (!rows.length) return [];
+  if (!rows.length) {
+    return [];
+  }
 
   const headers = rows[0].map((header) => String(header).trim());
 
@@ -60,22 +145,49 @@ export function rowsToObjects(rows: string[][]) {
   });
 }
 
-export async function getSheetData(sheetName: string) {
-  const rows = await getSheetRows(sheetName);
-  return rowsToObjects(rows);
+export async function getSheetData(
+  sheetName: string,
+  options?: { forceFresh?: boolean; ttlSeconds?: number }
+) {
+  const forceFresh = options?.forceFresh ?? false;
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const cacheKey = getObjectsCacheKey(sheetName);
+
+  if (!forceFresh) {
+    const cached = getCache<Record<string, string>[]>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const rows = await getSheetRows(sheetName, {
+    forceFresh,
+    ttlSeconds,
+  });
+
+  const data = rowsToObjects(rows);
+
+  setCache(cacheKey, data, ttlSeconds);
+
+  return data;
 }
 
 export async function appendSheetRow(sheetName: string, row: string[]) {
   const sheets = getSheetsClient();
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SHEET_ID,
-    range: `${sheetName}!A:Z`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values: [row],
-    },
+  await withRetry(async () => {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A:Z`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [row],
+      },
+    });
   });
+
+  clearSheetCache(sheetName);
 
   return { ok: true };
 }
@@ -93,9 +205,32 @@ function columnNumberToLetter(columnNumber: number) {
   return letter;
 }
 
-export async function getSheetHeaders(sheetName: string) {
-  const rows = await getSheetRows(sheetName);
-  return rows[0]?.map((item) => String(item).trim()) || [];
+export async function getSheetHeaders(
+  sheetName: string,
+  options?: { forceFresh?: boolean; ttlSeconds?: number }
+) {
+  const forceFresh = options?.forceFresh ?? false;
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const cacheKey = getHeadersCacheKey(sheetName);
+
+  if (!forceFresh) {
+    const cached = getCache<string[]>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const rows = await getSheetRows(sheetName, {
+    forceFresh,
+    ttlSeconds,
+  });
+
+  const headers = rows[0]?.map((item) => String(item).trim()) || [];
+
+  setCache(cacheKey, headers, ttlSeconds);
+
+  return headers;
 }
 
 export async function findRowNumberByField(
@@ -113,7 +248,7 @@ export async function findRowNumberByField(
   const fieldIndex = headers.findIndex((header) => header === fieldName);
 
   if (fieldIndex === -1) {
-    throw new Error(`${sheetName} içinde ${fieldName} alanı bulunamadı.`);
+    throw new Error(`Field "${fieldName}" was not found in "${sheetName}".`);
   }
 
   const normalizedValue = String(fieldValue).trim().toLowerCase();
@@ -139,14 +274,18 @@ export async function updateSheetRowByRowNumber(
   const sheets = getSheetsClient();
   const lastColumnLetter = columnNumberToLetter(rowValues.length);
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SHEET_ID,
-    range: `${sheetName}!A${rowNumber}:${lastColumnLetter}${rowNumber}`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values: [rowValues],
-    },
+  await withRetry(async () => {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A${rowNumber}:${lastColumnLetter}${rowNumber}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [rowValues],
+      },
+    });
   });
+
+  clearSheetCache(sheetName);
 
   return { ok: true };
 }
@@ -159,60 +298,85 @@ export async function updateSheetRowBySlug(
   const rowNumber = await findRowNumberByField(sheetName, "slug", slug);
 
   if (!rowNumber) {
-    throw new Error(`${sheetName} içinde bu slug ile kayıt bulunamadı.`);
+    throw new Error(`No record was found in "${sheetName}" for this slug.`);
   }
 
   return updateSheetRowByRowNumber(sheetName, rowNumber, rowValues);
 }
 
-export async function getSheetMetaByTitle(sheetName: string) {
-  const sheets = getSheetsClient();
+export async function getSheetMetaByTitle(
+  sheetName: string,
+  options?: { forceFresh?: boolean; ttlSeconds?: number }
+) {
+  const forceFresh = options?.forceFresh ?? false;
+  const ttlSeconds = options?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const cacheKey = getMetaCacheKey(sheetName);
 
-  const response = await sheets.spreadsheets.get({
-    spreadsheetId: SHEET_ID,
-  });
+  if (!forceFresh) {
+    const cached = getCache<{ sheetId: number; title: string }>(cacheKey);
 
-  const sheet = response.data.sheets?.find(
-    (item) => item.properties?.title === sheetName
-  );
-
-  if (!sheet?.properties?.sheetId) {
-    throw new Error(`${sheetName} sheet bilgisi bulunamadı.`);
+    if (cached) {
+      return cached;
+    }
   }
 
-  return {
-    sheetId: sheet.properties.sheetId,
-    title: sheet.properties.title || sheetName,
-  };
+  const sheets = getSheetsClient();
+
+  const meta = await withRetry(async () => {
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId: SHEET_ID,
+    });
+
+    const sheet = response.data.sheets?.find(
+      (item) => item.properties?.title === sheetName
+    );
+
+    if (!sheet?.properties?.sheetId) {
+      throw new Error(`Sheet metadata was not found for "${sheetName}".`);
+    }
+
+    return {
+      sheetId: sheet.properties.sheetId,
+      title: sheet.properties.title || sheetName,
+    };
+  });
+
+  setCache(cacheKey, meta, ttlSeconds);
+
+  return meta;
 }
 
 export async function deleteSheetRowBySlug(sheetName: string, slug: string) {
   const rowNumber = await findRowNumberByField(sheetName, "slug", slug);
 
   if (!rowNumber) {
-    throw new Error(`${sheetName} içinde bu slug ile kayıt bulunamadı.`);
+    throw new Error(`No record was found in "${sheetName}" for this slug.`);
   }
 
   const sheets = getSheetsClient();
   const meta = await getSheetMetaByTitle(sheetName);
 
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SHEET_ID,
-    requestBody: {
-      requests: [
-        {
-          deleteDimension: {
-            range: {
-              sheetId: meta.sheetId,
-              dimension: "ROWS",
-              startIndex: rowNumber - 1,
-              endIndex: rowNumber,
+  await withRetry(async () => {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: meta.sheetId,
+                dimension: "ROWS",
+                startIndex: rowNumber - 1,
+                endIndex: rowNumber,
+              },
             },
           },
-        },
-      ],
-    },
+        ],
+      },
+    });
   });
+
+  clearSheetCache(sheetName);
 
   return { ok: true };
 }
