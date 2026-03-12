@@ -1,6 +1,24 @@
 import { NextResponse } from "next/server";
 import { appendSheetRow, getSheetData } from "../../../../lib/sheets";
 
+type ProductRecord = {
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  short_description?: string;
+  image?: string;
+  gallery?: string;
+  collection_slug?: string;
+  status?: string;
+  featured?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+const ALLOWED_STATUS = ["published", "draft", "archived"];
+const ALLOWED_FEATURED = ["true", "false"];
+
 function makeSlug(text: string) {
   return text
     .toLowerCase()
@@ -13,26 +31,42 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
+}
+
+function normalizeStatus(value: unknown) {
+  return String(value || "draft").trim().toLowerCase();
+}
+
+function normalizeBooleanString(value: unknown, fallback = "false") {
+  return String(value || fallback).trim().toLowerCase();
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const title = String(body?.title || "").trim();
-    const slugInput = String(body?.slug || "").trim();
-    const description = String(body?.description || "").trim();
-    const shortDescription = String(body?.short_description || "").trim();
-    const image = String(body?.image || "").trim();
-    const gallery = String(body?.gallery || "").trim();
-    const collectionSlug = String(body?.collection_slug || "").trim();
-    const status = String(body?.status || "draft").trim().toLowerCase();
-    const featured = String(body?.featured || "false").trim().toLowerCase();
+    const title = normalizeText(body?.title);
+    const slugInput = normalizeText(body?.slug);
+    const description = normalizeText(body?.description);
+    const shortDescription = normalizeText(body?.short_description);
+    const image = normalizeText(body?.image);
+    const gallery = normalizeText(body?.gallery);
+    const collectionSlug = normalizeText(body?.collection_slug);
+    const status = normalizeStatus(body?.status);
+    const featured = normalizeBooleanString(body?.featured, "false");
 
     if (!title) {
       return NextResponse.json(
-        { ok: false, error: "Title alanı zorunludur." },
+        {
+          ok: false,
+          error: "Title is required.",
+        },
         { status: 400 }
       );
     }
@@ -41,36 +75,63 @@ export async function POST(req: Request) {
 
     if (!finalSlug) {
       return NextResponse.json(
-        { ok: false, error: "Geçerli bir slug oluşturulamadı." },
+        {
+          ok: false,
+          error: "A valid slug could not be generated.",
+        },
         { status: 400 }
       );
     }
 
-    if (!["published", "draft", "archived"].includes(status)) {
+    if (!ALLOWED_STATUS.includes(status)) {
       return NextResponse.json(
-        { ok: false, error: "Status yalnızca published, draft veya archived olabilir." },
+        {
+          ok: false,
+          error: 'Status must be one of: "published", "draft", or "archived".',
+        },
         { status: 400 }
       );
     }
 
-    if (!["true", "false"].includes(featured)) {
+    if (!ALLOWED_FEATURED.includes(featured)) {
       return NextResponse.json(
-        { ok: false, error: "Featured yalnızca true veya false olabilir." },
+        {
+          ok: false,
+          error: 'Featured must be either "true" or "false".',
+        },
         { status: 400 }
       );
     }
 
-    const existingProducts = (await getSheetData("Products")) as Array<{
-      slug?: string;
-    }>;
+    const existingProducts = (await getSheetData("Products")) as ProductRecord[];
+
+    const normalizedTitle = title.toLowerCase();
+    const normalizedSlug = finalSlug.toLowerCase();
 
     const slugExists = existingProducts.some(
-      (item) => String(item.slug || "").trim().toLowerCase() === finalSlug
+      (item) => String(item.slug || "").trim().toLowerCase() === normalizedSlug
     );
 
     if (slugExists) {
       return NextResponse.json(
-        { ok: false, error: "Bu slug zaten kullanılıyor." },
+        {
+          ok: false,
+          error: "This slug is already in use.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const titleExists = existingProducts.some(
+      (item) => String(item.title || "").trim().toLowerCase() === normalizedTitle
+    );
+
+    if (titleExists) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "A product with this title already exists.",
+        },
         { status: 400 }
       );
     }
@@ -93,15 +154,27 @@ export async function POST(req: Request) {
       now,
     ]);
 
-    return NextResponse.json({
-      ok: true,
-      message: "Ürün başarıyla eklendi.",
-      item: {
-        id,
-        title,
-        slug: finalSlug,
+    return NextResponse.json(
+      {
+        ok: true,
+        message: "Product created successfully.",
+        item: {
+          id,
+          title,
+          slug: finalSlug,
+          description,
+          short_description: shortDescription,
+          image,
+          gallery,
+          collection_slug: collectionSlug,
+          status,
+          featured,
+          created_at: now,
+          updated_at: now,
+        },
       },
-    });
+      { status: 201 }
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -109,7 +182,7 @@ export async function POST(req: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "Ürün eklenirken bilinmeyen bir hata oluştu.",
+            : "An unexpected error occurred while creating the product.",
       },
       { status: 500 }
     );

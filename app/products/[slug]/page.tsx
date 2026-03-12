@@ -22,7 +22,7 @@ export default async function ProductDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const decodedSlug = decodeURIComponent(slug);
+  const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
 
   let product: ProductItem | null = null;
   let relatedProducts: ProductItem[] = [];
@@ -34,8 +34,7 @@ export default async function ProductDetailPage({
     const foundProduct =
       items.find(
         (item) =>
-          String(item.slug || "").trim().toLowerCase() ===
-            decodedSlug.toLowerCase() &&
+          String(item.slug || "").trim().toLowerCase() === decodedSlug &&
           String(item.status || "").trim().toLowerCase() === "published"
       ) || null;
 
@@ -55,7 +54,7 @@ export default async function ProductDetailPage({
             .toLowerCase();
 
           return (
-            itemSlug !== decodedSlug.toLowerCase() &&
+            itemSlug !== decodedSlug &&
             itemStatus === "published" &&
             itemCollectionSlug === currentCollectionSlug
           );
@@ -64,7 +63,7 @@ export default async function ProductDetailPage({
     }
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
+      error instanceof Error ? error.message : "An unknown error occurred.";
   }
 
   if (errorMessage) {
@@ -80,7 +79,7 @@ export default async function ProductDetailPage({
           </Link>
 
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{errorMessage}</pre>
           </div>
         </div>
@@ -101,7 +100,7 @@ export default async function ProductDetailPage({
           </Link>
 
           <div className="empty-state">
-            Ürün bulunamadı veya yayınlanmamış durumda.
+            Product not found or not published.
           </div>
         </div>
       </div>
@@ -141,7 +140,10 @@ export default async function ProductDetailPage({
           ) : null}
         </section>
 
-        <section className="section" style={{ paddingTop: 0, paddingBottom: 34 }}>
+        <section
+          className="section"
+          style={{ paddingTop: 0, paddingBottom: 34 }}
+        >
           <div className="split-section">
             <div
               className="image-feature"
@@ -154,12 +156,11 @@ export default async function ProductDetailPage({
             <div className="split-card">
               <span className="card-kicker">Product Overview</span>
               <h2 style={{ maxWidth: 680 }}>
-                Hospitality presentation with clearer structure and stronger detail
+                Hospitality presentation with clearer structure and stronger
+                detail
               </h2>
 
-              <p>
-                {product.description || "No description added yet."}
-              </p>
+              <p>{product.description || "No description added yet."}</p>
 
               <div className="feature-list">
                 <div className="feature-row">
@@ -209,9 +210,7 @@ export default async function ProductDetailPage({
               <div>
                 <h2>Related Products</h2>
               </div>
-              <p>
-                Other published products from the same collection.
-              </p>
+              <p>Other published products from the same collection.</p>
             </div>
 
             <div className="cards-3">
