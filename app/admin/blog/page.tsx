@@ -37,13 +37,13 @@ export default function AdminBlogPage() {
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Blog kayıtları alınamadı.");
+          throw new Error(data?.error || "Failed to load blog posts.");
         }
 
         setItems(data.items || []);
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+          error instanceof Error ? error.message : "An unknown error occurred."
         );
       } finally {
         setLoading(false);
@@ -54,6 +54,8 @@ export default function AdminBlogPage() {
   }, []);
 
   const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
     return items.filter((item) => {
       const title = String(item.title || "").toLowerCase();
       const slug = String(item.slug || "").toLowerCase();
@@ -61,13 +63,11 @@ export default function AdminBlogPage() {
       const status = String(item.status || "").toLowerCase();
       const featured = String(item.featured || "").toLowerCase();
 
-      const query = search.trim().toLowerCase();
-
       const matchesSearch =
-        !query ||
-        title.includes(query) ||
-        slug.includes(query) ||
-        excerpt.includes(query);
+        !normalizedSearch ||
+        title.includes(normalizedSearch) ||
+        slug.includes(normalizedSearch) ||
+        excerpt.includes(normalizedSearch);
 
       const matchesStatus =
         statusFilter === "all" || status === statusFilter.toLowerCase();
@@ -100,7 +100,7 @@ export default function AdminBlogPage() {
 
         <h1>Blog Admin</h1>
         <p className="lead">
-          Blog içeriklerini ara, filtrele ve yönet.
+          Search, filter, and manage blog content from the Sheets-based system.
         </p>
 
         <div className="data-box" style={{ marginBottom: 24 }}>
@@ -116,7 +116,7 @@ export default function AdminBlogPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Title, slug veya excerpt ara"
+                placeholder="Search by title, slug, or excerpt"
                 style={inputStyle}
               />
             </div>
@@ -150,21 +150,21 @@ export default function AdminBlogPage() {
           </div>
 
           <div style={{ marginTop: 14, color: "#6d655b" }}>
-            Toplam kayıt: <strong>{items.length}</strong> | Filtrelenen:{" "}
+            Total records: <strong>{items.length}</strong> | Filtered:{" "}
             <strong>{filteredItems.length}</strong>
           </div>
         </div>
 
         {loading ? (
-          <div className="data-box">Yükleniyor...</div>
+          <div className="data-box">Loading...</div>
         ) : errorMessage ? (
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{errorMessage}</pre>
           </div>
         ) : filteredItems.length === 0 ? (
           <div className="empty-state">
-            Aramana veya filtrelerine uygun blog kaydı bulunamadı.
+            No blog posts matched your search or filters.
           </div>
         ) : (
           <div className="table-wrap">

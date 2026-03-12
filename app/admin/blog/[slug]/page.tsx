@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type BlogItem = {
@@ -28,7 +29,8 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function AdminBlogEditPage({
@@ -36,7 +38,8 @@ export default function AdminBlogEditPage({
 }: {
   params: { slug: string };
 }) {
-  const originalSlug = decodeURIComponent(params.slug);
+  const router = useRouter();
+  const originalSlug = decodeURIComponent(params.slug).trim().toLowerCase();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -62,21 +65,21 @@ export default function AdminBlogEditPage({
         setLoading(true);
         setLoadError("");
 
-        const response = await fetch("/api/blog/list");
+        const response = await fetch("/api/blog/list", {
+          cache: "no-store",
+        });
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Blog listesi alınamadı.");
+          throw new Error(data?.error || "Failed to load blog posts.");
         }
 
         const item = (data.items as BlogItem[]).find(
-          (post) =>
-            String(post.slug || "").trim().toLowerCase() ===
-            originalSlug.toLowerCase()
+          (post) => String(post.slug || "").trim().toLowerCase() === originalSlug
         );
 
         if (!item) {
-          throw new Error("Blog kaydı bulunamadı.");
+          throw new Error("Blog post was not found.");
         }
 
         setTitle(item.title || "");
@@ -84,11 +87,11 @@ export default function AdminBlogEditPage({
         setExcerpt(item.excerpt || "");
         setContent(item.content || "");
         setImage(item.image || "");
-        setStatus((item.status || "draft").toLowerCase());
-        setFeatured((item.featured || "false").toLowerCase());
+        setStatus(String(item.status || "draft").toLowerCase());
+        setFeatured(String(item.featured || "false").toLowerCase());
       } catch (error) {
         setLoadError(
-          error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+          error instanceof Error ? error.message : "An unknown error occurred."
         );
       } finally {
         setLoading(false);
@@ -126,13 +129,19 @@ export default function AdminBlogEditPage({
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Blog kaydı güncellenemedi.");
+        throw new Error(data?.error || "Failed to update the blog post.");
       }
 
-      setResultMessage("Blog yazısı başarıyla güncellendi.");
+      const updatedSlug = String(data?.item?.slug || slug || originalSlug).trim();
+
+      setResultMessage("Blog post updated successfully.");
+
+      if (updatedSlug && updatedSlug.toLowerCase() !== originalSlug) {
+        router.replace(`/admin/blog/${updatedSlug}`);
+      }
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setSaving(false);
@@ -141,10 +150,12 @@ export default function AdminBlogEditPage({
 
   async function handleDelete() {
     const confirmed = window.confirm(
-      "Bu blog kaydını silmek istediğine emin misin?"
+      "Are you sure you want to delete this blog post?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      return;
+    }
 
     try {
       setDeleting(true);
@@ -164,13 +175,14 @@ export default function AdminBlogEditPage({
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Blog kaydı silinemedi.");
+        throw new Error(data?.error || "Failed to delete the blog post.");
       }
 
-      window.location.href = "/admin/blog";
+      router.push("/admin/blog");
+      router.refresh();
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setDeleting(false);
@@ -181,7 +193,7 @@ export default function AdminBlogEditPage({
     return (
       <div className="simple-page">
         <div className="container">
-          <div className="data-box">Yükleniyor...</div>
+          <div className="data-box">Loading...</div>
         </div>
       </div>
     );
@@ -191,11 +203,15 @@ export default function AdminBlogEditPage({
     return (
       <div className="simple-page">
         <div className="container">
-          <Link href="/admin/blog" className="btn-secondary" style={{ marginBottom: 20 }}>
+          <Link
+            href="/admin/blog"
+            className="btn-secondary"
+            style={{ marginBottom: 20 }}
+          >
             ← Blog Admin
           </Link>
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{loadError}</pre>
           </div>
         </div>
@@ -206,13 +222,17 @@ export default function AdminBlogEditPage({
   return (
     <div className="simple-page">
       <div className="container" style={{ maxWidth: 900 }}>
-        <Link href="/admin/blog" className="btn-secondary" style={{ marginBottom: 20 }}>
+        <Link
+          href="/admin/blog"
+          className="btn-secondary"
+          style={{ marginBottom: 20 }}
+        >
           ← Blog Admin
         </Link>
 
         <h1>Edit Blog Post</h1>
         <p className="lead">
-          Bu ekranda blog kaydını güncelleyebilir veya silebilirsin.
+          Update the blog post record or remove it from the system.
         </p>
 
         <form onSubmit={handleSubmit} className="data-box">
@@ -241,7 +261,7 @@ export default function AdminBlogEditPage({
                 style={inputStyle}
               />
               <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Önerilen slug: <strong>{suggestedSlug || "-"}</strong>
+                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
 
@@ -298,7 +318,9 @@ export default function AdminBlogEditPage({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+          >
             <button type="submit" className="btn-primary" disabled={saving}>
               {saving ? "Saving..." : "Save Changes"}
             </button>

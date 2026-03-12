@@ -15,7 +15,8 @@ function makeSlug(text: string) {
     .replace(/ç/g, "c")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function NewBlogPage() {
@@ -60,10 +61,10 @@ export default function NewBlogPage() {
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Blog yazısı eklenemedi.");
+        throw new Error(data?.error || "Failed to create the blog post.");
       }
 
-      setResultMessage("Blog yazısı başarıyla eklendi.");
+      setResultMessage("Blog post created successfully.");
 
       setTitle("");
       setSlug("");
@@ -74,7 +75,7 @@ export default function NewBlogPage() {
       setFeatured("false");
     } catch (error) {
       setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
+        error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setLoading(false);
@@ -84,13 +85,17 @@ export default function NewBlogPage() {
   return (
     <div className="simple-page">
       <div className="container" style={{ maxWidth: 900 }}>
-        <Link href="/admin/blog" className="btn-secondary" style={{ marginBottom: 20 }}>
+        <Link
+          href="/admin/blog"
+          className="btn-secondary"
+          style={{ marginBottom: 20 }}
+        >
           ← Blog Admin
         </Link>
 
         <h1>New Blog Post</h1>
         <p className="lead">
-          Buradan Google Sheets tabanlı yapı için yeni blog yazısı ekleyebilirsin.
+          Create a new blog post record for the Sheets-based content system.
         </p>
 
         <form onSubmit={handleSubmit} className="data-box">
@@ -121,7 +126,7 @@ export default function NewBlogPage() {
                 style={inputStyle}
               />
               <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Önerilen slug: <strong>{suggestedSlug || "-"}</strong>
+                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
 
@@ -165,7 +170,7 @@ export default function NewBlogPage() {
               <textarea
                 value={excerpt}
                 onChange={(e) => setExcerpt(e.target.value)}
-                placeholder="Kısa özet"
+                placeholder="Short post summary"
                 style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
               />
             </div>
@@ -175,13 +180,15 @@ export default function NewBlogPage() {
               <textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Blog içeriği"
+                placeholder="Full blog content"
                 style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
               />
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
+          <div
+            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
+          >
             <button type="submit" className="btn-primary" disabled={loading}>
               {loading ? "Saving..." : "Create Blog Post"}
             </button>
@@ -191,13 +198,8 @@ export default function NewBlogPage() {
             </Link>
           </div>
 
-          {resultMessage ? (
-            <div style={successBoxStyle}>{resultMessage}</div>
-          ) : null}
-
-          {resultError ? (
-            <div style={errorBoxStyle}>{resultError}</div>
-          ) : null}
+          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
+          {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
         </form>
       </div>
     </div>
