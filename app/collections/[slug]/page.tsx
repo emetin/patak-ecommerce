@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { getSheetData } from "../../../lib/sheets";
 
+type CollectionItem = {
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  image?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 type ProductItem = {
   id?: string;
   title?: string;
@@ -16,55 +27,55 @@ type ProductItem = {
   updated_at?: string;
 };
 
-export default async function ProductDetailPage({
+export default async function CollectionDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const decodedSlug = decodeURIComponent(slug);
+  const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
 
-  let product: ProductItem | null = null;
-  let relatedProducts: ProductItem[] = [];
+  let collection: CollectionItem | null = null;
+  let products: ProductItem[] = [];
+  let featuredProducts: ProductItem[] = [];
   let errorMessage = "";
 
   try {
-    const items = (await getSheetData("Products")) as ProductItem[];
+    const [collectionItems, productItems] = await Promise.all([
+      getSheetData("Collections"),
+      getSheetData("Products"),
+    ]);
 
-    const foundProduct =
-      items.find(
+    const collections = collectionItems as CollectionItem[];
+    const allProducts = productItems as ProductItem[];
+
+    collection =
+      collections.find(
         (item) =>
-          String(item.slug || "").trim().toLowerCase() ===
-            decodedSlug.toLowerCase() &&
+          String(item.slug || "").trim().toLowerCase() === decodedSlug &&
           String(item.status || "").trim().toLowerCase() === "published"
       ) || null;
 
-    product = foundProduct;
+    if (collection) {
+      products = allProducts.filter((item) => {
+        const itemStatus = String(item.status || "").trim().toLowerCase();
+        const itemCollectionSlug = String(item.collection_slug || "")
+          .trim()
+          .toLowerCase();
 
-    if (foundProduct) {
-      const currentCollectionSlug = String(foundProduct.collection_slug || "")
-        .trim()
-        .toLowerCase();
+        return itemStatus === "published" && itemCollectionSlug === decodedSlug;
+      });
 
-      relatedProducts = items
-        .filter((item) => {
-          const itemSlug = String(item.slug || "").trim().toLowerCase();
-          const itemStatus = String(item.status || "").trim().toLowerCase();
-          const itemCollectionSlug = String(item.collection_slug || "")
-            .trim()
-            .toLowerCase();
-
-          return (
-            itemSlug !== decodedSlug.toLowerCase() &&
-            itemStatus === "published" &&
-            itemCollectionSlug === currentCollectionSlug
-          );
-        })
+      featuredProducts = products
+        .filter(
+          (item) =>
+            String(item.featured || "").trim().toLowerCase() === "true"
+        )
         .slice(0, 3);
     }
   } catch (error) {
     errorMessage =
-      error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu.";
+      error instanceof Error ? error.message : "An unknown error occurred.";
   }
 
   if (errorMessage) {
@@ -72,15 +83,15 @@ export default async function ProductDetailPage({
       <div className="simple-page">
         <div className="container">
           <Link
-            href="/products"
+            href="/collections"
             className="btn-secondary"
             style={{ marginBottom: 18 }}
           >
-            ← Products
+            ← Collections
           </Link>
 
           <div className="data-box">
-            <h3>Hata</h3>
+            <h3>Error</h3>
             <pre>{errorMessage}</pre>
           </div>
         </div>
@@ -88,36 +99,36 @@ export default async function ProductDetailPage({
     );
   }
 
-  if (!product) {
+  if (!collection) {
     return (
       <div className="simple-page">
         <div className="container">
           <Link
-            href="/products"
+            href="/collections"
             className="btn-secondary"
             style={{ marginBottom: 18 }}
           >
-            ← Products
+            ← Collections
           </Link>
 
           <div className="empty-state">
-            Ürün bulunamadı veya yayınlanmamış durumda.
+            Collection not found or not published.
           </div>
         </div>
       </div>
     );
   }
 
-  const imageUrl =
-    product.image?.trim() ||
+  const heroImage =
+    collection.image?.trim() ||
     "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=80";
 
   return (
     <div className="simple-page">
       <div className="container">
         <div style={{ marginBottom: 18 }}>
-          <Link href="/products" className="btn-secondary">
-            ← Products
+          <Link href="/collections" className="btn-secondary">
+            ← Collections
           </Link>
         </div>
 
@@ -128,53 +139,55 @@ export default async function ProductDetailPage({
             borderBottom: "1px solid rgba(0,0,0,0.08)",
           }}
         >
-          <span className="card-kicker">
-            {product.collection_slug || "Product"}
-          </span>
+          <span className="card-kicker">Collection</span>
           <h1 style={{ maxWidth: 980 }}>
-            {product.title || "Untitled Product"}
+            {collection.title || "Untitled Collection"}
           </h1>
-          {product.short_description ? (
+          {collection.description ? (
             <p className="lead" style={{ maxWidth: 860, marginBottom: 0 }}>
-              {product.short_description}
+              {collection.description}
             </p>
           ) : null}
         </section>
 
-        <section className="section" style={{ paddingTop: 0, paddingBottom: 34 }}>
+        <section
+          className="section"
+          style={{ paddingTop: 0, paddingBottom: 34 }}
+        >
           <div className="split-section">
             <div
               className="image-feature"
               style={{
-                backgroundImage: `url("${imageUrl}")`,
+                backgroundImage: `url("${heroImage}")`,
                 minHeight: 620,
               }}
             />
 
             <div className="split-card">
-              <span className="card-kicker">Product Overview</span>
+              <span className="card-kicker">Collection Overview</span>
               <h2 style={{ maxWidth: 680 }}>
-                Hospitality presentation with clearer structure and stronger detail
+                Curated hospitality products grouped with a clearer structure
               </h2>
 
               <p>
-                {product.description || "No description added yet."}
+                {collection.description ||
+                  "No description has been added for this collection yet."}
               </p>
 
               <div className="feature-list">
                 <div className="feature-row">
-                  <strong>Collection</strong>
-                  <span>{product.collection_slug || "-"}</span>
+                  <strong>Slug</strong>
+                  <span>{collection.slug || "-"}</span>
                 </div>
 
                 <div className="feature-row">
                   <strong>Status</strong>
-                  <span>{product.status || "-"}</span>
+                  <span>{collection.status || "-"}</span>
                 </div>
 
                 <div className="feature-row">
-                  <strong>Featured</strong>
-                  <span>{product.featured || "false"}</span>
+                  <strong>Products</strong>
+                  <span>{products.length}</span>
                 </div>
               </div>
 
@@ -186,14 +199,9 @@ export default async function ProductDetailPage({
                   marginTop: 24,
                 }}
               >
-                {product.collection_slug ? (
-                  <Link
-                    href={`/collections/${product.collection_slug}`}
-                    className="btn-primary"
-                  >
-                    View Collection
-                  </Link>
-                ) : null}
+                <Link href="/products" className="btn-primary">
+                  Browse Products
+                </Link>
 
                 <Link href="/contact-us" className="btn-secondary">
                   Contact Us
@@ -203,20 +211,20 @@ export default async function ProductDetailPage({
           </div>
         </section>
 
-        {relatedProducts.length > 0 ? (
+        {featuredProducts.length > 0 ? (
           <section className="section" style={{ paddingTop: 0 }}>
             <div className="section-head">
               <div>
-                <h2>Related Products</h2>
+                <h2>Featured Products</h2>
               </div>
               <p>
-                Other published products from the same collection.
+                Highlighted published products from this collection.
               </p>
             </div>
 
             <div className="cards-3">
-              {relatedProducts.map((item, index) => {
-                const relatedImage =
+              {featuredProducts.map((item, index) => {
+                const productImage =
                   item.image?.trim() ||
                   "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1200&q=80";
 
@@ -225,19 +233,17 @@ export default async function ProductDetailPage({
                     <div
                       className="card-media"
                       style={{
-                        backgroundImage: `url(${relatedImage})`,
+                        backgroundImage: `url(${productImage})`,
                         aspectRatio: "4 / 4.5",
                       }}
                     />
                     <div className="card-body">
-                      <span className="card-kicker">
-                        {item.collection_slug || "Product"}
-                      </span>
+                      <span className="card-kicker">Featured Product</span>
                       <h3>{item.title || "Untitled Product"}</h3>
                       <p>
                         {item.short_description ||
                           item.description ||
-                          "No description added yet."}
+                          "No description has been added yet."}
                       </p>
 
                       {item.slug ? (
@@ -257,6 +263,65 @@ export default async function ProductDetailPage({
             </div>
           </section>
         ) : null}
+
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="section-head">
+            <div>
+              <h2>All Products in This Collection</h2>
+            </div>
+            <p>
+              Published products currently assigned to this collection.
+            </p>
+          </div>
+
+          {products.length > 0 ? (
+            <div className="cards-3">
+              {products.map((item, index) => {
+                const productImage =
+                  item.image?.trim() ||
+                  "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=1200&q=80";
+
+                return (
+                  <article className="card" key={item.id || item.slug || index}>
+                    <div
+                      className="card-media"
+                      style={{
+                        backgroundImage: `url(${productImage})`,
+                        aspectRatio: "4 / 4.5",
+                      }}
+                    />
+                    <div className="card-body">
+                      <span className="card-kicker">
+                        {collection.title || "Collection"}
+                      </span>
+                      <h3>{item.title || "Untitled Product"}</h3>
+                      <p>
+                        {item.short_description ||
+                          item.description ||
+                          "No description has been added yet."}
+                      </p>
+
+                      {item.slug ? (
+                        <div style={{ marginTop: 18 }}>
+                          <Link
+                            href={`/products/${item.slug}`}
+                            className="btn-primary"
+                          >
+                            View Product
+                          </Link>
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty-state">
+              No published products were found in this collection.
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
