@@ -3,7 +3,7 @@ import Link from "next/link";
 type ButtonLinkProps = {
   href: string;
   children: React.ReactNode;
-  variant?: "primary" | "secondary" | "dark";
+  variant?: "primary" | "secondary" | "accent";
 };
 
 export default function ButtonLink({
@@ -14,8 +14,8 @@ export default function ButtonLink({
   const className =
     variant === "secondary"
       ? "button-link btn-secondary"
-      : variant === "dark"
-        ? "button-link btn-dark"
+      : variant === "accent"
+        ? "button-link btn-accent"
         : "button-link btn-primary";
 
   return (

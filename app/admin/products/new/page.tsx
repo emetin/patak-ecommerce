@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import ImportPanel from "../../../../components/admin/ImportPanel";
 
 function makeSlug(text: string) {
   return text
@@ -89,29 +90,45 @@ export default function NewProductPage() {
   }
 
   return (
-    <div className="simple-page">
-      <div className="container" style={{ maxWidth: 900 }}>
-        <Link
-          href="/admin/products"
-          className="btn-secondary"
-          style={{ marginBottom: 20 }}
-        >
-          ← Products Admin
-        </Link>
+    <div style={{ display: "grid", gap: 24 }}>
+      <div style={pageHeaderStyle}>
+        <div>
+          <Link href="/admin/products" style={backLinkStyle}>
+            ← Back to Products
+          </Link>
+          <h1 style={titleStyle}>New Product</h1>
+          <p style={subtitleStyle}>
+            Create a single product or upload a CSV/JSON file for bulk import.
+          </p>
+        </div>
 
-        <h1>New Product</h1>
-        <p className="lead">
-          Create a new product record for the Google Sheets based catalog.
-        </p>
+        <div style={headerActionsStyle}>
+          <a href="/api/products/export?format=csv" style={secondaryButtonStyle}>
+            Export CSV
+          </a>
+          <a href="/api/products/export?format=json" style={secondaryButtonStyle}>
+            Export JSON
+          </a>
+          <a href="/api/products/export?format=xml" style={secondaryButtonStyle}>
+            Export XML
+          </a>
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="data-box">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 16,
-            }}
-          >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.2fr 0.9fr",
+          gap: 24,
+          alignItems: "start",
+        }}
+      >
+        <form onSubmit={handleSubmit} style={cardStyle}>
+          <div style={sectionTitleWrapStyle}>
+            <h2 style={sectionTitleStyle}>Create Product Manually</h2>
+          </div>
+
+          <div style={formGridStyle}>
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={labelStyle}>Title</label>
               <input
@@ -131,7 +148,7 @@ export default function NewProductPage() {
                 placeholder="luxury-hotel-towel-set"
                 style={inputStyle}
               />
-              <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
+              <div style={helperTextStyle}>
                 Suggested slug: <strong>{suggestedSlug || "-"}</strong>
               </div>
             </div>
@@ -186,7 +203,7 @@ export default function NewProductPage() {
               <textarea
                 value={gallery}
                 onChange={(e) => setGallery(e.target.value)}
-                placeholder="Comma-separated image URLs or a JSON string."
+                placeholder="Comma-separated image URLs or a JSON string"
                 style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
               />
             </div>
@@ -197,7 +214,7 @@ export default function NewProductPage() {
                 value={shortDescription}
                 onChange={(e) => setShortDescription(e.target.value)}
                 placeholder="Short product summary"
-                style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
+                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
               />
             </div>
 
@@ -207,19 +224,17 @@ export default function NewProductPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Full product description"
-                style={{ ...inputStyle, minHeight: 180, resize: "vertical" }}
+                style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
               />
             </div>
           </div>
 
-          <div
-            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
-          >
-            <button type="submit" className="btn-primary" disabled={loading}>
+          <div style={buttonRowStyle}>
+            <button type="submit" style={primaryButtonStyle} disabled={loading}>
               {loading ? "Saving..." : "Create Product"}
             </button>
 
-            <Link href="/admin/products" className="btn-secondary">
+            <Link href="/admin/products" style={secondaryButtonStyle}>
               Back to Products
             </Link>
           </div>
@@ -227,31 +242,141 @@ export default function NewProductPage() {
           {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
           {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
         </form>
+
+        <ImportPanel
+          endpoint="/api/products/import"
+          description="Upload a CSV or JSON file, or paste content manually. This is suitable for Shopify, Zoho, or your own prepared files after adapting headers to the Patak structure."
+          csvHeader="id,title,slug,description,short_description,image,gallery,collection_slug,status,featured,created_at,updated_at"
+        />
       </div>
     </div>
   );
 }
 
+const pageHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 20,
+  flexWrap: "wrap",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 42,
+  lineHeight: 1.1,
+  margin: "10px 0 10px",
+  fontWeight: 800,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#6f6559",
+  fontSize: 16,
+};
+
+const backLinkStyle: React.CSSProperties = {
+  display: "inline-block",
+  textDecoration: "none",
+  color: "#5e5448",
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const headerActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  padding: 24,
+  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+};
+
+const sectionTitleWrapStyle: React.CSSProperties = {
+  marginBottom: 18,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 24,
+  fontWeight: 800,
+};
+
+const formGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 16,
+};
+
 const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 8,
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 15,
+};
+
+const helperTextStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 13,
+  color: "#7d7266",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: 48,
-  padding: "12px 14px",
-  borderRadius: 14,
-  border: "1px solid #ddd3c5",
-  background: "#fff",
+  minHeight: 52,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid #d9cfbf",
+  background: "#fcfbf8",
   outline: "none",
+  fontSize: 15,
+};
+
+const buttonRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  marginTop: 24,
+  flexWrap: "wrap",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #2f7d62",
+  background: "#2f7d62",
+  color: "#fff",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
 };
 
 const successBoxStyle: React.CSSProperties = {
   marginTop: 18,
   padding: 14,
-  borderRadius: 14,
+  borderRadius: 16,
   background: "#eef8f0",
   border: "1px solid #cfe5d4",
 };
@@ -259,7 +384,7 @@ const successBoxStyle: React.CSSProperties = {
 const errorBoxStyle: React.CSSProperties = {
   marginTop: 18,
   padding: 14,
-  borderRadius: 14,
+  borderRadius: 16,
   background: "#fff1f1",
   border: "1px solid #efc9c9",
   color: "#7a2222",

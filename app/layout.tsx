@@ -93,12 +93,13 @@ export default function RootLayout({
                 <Link href="/about-us">About Us</Link>
                 <Link href="/collections">Collections</Link>
                 <Link href="/products">Products</Link>
+                <Link href="/our-brands">Our Brands</Link>
                 <Link href="/contact-us">Contact Us</Link>
                 <Link href="/faq">FAQ</Link>
               </nav>
 
               <div className="site-header__actions">
-                <Link href="/collections" className="button-link btn-primary">
+                <Link href="/collections" className="button-link btn-accent">
                   Explore Collections
                 </Link>
               </div>
@@ -117,7 +118,8 @@ export default function RootLayout({
                   />
                   <p>
                     Premium hospitality textile solutions for hotels, residences and
-                    refined accommodation projects with a stronger digital presentation.
+                    refined accommodation projects with a cleaner and more trusted
+                    presentation.
                   </p>
 
                   <div className="site-footer__meta">
@@ -136,16 +138,16 @@ export default function RootLayout({
                     <Link href="/services">Services</Link>
                     <Link href="/careers">Careers</Link>
                     <Link href="/press-release">Press Release</Link>
-                    <Link href="/policies">Cookie Policy</Link>
+                    <Link href="/policies">Policies</Link>
                   </div>
                 </div>
 
                 <div className="site-footer__column">
-                  <h4>Customer Services</h4>
+                  <h4>Explore</h4>
                   <div className="site-footer__links">
-                    <Link href="/blog">Blog</Link>
                     <Link href="/collections">Collections</Link>
-                    <Link href="/our-brands">Our Brands</Link>
+                    <Link href="/products">Products</Link>
+                    <Link href="/blog">Blog</Link>
                     <Link href="/our-ceo">Our CEO</Link>
                     <Link href="/contact-us">Contact Us</Link>
                   </div>
@@ -153,7 +155,7 @@ export default function RootLayout({
 
                 <div className="site-footer__newsletter">
                   <h4>Subscribe to our newsletter</h4>
-                  <p>Be the first to know about new collections and exclusive offers.</p>
+                  <p>Be the first to know about new collections and selected updates.</p>
 
                   <form className="site-footer__newsletter-form">
                     <input type="email" placeholder="Email" />

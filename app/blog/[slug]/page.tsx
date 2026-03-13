@@ -5,6 +5,7 @@ import Section from "../../../components/ui/Section";
 import SectionHeading from "../../../components/ui/SectionHeading";
 import BlogCard from "../../../components/cards/BlogCard";
 import ButtonLink from "../../../components/ui/ButtonLink";
+import DetailHero from "../../../components/sections/DetailHero";
 import { buildPageMetadata } from "../../../lib/seo";
 
 type BlogItem = {
@@ -106,11 +107,7 @@ export default async function BlogDetailPage({
     return (
       <Section>
         <Container>
-          <ButtonLink href="/blog" variant="secondary">
-            ← Back to Blog
-          </ButtonLink>
-
-          <div className="empty-state" style={{ marginTop: 20 }}>
+          <div className="empty-state">
             <strong>Error:</strong> {errorMessage}
           </div>
         </Container>
@@ -136,69 +133,27 @@ export default async function BlogDetailPage({
         </Container>
       </Section>
 
+      <DetailHero
+        kicker="Editorial"
+        title={post.title || "Untitled Article"}
+        text={post.excerpt || "Read more from our editorial perspective."}
+        image={heroImage}
+        actions={
+          <>
+            <ButtonLink href="/contact-us" variant="accent">
+              Contact Us
+            </ButtonLink>
+            <ButtonLink href="/blog" variant="secondary">
+              Back to Articles
+            </ButtonLink>
+          </>
+        }
+      />
+
       <Section>
         <Container>
-          <div className="home-split">
-            <div
-              className="content-card"
-              style={{ overflow: "hidden", minHeight: 520 }}
-            >
-              <div
-                className="content-card__media"
-                style={{
-                  aspectRatio: "4 / 4",
-                  minHeight: 520,
-                  backgroundImage: `url(${heroImage})`,
-                }}
-              />
-            </div>
-
-            <div className="home-split__panel">
-              <div className="section-heading__kicker">Editorial</div>
-
-              <h1
-                style={{
-                  margin: "0 0 16px",
-                  fontSize: "clamp(34px, 5vw, 64px)",
-                  lineHeight: "0.95",
-                  letterSpacing: "-0.04em",
-                }}
-              >
-                {post.title || "Untitled Article"}
-              </h1>
-
-              {post.excerpt ? (
-                <p
-                  style={{
-                    margin: "0 0 18px",
-                    fontSize: 18,
-                    lineHeight: 1.8,
-                    color: "var(--muted)",
-                  }}
-                >
-                  {post.excerpt}
-                </p>
-              ) : null}
-
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  lineHeight: 1.9,
-                  color: "var(--muted)",
-                  whiteSpace: "pre-line",
-                }}
-              >
-                {post.content || "No content added yet."}
-              </p>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
-                <ButtonLink href="/contact-us">Contact Us</ButtonLink>
-                <ButtonLink href="/blog" variant="secondary">
-                  Back to Articles
-                </ButtonLink>
-              </div>
-            </div>
+          <div className="article-body">
+            {post.content || "No content added yet."}
           </div>
         </Container>
       </Section>
@@ -209,7 +164,7 @@ export default async function BlogDetailPage({
             <SectionHeading
               kicker="More Articles"
               title="Continue exploring the editorial archive"
-              text="Additional content helps visitors discover more about the brand, product world and hospitality textile perspective."
+              text="Additional articles help visitors discover more about the brand and textile perspective."
             />
 
             <div className="cards-grid cards-grid--3">

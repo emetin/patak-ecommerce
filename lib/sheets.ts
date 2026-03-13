@@ -192,6 +192,29 @@ export async function appendSheetRow(sheetName: string, row: string[]) {
   return { ok: true };
 }
 
+export async function appendSheetRows(sheetName: string, rows: string[][]) {
+  if (!rows.length) {
+    return { ok: true };
+  }
+
+  const sheets = getSheetsClient();
+
+  await withRetry(async () => {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A:Z`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: rows,
+      },
+    });
+  });
+
+  clearSheetCache(sheetName);
+
+  return { ok: true };
+}
+
 function columnNumberToLetter(columnNumber: number) {
   let temp = columnNumber;
   let letter = "";
@@ -264,6 +287,36 @@ export async function findRowNumberByField(
   }
 
   return null;
+}
+
+export async function getSheetRowNumberMapByField(
+  sheetName: string,
+  fieldName: string
+) {
+  const rows = await getSheetRows(sheetName);
+
+  if (!rows.length) {
+    return new Map<string, number>();
+  }
+
+  const headers = rows[0].map((header) => String(header).trim());
+  const fieldIndex = headers.findIndex((header) => header === fieldName);
+
+  if (fieldIndex === -1) {
+    throw new Error(`Field "${fieldName}" was not found in "${sheetName}".`);
+  }
+
+  const map = new Map<string, number>();
+
+  for (let i = 1; i < rows.length; i += 1) {
+    const value = String(rows[i]?.[fieldIndex] || "").trim().toLowerCase();
+
+    if (value) {
+      map.set(value, i + 1);
+    }
+  }
+
+  return map;
 }
 
 export async function updateSheetRowByRowNumber(
@@ -379,4 +432,80 @@ export async function deleteSheetRowBySlug(sheetName: string, slug: string) {
   clearSheetCache(sheetName);
 
   return { ok: true };
+}
+
+export async function findAllRowsByField(
+  sheetName: string,
+  fieldName: string,
+  fieldValue: string
+) {
+  const rows = await getSheetRows(sheetName);
+
+  if (!rows.length) {
+    return [];
+  }
+
+  const headers = rows[0].map((header) => String(header).trim());
+  const fieldIndex = headers.findIndex((header) => header === fieldName);
+
+  if (fieldIndex === -1) {
+    throw new Error(`Field "${fieldName}" was not found in "${sheetName}".`);
+  }
+
+  const normalizedValue = String(fieldValue).trim().toLowerCase();
+  const matches: Array<{ rowNumber: number; row: string[] }> = [];
+
+  for (let i = 1; i < rows.length; i += 1) {
+    const rowValue = String(rows[i]?.[fieldIndex] || "")
+      .trim()
+      .toLowerCase();
+
+    if (rowValue === normalizedValue) {
+      matches.push({
+        rowNumber: i + 1,
+        row: rows[i],
+      });
+    }
+  }
+
+  return matches;
+}
+
+export async function deleteSheetRowsByField(
+  sheetName: string,
+  fieldName: string,
+  fieldValue: string
+) {
+  const rows = await findAllRowsByField(sheetName, fieldName, fieldValue);
+
+  if (!rows.length) {
+    return { ok: true, deleted: 0 };
+  }
+
+  const sheets = getSheetsClient();
+  const meta = await getSheetMetaByTitle(sheetName);
+
+  const sorted = [...rows].sort((a, b) => b.rowNumber - a.rowNumber);
+
+  await withRetry(async () => {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: {
+        requests: sorted.map((item) => ({
+          deleteDimension: {
+            range: {
+              sheetId: meta.sheetId,
+              dimension: "ROWS",
+              startIndex: item.rowNumber - 1,
+              endIndex: item.rowNumber,
+            },
+          },
+        })),
+      },
+    });
+  });
+
+  clearSheetCache(sheetName);
+
+  return { ok: true, deleted: rows.length };
 }

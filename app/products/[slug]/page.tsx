@@ -5,6 +5,7 @@ import Section from "../../../components/ui/Section";
 import SectionHeading from "../../../components/ui/SectionHeading";
 import ProductCard from "../../../components/cards/ProductCard";
 import ButtonLink from "../../../components/ui/ButtonLink";
+import DetailHero from "../../../components/sections/DetailHero";
 import { buildPageMetadata } from "../../../lib/seo";
 
 type ProductItem = {
@@ -119,11 +120,7 @@ export default async function ProductDetailPage({
     return (
       <Section>
         <Container>
-          <ButtonLink href="/products" variant="secondary">
-            ← Back to Products
-          </ButtonLink>
-
-          <div className="empty-state" style={{ marginTop: 20 }}>
+          <div className="empty-state">
             <strong>Error:</strong> {errorMessage}
           </div>
         </Container>
@@ -149,107 +146,53 @@ export default async function ProductDetailPage({
         </Container>
       </Section>
 
+      <DetailHero
+        kicker={product.collection_slug || "Product"}
+        title={product.title || "Untitled Product"}
+        text={
+          product.short_description ||
+          product.description ||
+          "No description added yet."
+        }
+        image={imageUrl}
+        stats={[
+          {
+            label: "Collection",
+            value: product.collection_slug || "-",
+          },
+          {
+            label: "Status",
+            value: product.status || "-",
+          },
+          {
+            label: "Featured",
+            value: product.featured || "false",
+          },
+        ]}
+        actions={
+          <>
+            {product.collection_slug ? (
+              <ButtonLink
+                href={`/collections/${product.collection_slug}`}
+                variant="secondary"
+              >
+                View Collection
+              </ButtonLink>
+            ) : null}
+            <ButtonLink href="/contact-us" variant="accent">
+              Contact Us
+            </ButtonLink>
+          </>
+        }
+      />
+
       <Section>
         <Container>
-          <div className="home-split">
-            <div
-              className="content-card"
-              style={{ overflow: "hidden", minHeight: 520 }}
-            >
-              <div
-                className="content-card__media"
-                style={{
-                  aspectRatio: "4 / 4",
-                  minHeight: 520,
-                  backgroundImage: `url(${imageUrl})`,
-                }}
-              />
-            </div>
-
-            <div className="home-split__panel">
-              <div className="section-heading__kicker">
-                {product.collection_slug || "Product"}
-              </div>
-
-              <h1
-                style={{
-                  margin: "0 0 16px",
-                  fontSize: "clamp(34px, 5vw, 64px)",
-                  lineHeight: "0.95",
-                  letterSpacing: "-0.04em",
-                }}
-              >
-                {product.title || "Untitled Product"}
-              </h1>
-
-              {product.short_description ? (
-                <p
-                  style={{
-                    margin: "0 0 18px",
-                    fontSize: 18,
-                    lineHeight: 1.8,
-                    color: "var(--muted)",
-                  }}
-                >
-                  {product.short_description}
-                </p>
-              ) : null}
-
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  lineHeight: 1.9,
-                  color: "var(--muted)",
-                }}
-              >
-                {product.description || "No description added yet."}
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                  gap: 14,
-                  marginTop: 28,
-                }}
-              >
-                <div className="feature-card" style={{ padding: 18 }}>
-                  <span className="feature-card__index">Collection</span>
-                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
-                    {product.collection_slug || "-"}
-                  </h3>
-                </div>
-
-                <div className="feature-card" style={{ padding: 18 }}>
-                  <span className="feature-card__index">Status</span>
-                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
-                    {product.status || "-"}
-                  </h3>
-                </div>
-
-                <div className="feature-card" style={{ padding: 18 }}>
-                  <span className="feature-card__index">Featured</span>
-                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
-                    {product.featured || "false"}
-                  </h3>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
-                {product.collection_slug ? (
-                  <ButtonLink
-                    href={`/collections/${product.collection_slug}`}
-                    variant="secondary"
-                  >
-                    View Collection
-                  </ButtonLink>
-                ) : null}
-
-                <ButtonLink href="/contact-us">Contact Us</ButtonLink>
-              </div>
-            </div>
-          </div>
+          <SectionHeading
+            kicker="Product Overview"
+            title="A more structured product presentation"
+            text="This product page is designed to support hospitality buyers with a cleaner, more confident presentation style."
+          />
         </Container>
       </Section>
 
@@ -259,7 +202,7 @@ export default async function ProductDetailPage({
             <SectionHeading
               kicker="Related Products"
               title="Other published products from the same collection"
-              text="These items belong to the same collection and help visitors continue browsing with a clearer structure."
+              text="These products help continue browsing within the same textile family."
             />
 
             <div className="cards-grid cards-grid--3">

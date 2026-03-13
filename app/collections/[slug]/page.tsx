@@ -5,6 +5,7 @@ import Section from "../../../components/ui/Section";
 import SectionHeading from "../../../components/ui/SectionHeading";
 import ProductCard from "../../../components/cards/ProductCard";
 import ButtonLink from "../../../components/ui/ButtonLink";
+import DetailHero from "../../../components/sections/DetailHero";
 import { buildPageMetadata } from "../../../lib/seo";
 
 type CollectionItem = {
@@ -129,11 +130,7 @@ export default async function CollectionDetailPage({
     return (
       <Section>
         <Container>
-          <ButtonLink href="/collections" variant="secondary">
-            ← Back to Collections
-          </ButtonLink>
-
-          <div className="empty-state" style={{ marginTop: 20 }}>
+          <div className="empty-state">
             <strong>Error:</strong> {errorMessage}
           </div>
         </Container>
@@ -159,89 +156,39 @@ export default async function CollectionDetailPage({
         </Container>
       </Section>
 
-      <Section>
-        <Container>
-          <div className="home-split">
-            <div
-              className="content-card"
-              style={{ overflow: "hidden", minHeight: 520 }}
-            >
-              <div
-                className="content-card__media"
-                style={{
-                  aspectRatio: "4 / 4",
-                  minHeight: 520,
-                  backgroundImage: `url(${heroImage})`,
-                }}
-              />
-            </div>
-
-            <div className="home-split__panel">
-              <div className="section-heading__kicker">Collection</div>
-
-              <h1
-                style={{
-                  margin: "0 0 16px",
-                  fontSize: "clamp(34px, 5vw, 64px)",
-                  lineHeight: "0.95",
-                  letterSpacing: "-0.04em",
-                }}
-              >
-                {collection.title || "Untitled Collection"}
-              </h1>
-
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  lineHeight: 1.9,
-                  color: "var(--muted)",
-                }}
-              >
-                {collection.description ||
-                  "No description has been added for this collection yet."}
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                  gap: 14,
-                  marginTop: 28,
-                }}
-              >
-                <div className="feature-card" style={{ padding: 18 }}>
-                  <span className="feature-card__index">Slug</span>
-                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
-                    {collection.slug || "-"}
-                  </h3>
-                </div>
-
-                <div className="feature-card" style={{ padding: 18 }}>
-                  <span className="feature-card__index">Status</span>
-                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
-                    {collection.status || "-"}
-                  </h3>
-                </div>
-
-                <div className="feature-card" style={{ padding: 18 }}>
-                  <span className="feature-card__index">Products</span>
-                  <h3 style={{ fontSize: 18, marginBottom: 0 }}>
-                    {products.length}
-                  </h3>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 28 }}>
-                <ButtonLink href="/products" variant="secondary">
-                  Browse Products
-                </ButtonLink>
-                <ButtonLink href="/contact-us">Contact Us</ButtonLink>
-              </div>
-            </div>
-          </div>
-        </Container>
-      </Section>
+      <DetailHero
+        kicker="Collection"
+        title={collection.title || "Untitled Collection"}
+        text={
+          collection.description ||
+          "No description has been added for this collection yet."
+        }
+        image={heroImage}
+        stats={[
+          {
+            label: "Slug",
+            value: collection.slug || "-",
+          },
+          {
+            label: "Status",
+            value: collection.status || "-",
+          },
+          {
+            label: "Products",
+            value: products.length,
+          },
+        ]}
+        actions={
+          <>
+            <ButtonLink href="/products" variant="secondary">
+              Browse Products
+            </ButtonLink>
+            <ButtonLink href="/contact-us" variant="accent">
+              Contact Us
+            </ButtonLink>
+          </>
+        }
+      />
 
       {featuredProducts.length > 0 ? (
         <Section tone="soft">
@@ -249,7 +196,7 @@ export default async function CollectionDetailPage({
             <SectionHeading
               kicker="Featured Products"
               title="Highlighted published products from this collection"
-              text="Featured items help present the collection with more visual clarity and stronger browsing flow."
+              text="Featured items give a stronger introduction to this textile family."
             />
 
             <div className="cards-grid cards-grid--3">
@@ -277,7 +224,7 @@ export default async function CollectionDetailPage({
           <SectionHeading
             kicker="All Products"
             title={`Published products in ${collection.title || "this collection"}`}
-            text="These are the currently published products assigned to this collection."
+            text="These are the published items currently assigned to this collection."
           />
 
           {products.length > 0 ? (

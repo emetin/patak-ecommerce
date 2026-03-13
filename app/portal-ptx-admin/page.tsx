@@ -1,99 +1,78 @@
-"use client";
+import Link from "next/link";
+import AdminPageHeader from "../../components/admin/AdminPageHeader";
+import AdminPanel from "../../components/admin/AdminPanel";
+import AdminStats from "../../components/admin/AdminStats";
 
-import { useState } from "react";
-
-export default function HiddenAdminEntryPage() {
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [resultError, setResultError] = useState("");
-
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    try {
-      setLoading(true);
-      setResultError("");
-
-      const response = await fetch("/api/admin-auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Giriş başarısız.");
-      }
-
-      window.location.href = "/admin/products";
-    } catch (error) {
-      setResultError(
-        error instanceof Error ? error.message : "Bilinmeyen bir hata oluştu."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
+export default function PortalAdminPage() {
   return (
-    <div className="simple-page">
-      <div className="container" style={{ maxWidth: 700 }}>
-        <section
-          className="data-box"
-          style={{
-            padding: 32,
-          }}
-        >
-          <span className="card-kicker">Management Access</span>
-          <h1 style={{ marginTop: 0 }}>Internal login</h1>
-          <p className="lead" style={{ marginBottom: 22 }}>
-            This area is reserved for internal content management. Please enter
-            the access password to continue.
-          </p>
+    <>
+      <AdminPageHeader
+        eyebrow="Dashboard"
+        title="Patak Textile Management Panel"
+        text="Manage products, collections and editorial content through a cleaner internal interface."
+        actions={
+          <>
+            <Link href="/admin/products/new" className="button-link btn-accent">
+              New Product
+            </Link>
+            <Link href="/admin/collections/new" className="button-link btn-secondary">
+              New Collection
+            </Link>
+            <Link href="/admin/blog/new" className="button-link btn-secondary">
+              New Article
+            </Link>
+          </>
+        }
+      />
 
-          <form onSubmit={handleLogin} style={{ display: "grid", gap: 14 }}>
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  marginBottom: 8,
-                  fontWeight: 700,
-                }}
-              >
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter management password"
-                required
-              />
-            </div>
+      <AdminStats
+        items={[
+          { label: "Content Areas", value: 3 },
+          { label: "Primary Modules", value: "Products / Collections / Blog" },
+          { label: "Environment", value: "Google Sheets CMS" },
+        ]}
+      />
 
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Checking..." : "Enter Management Area"}
-            </button>
-          </form>
+      <AdminPanel
+        title="Quick Access"
+        text="Jump directly into the content areas you use most."
+      >
+        <div className="admin-link-grid">
+          <Link href="/admin/products" className="admin-link-card">
+            <span className="admin-link-card__eyebrow">Catalog</span>
+            <h3 className="admin-link-card__title">Products</h3>
+            <p className="admin-link-card__text">
+              View, create and update product records.
+            </p>
+          </Link>
 
-          {resultError ? (
-            <div
-              style={{
-                marginTop: 16,
-                padding: 14,
-                border: "1px solid rgba(0,0,0,0.12)",
-                background: "#fafafa",
-                color: "#000000",
-              }}
-            >
-              {resultError}
-            </div>
-          ) : null}
-        </section>
-      </div>
-    </div>
+          <Link href="/admin/collections" className="admin-link-card">
+            <span className="admin-link-card__eyebrow">Structure</span>
+            <h3 className="admin-link-card__title">Collections</h3>
+            <p className="admin-link-card__text">
+              Manage the main collection organization.
+            </p>
+          </Link>
+
+          <Link href="/admin/blog" className="admin-link-card">
+            <span className="admin-link-card__eyebrow">Editorial</span>
+            <h3 className="admin-link-card__title">Blog</h3>
+            <p className="admin-link-card__text">
+              Create and edit articles for the public site.
+            </p>
+          </Link>
+        </div>
+      </AdminPanel>
+
+      <AdminPanel
+        title="Internal Note"
+        text="Use this panel for content management only. Public navigation and brand pages should be reviewed from the live frontend."
+      >
+        <div className="admin-note">
+          Keep slugs clean, use published status only for ready content, and prefer
+          consistent image sizing for a better frontend result.
+        </div>
+      </AdminPanel>
+    </>
   );
 }
