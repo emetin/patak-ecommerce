@@ -37,14 +37,6 @@ function normalizeStatus(value: string) {
   return "draft";
 }
 
-function makeSeoFallback(title: string) {
-  return String(title || "").trim();
-}
-
-function makeDescriptionFallback(bodyHtml: string) {
-  return stripHtml(bodyHtml);
-}
-
 function splitGallery(images: string[]) {
   const unique = Array.from(
     new Set(
@@ -81,7 +73,7 @@ export function buildProductRecordFromShopifyRows(rows: ShopifyCsvRow[]) {
   const tags = String(first["Tags"] || "").trim();
   const seoTitle = String(first["SEO Title"] || "").trim();
   const seoDescription = String(first["SEO Description"] || "").trim();
-  const published = String(first["Published"] || "").trim();
+  const published = String(first["Status"] || "").trim();
 
   const allImages = rows.flatMap((row) => {
     const imageSrc = String(row["Image Src"] || "").trim();
@@ -90,22 +82,31 @@ export function buildProductRecordFromShopifyRows(rows: ShopifyCsvRow[]) {
 
   const { image, gallery } = splitGallery(allImages);
 
-  const description = makeDescriptionFallback(bodyHtml);
+  const description = stripHtml(bodyHtml);
   const shortDescription = truncateText(description, 180);
 
   return {
     id: "",
+
     title,
     slug: handle,
+
     description,
     short_description: shortDescription,
+
     image,
     gallery,
+
     collection_slug: productType || tags || "",
+
     status: normalizeStatus(published),
+
     featured: "false",
-    seo_title: seoTitle || makeSeoFallback(title),
+
+    seo_title: seoTitle || title,
+
     seo_description: seoDescription || truncateText(description, 160),
+
     created_at: "",
     updated_at: "",
   };

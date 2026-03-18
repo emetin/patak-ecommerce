@@ -86,14 +86,26 @@ function rowsToObjects(rows: string[][]) {
   });
 }
 
-function validateHeaders(actualHeaders: string[], expectedHeaders: readonly string[], sheetName: string) {
-  const actual = actualHeaders.join("|");
-  const expected = [...expectedHeaders].join("|");
+function validateHeaders(
+  actualHeaders: string[],
+  expectedHeaders: readonly string[],
+  sheetName: string
+) {
+  const actual = actualHeaders.map((h) => String(h).trim());
+  const expected = [...expectedHeaders];
 
-  if (actual !== expected) {
+  if (actual.length !== expected.length) {
     throw new Error(
-      `Sheet headers mismatch for "${sheetName}". Expected: ${expectedHeaders.join(", ")}`
+      `Sheet headers mismatch for "${sheetName}". Expected ${expected.length} columns but found ${actual.length}.`
     );
+  }
+
+  for (let i = 0; i < expected.length; i += 1) {
+    if (actual[i] !== expected[i]) {
+      throw new Error(
+        `Sheet headers mismatch for "${sheetName}" at column ${i + 1}. Expected "${expected[i]}", got "${actual[i]}".`
+      );
+    }
   }
 }
 
@@ -141,8 +153,10 @@ function normalizeVariantRecord(
     barcode: incoming.barcode || existing?.barcode || "",
     price: incoming.price || existing?.price || "",
     compare_at_price: incoming.compare_at_price || existing?.compare_at_price || "",
-    inventory_tracker: incoming.inventory_tracker || existing?.inventory_tracker || "",
-    inventory_policy: incoming.inventory_policy || existing?.inventory_policy || "",
+    inventory_tracker:
+      incoming.inventory_tracker || existing?.inventory_tracker || "",
+    inventory_policy:
+      incoming.inventory_policy || existing?.inventory_policy || "",
     fulfillment_service:
       incoming.fulfillment_service || existing?.fulfillment_service || "",
     requires_shipping:
@@ -226,7 +240,10 @@ export async function importShopifyCsv(text: string) {
       const variantRecords = buildVariantRecordsFromShopifyRows(handleRows);
 
       const existingProduct = existingProductsBySlug.get(handle.toLowerCase());
-      const normalizedProduct = normalizeProductRecord(baseProduct, existingProduct);
+      const normalizedProduct = normalizeProductRecord(
+        baseProduct,
+        existingProduct
+      );
       const productRow = objectToRow(PRODUCT_HEADERS, normalizedProduct);
 
       if (existingProduct) {

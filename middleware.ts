@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+
 import { ADMIN_COOKIE_NAME, isAuthenticatedAdmin } from "./lib/admin-auth";
 
 function isProtectedApiRoute(pathname: string) {
@@ -10,11 +11,19 @@ function isProtectedApiRoute(pathname: string) {
   );
 }
 
-export function middleware(request: NextRequest) {
+function isAllowedAdminAuthRoute(pathname: string) {
+  return (
+    pathname === "/api/admin-auth/login" ||
+    pathname === "/api/admin-auth/logout" ||
+    pathname === "/api/admin-auth/csrf"
+  );
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAdminRoute = pathname.startsWith("/admin");
-  const isPortalRoute = pathname.startsWith("/portal-ptx-admin");
+  const isPortalRoute = pathname === "/portal-ptx-admin";
   const isAdminAuthRoute = pathname.startsWith("/api/admin-auth");
   const protectedApiRoute = isProtectedApiRoute(pathname);
 
@@ -22,12 +31,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isPortalRoute || isAdminAuthRoute) {
+  if (isAdminAuthRoute && isAllowedAdminAuthRoute(pathname)) {
     return NextResponse.next();
   }
 
   const authCookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-  const isLoggedIn = isAuthenticatedAdmin(authCookie);
+  const isLoggedIn = await isAuthenticatedAdmin(authCookie);
+
+  if (isPortalRoute) {
+    if (isLoggedIn) {
+      return NextResponse.redirect(new URL("/admin/products", request.url));
+    }
+
+    return NextResponse.next();
+  }
 
   if (!isLoggedIn) {
     if (protectedApiRoute) {

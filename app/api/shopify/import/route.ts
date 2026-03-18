@@ -3,10 +3,28 @@ import { importShopifyCsv } from "../../../../lib/shopify-import";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const text = String(body?.text || "");
 
-    if (!text.trim()) {
+    let csvText = "";
+
+    const contentType = req.headers.get("content-type") || "";
+
+    // 1️⃣ JSON gönderilirse
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      csvText = String(body?.text || "");
+    }
+
+    // 2️⃣ Form-data ile CSV gönderilirse
+    else if (contentType.includes("multipart/form-data")) {
+      const form = await req.formData();
+      const file = form.get("file");
+
+      if (file && typeof file !== "string") {
+        csvText = await file.text();
+      }
+    }
+
+    if (!csvText.trim()) {
       return NextResponse.json(
         {
           ok: false,
@@ -16,9 +34,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await importShopifyCsv(text);
+    const result = await importShopifyCsv(csvText);
 
     return NextResponse.json(result);
+
   } catch (error) {
     return NextResponse.json(
       {

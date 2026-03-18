@@ -1,11 +1,13 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSheetData } from "../../../lib/sheets";
 import Container from "../../../components/ui/Container";
 import Section from "../../../components/ui/Section";
 import SectionHeading from "../../../components/ui/SectionHeading";
-import ProductCard from "../../../components/cards/ProductCard";
 import ButtonLink from "../../../components/ui/ButtonLink";
-import DetailHero from "../../../components/sections/DetailHero";
+import ProductCard from "../../../components/cards/ProductCard";
+import ProductGallery from "../../../components/products/ProductGallery";
+import ProductPurchasePanel from "../../../components/products/ProductPurchasePanel";
 import { buildPageMetadata } from "../../../lib/seo";
 
 type ProductItem = {
@@ -21,18 +23,75 @@ type ProductItem = {
   featured?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
+
+type VariantItem = {
+  id?: string;
+  product_slug?: string;
+  option1_name?: string;
+  option1_value?: string;
+  option2_name?: string;
+  option2_value?: string;
+  option3_name?: string;
+  option3_value?: string;
+  sku?: string;
+  barcode?: string;
+  price?: string;
+  compare_at_price?: string;
+  inventory_tracker?: string;
+  inventory_policy?: string;
+  fulfillment_service?: string;
+  requires_shipping?: string;
+  taxable?: string;
+  variant_image?: string;
+  weight?: string;
+  weight_unit?: string;
+  box_quantity?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+function formatCollectionLabel(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "Product";
+
+  return raw
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function parseGallery(product: ProductItem, variants: VariantItem[]) {
+  const variantImages = variants
+    .map((variant) => String(variant.variant_image || "").trim())
+    .filter(Boolean);
+
+  const all = [
+    String(product.image || "").trim(),
+    ...String(product.gallery || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+    ...variantImages,
+  ].filter(Boolean);
+
+  return Array.from(new Set(all));
+}
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
-}) {
+}): Promise<Metadata> {
   const { slug } = await params;
   const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
 
   try {
-    const items = (await getSheetData("Products")) as ProductItem[];
+    const items = (await getSheetData("products")) as ProductItem[];
     const product =
       items.find(
         (item) =>
@@ -49,8 +108,9 @@ export async function generateMetadata({
     }
 
     return buildPageMetadata({
-      title: product.title || "Product",
+      title: product.seo_title || product.title || "Product",
       description:
+        product.seo_description ||
         product.short_description ||
         product.description ||
         "Explore this hospitality textile product.",
@@ -76,10 +136,17 @@ export default async function ProductDetailPage({
 
   let product: ProductItem | null = null;
   let relatedProducts: ProductItem[] = [];
+  let variants: VariantItem[] = [];
   let errorMessage = "";
 
   try {
-    const items = (await getSheetData("Products")) as ProductItem[];
+    const [productData, variantData] = await Promise.all([
+      getSheetData("products"),
+      getSheetData("product_variants"),
+    ]);
+
+    const items = productData as ProductItem[];
+    const allVariants = variantData as VariantItem[];
 
     const foundProduct =
       items.find(
@@ -94,6 +161,11 @@ export default async function ProductDetailPage({
       const currentCollectionSlug = String(foundProduct.collection_slug || "")
         .trim()
         .toLowerCase();
+
+      variants = allVariants.filter(
+        (variant) =>
+          String(variant.product_slug || "").trim().toLowerCase() === decodedSlug
+      );
 
       relatedProducts = items
         .filter((item) => {
@@ -132,67 +204,184 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  const imageUrl =
-    product.image?.trim() ||
-    "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=80";
+  const galleryImages = parseGallery(product, variants);
+  const collectionLabel = formatCollectionLabel(product.collection_slug);
 
   return (
     <>
       <Section tight>
         <Container>
-          <ButtonLink href="/products" variant="secondary">
-            ← Back to Products
-          </ButtonLink>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <ButtonLink href="/products" variant="secondary">
+              ← Back to Products
+            </ButtonLink>
+
+            <div
+              style={{
+                color: "#7b7367",
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              Home / Products / {product.title || "Product"}
+            </div>
+          </div>
         </Container>
       </Section>
 
-      <DetailHero
-        kicker={product.collection_slug || "Product"}
-        title={product.title || "Untitled Product"}
-        text={
-          product.short_description ||
-          product.description ||
-          "No description added yet."
-        }
-        image={imageUrl}
-        stats={[
-          {
-            label: "Collection",
-            value: product.collection_slug || "-",
-          },
-          {
-            label: "Status",
-            value: product.status || "-",
-          },
-          {
-            label: "Featured",
-            value: product.featured || "false",
-          },
-        ]}
-        actions={
-          <>
-            {product.collection_slug ? (
-              <ButtonLink
-                href={`/collections/${product.collection_slug}`}
-                variant="secondary"
+      <Section>
+        <Container>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.05fr 0.95fr",
+              gap: 44,
+              alignItems: "start",
+            }}
+          >
+            <ProductGallery
+              title={product.title || "Product"}
+              images={galleryImages}
+            />
+
+            <div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  background: "#f3efe8",
+                  color: "#2f6f59",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  marginBottom: 16,
+                }}
               >
-                View Collection
-              </ButtonLink>
-            ) : null}
-            <ButtonLink href="/contact-us" variant="accent">
-              Contact Us
-            </ButtonLink>
-          </>
-        }
-      />
+                {collectionLabel}
+              </div>
+
+              <h1
+                style={{
+                  margin: "0 0 18px",
+                  fontSize: "clamp(2.1rem, 4vw, 3.8rem)",
+                  lineHeight: 1.04,
+                }}
+              >
+                {product.title || "Untitled Product"}
+              </h1>
+
+              <p
+                style={{
+                  margin: "0 0 24px",
+                  fontSize: 18,
+                  lineHeight: 1.85,
+                  color: "#5f574c",
+                }}
+              >
+                {product.short_description ||
+                  product.description ||
+                  "No description added yet."}
+              </p>
+
+              <ProductPurchasePanel
+                product={{
+                  title: product.title,
+                  slug: product.slug,
+                  image: product.image,
+                }}
+                variants={variants}
+              />
+            </div>
+          </div>
+        </Container>
+      </Section>
 
       <Section>
         <Container>
-          <SectionHeading
-            kicker="Product Overview"
-            title="A more structured product presentation"
-            text="This product page is designed to support hospitality buyers with a cleaner, more confident presentation style."
-          />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.2fr 0.8fr",
+              gap: 24,
+              alignItems: "start",
+            }}
+          >
+            <div
+              style={{
+                padding: 30,
+                borderRadius: 28,
+                border: "1px solid #e5ddd2",
+                background: "#faf8f4",
+              }}
+            >
+              <SectionHeading
+                kicker="Product Description"
+                title="Detailed product information"
+                text="A structured product detail section built around a more classic ecommerce layout."
+              />
+
+              <div
+                style={{
+                  fontSize: 17,
+                  lineHeight: 1.95,
+                  color: "#3d392f",
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {product.description ||
+                  product.short_description ||
+                  "No detailed description added yet."}
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: 24,
+                borderRadius: 28,
+                border: "1px solid #e5ddd2",
+                background: "#fff",
+              }}
+            >
+              <div style={{ ...infoLabelStyle, marginBottom: 14 }}>
+                Product Highlights
+              </div>
+
+              <div style={sideInfoRowStyle}>
+                <span style={sideInfoKeyStyle}>Collection</span>
+                <span style={sideInfoValueStyle}>{collectionLabel}</span>
+              </div>
+
+              <div style={sideInfoRowStyle}>
+                <span style={sideInfoKeyStyle}>Application</span>
+                <span style={sideInfoValueStyle}>Hotels, Residences, Projects</span>
+              </div>
+
+              <div style={sideInfoRowStyle}>
+                <span style={sideInfoKeyStyle}>Presentation</span>
+                <span style={sideInfoValueStyle}>Premium Textile Product</span>
+              </div>
+
+              <div style={sideInfoRowStyle}>
+                <span style={sideInfoKeyStyle}>Variants</span>
+                <span style={sideInfoValueStyle}>{variants.length || 1}</span>
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <ButtonLink href="/contact-us" variant="accent">
+                  Contact Sales
+                </ButtonLink>
+              </div>
+            </div>
+          </div>
         </Container>
       </Section>
 
@@ -201,8 +390,8 @@ export default async function ProductDetailPage({
           <Container>
             <SectionHeading
               kicker="Related Products"
-              title="Other published products from the same collection"
-              text="These products help continue browsing within the same textile family."
+              title="Other products from the same collection"
+              text="Continue browsing similar products within the same textile family."
             />
 
             <div className="cards-grid cards-grid--3">
@@ -217,7 +406,7 @@ export default async function ProductDetailPage({
                   }
                   image={item.image || ""}
                   href={`/products/${item.slug || ""}`}
-                  collectionLabel={item.collection_slug || "Product"}
+                  collectionLabel={formatCollectionLabel(item.collection_slug)}
                 />
               ))}
             </div>
@@ -227,3 +416,31 @@ export default async function ProductDetailPage({
     </>
   );
 }
+
+const infoLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#7b7367",
+  marginBottom: 8,
+  fontWeight: 700,
+};
+
+const sideInfoRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  padding: "12px 0",
+  borderBottom: "1px solid #eee5d9",
+};
+
+const sideInfoKeyStyle: React.CSSProperties = {
+  color: "#7b7367",
+  fontWeight: 700,
+};
+
+const sideInfoValueStyle: React.CSSProperties = {
+  color: "#1a1a1a",
+  fontWeight: 800,
+  textAlign: "right",
+};

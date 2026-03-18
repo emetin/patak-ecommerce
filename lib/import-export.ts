@@ -20,6 +20,8 @@ export const SHEET_CONFIG = {
       "collection_slug",
       "status",
       "featured",
+      "seo_title",
+      "seo_description",
       "created_at",
       "updated_at",
     ],
@@ -125,6 +127,17 @@ export function normalizeRecord(
     record.status = "draft";
   }
 
+  if (type === "products") {
+    if (!record.seo_title) {
+      record.seo_title = existingItem?.seo_title || record.title || "";
+    }
+
+    if (!record.seo_description) {
+      record.seo_description =
+        existingItem?.seo_description || record.short_description || "";
+    }
+  }
+
   if (!record.created_at) {
     record.created_at = existingItem?.created_at || now;
   }
@@ -218,7 +231,9 @@ export async function importRecords(
     await updateSheetRowByRowNumber(sheetName, item.rowNumber, item.rowValues);
   }
 
-  await appendSheetRows(sheetName, rowsToAppend);
+  if (rowsToAppend.length) {
+    await appendSheetRows(sheetName, rowsToAppend);
+  }
 
   return {
     ok: true,

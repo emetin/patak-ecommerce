@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { ADMIN_COOKIE_NAME } from "../../../../lib/admin-auth";
+import {
+  ADMIN_COOKIE_NAME,
+  ADMIN_CSRF_COOKIE_NAME,
+  getExpiredAdminCookieOptions,
+  getExpiredCsrfCookieOptions,
+} from "../../../../lib/admin-auth";
 
 export async function POST() {
   const response = NextResponse.json({
@@ -10,11 +15,13 @@ export async function POST() {
   response.cookies.set({
     name: ADMIN_COOKIE_NAME,
     value: "",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 0,
+    ...getExpiredAdminCookieOptions(),
+  });
+
+  response.cookies.set({
+    name: ADMIN_CSRF_COOKIE_NAME,
+    value: "",
+    ...getExpiredCsrfCookieOptions(),
   });
 
   return response;
