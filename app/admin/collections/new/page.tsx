@@ -26,6 +26,8 @@ export default function NewCollectionPage() {
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
   const [status, setStatus] = useState("draft");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
@@ -52,6 +54,8 @@ export default function NewCollectionPage() {
           description,
           image,
           status,
+          seo_title: seoTitle,
+          seo_description: seoDescription,
         }),
       });
 
@@ -68,6 +72,8 @@ export default function NewCollectionPage() {
       setDescription("");
       setImage("");
       setStatus("draft");
+      setSeoTitle("");
+      setSeoDescription("");
     } catch (error) {
       setResultError(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -182,6 +188,26 @@ export default function NewCollectionPage() {
                 style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
               />
             </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>SEO Title</label>
+              <input
+                value={seoTitle}
+                onChange={(e) => setSeoTitle(e.target.value)}
+                placeholder="SEO title"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>SEO Description</label>
+              <textarea
+                value={seoDescription}
+                onChange={(e) => setSeoDescription(e.target.value)}
+                placeholder="SEO description"
+                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+              />
+            </div>
           </div>
 
           <div style={buttonRowStyle}>
@@ -201,7 +227,7 @@ export default function NewCollectionPage() {
         <ImportPanel
           endpoint="/api/collections/import"
           description="Upload a CSV or JSON file, or paste content manually. This panel is suitable for collection data adapted to the Patak structure."
-          csvHeader="id,title,slug,description,image,status,created_at,updated_at"
+          csvHeader="id,title,slug,description,image,status,created_at,updated_at,seo_title,seo_description"
         />
       </div>
     </div>

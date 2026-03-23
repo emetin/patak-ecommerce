@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       .trim()
       .toLowerCase();
 
-    const collections = (await getSheetData("Collections")) as CollectionItem[];
+    const collections = (await getSheetData("collections")) as CollectionItem[];
 
     let items = collections.filter((item) => item && item.slug);
 
@@ -33,6 +33,10 @@ export async function GET(req: Request) {
           String(item.status || "").trim().toLowerCase() === statusParam
       );
     }
+
+    items = items.sort((a, b) =>
+      String(a.title || "").localeCompare(String(b.title || ""))
+    );
 
     return NextResponse.json(
       {

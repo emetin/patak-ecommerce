@@ -3,8 +3,7 @@ import { getSheetData } from "../../../../lib/sheets";
 
 type VariantItem = Record<string, string>;
 
-const SHEET_NAME = "product_variants";
-const ALLOWED_STATUS = ["published", "active", "draft", "archived"];
+const ALLOWED_STATUS = ["published", "draft", "archived"];
 
 export async function GET(req: Request) {
   try {
@@ -18,9 +17,9 @@ export async function GET(req: Request) {
       .trim()
       .toLowerCase();
 
-    let items = (await getSheetData(SHEET_NAME)) as VariantItem[];
+    const variants = (await getSheetData("product_variants")) as VariantItem[];
 
-    items = items.filter((item) => item && item.product_slug);
+    let items = variants.filter((item) => item && item.id);
 
     if (productSlug) {
       items = items.filter(
@@ -41,9 +40,16 @@ export async function GET(req: Request) {
       }
 
       items = items.filter(
-        (item) => String(item.status || "").trim().toLowerCase() === statusParam
+        (item) =>
+          String(item.status || "").trim().toLowerCase() === statusParam
       );
     }
+
+    items = items.sort((a, b) => {
+      const aCreated = String(a.created_at || "");
+      const bCreated = String(b.created_at || "");
+      return aCreated.localeCompare(bCreated);
+    });
 
     return NextResponse.json(
       {

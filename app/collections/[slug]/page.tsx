@@ -17,6 +17,8 @@ type CollectionItem = {
   status?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
 
 type ProductItem = {
@@ -32,7 +34,29 @@ type ProductItem = {
   featured?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
+
+type CollectionProductItem = {
+  id?: string;
+  collection_slug?: string;
+  product_slug?: string;
+  sort_order?: string;
+  featured?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+function toBool(value?: string) {
+  return String(value || "").trim().toLowerCase() === "true";
+}
+
+function toNumber(value?: string, fallback = 999999) {
+  const num = Number(String(value || "").trim());
+  return Number.isFinite(num) ? num : fallback;
+}
 
 export async function generateMetadata({
   params,
@@ -43,7 +67,7 @@ export async function generateMetadata({
   const decodedSlug = decodeURIComponent(slug).trim().toLowerCase();
 
   try {
-    const items = (await getSheetData("Collections")) as CollectionItem[];
+    const items = (await getSheetData("collections")) as CollectionItem[];
     const collection =
       items.find(
         (item) =>
@@ -60,8 +84,9 @@ export async function generateMetadata({
     }
 
     return buildPageMetadata({
-      title: collection.title || "Collection",
+      title: collection.seo_title || collection.title || "Collection",
       description:
+        collection.seo_description ||
         collection.description ||
         "Explore this hospitality textile collection by Patak Textile.",
       image: collection.image || "",
@@ -90,13 +115,15 @@ export default async function CollectionDetailPage({
   let errorMessage = "";
 
   try {
-    const [collectionItems, productItems] = await Promise.all([
-      getSheetData("Collections"),
-      getSheetData("Products"),
+    const [collectionItems, productItems, relationItems] = await Promise.all([
+      getSheetData("collections"),
+      getSheetData("products"),
+      getSheetData("collection_products"),
     ]);
 
     const collections = collectionItems as CollectionItem[];
     const allProducts = productItems as ProductItem[];
+    const relations = relationItems as CollectionProductItem[];
 
     collection =
       collections.find(
@@ -106,20 +133,63 @@ export default async function CollectionDetailPage({
       ) || null;
 
     if (collection) {
-      products = allProducts.filter((item) => {
-        const itemStatus = String(item.status || "").trim().toLowerCase();
-        const itemCollectionSlug = String(item.collection_slug || "")
-          .trim()
-          .toLowerCase();
+      const publishedProducts = allProducts.filter(
+        (item) => String(item.status || "").trim().toLowerCase() === "published"
+      );
 
-        return itemStatus === "published" && itemCollectionSlug === decodedSlug;
-      });
+      const productMap = new Map(
+        publishedProducts.map((item) => [
+          String(item.slug || "").trim().toLowerCase(),
+          item,
+        ])
+      );
 
-      featuredProducts = products
-        .filter(
-          (item) => String(item.featured || "").trim().toLowerCase() === "true"
+      const validRelations = relations
+        .filter((item) => {
+          const relationCollectionSlug = String(item.collection_slug || "")
+            .trim()
+            .toLowerCase();
+          const relationStatus = String(item.status || "")
+            .trim()
+            .toLowerCase();
+
+          return (
+            relationCollectionSlug === decodedSlug &&
+            (relationStatus === "published" || relationStatus === "")
+          );
+        })
+        .sort(
+          (a, b) => toNumber(a.sort_order, 999999) - toNumber(b.sort_order, 999999)
+        );
+
+      const relationBasedProducts = validRelations
+        .map((relation) =>
+          productMap.get(String(relation.product_slug || "").trim().toLowerCase())
         )
-        .slice(0, 3);
+        .filter(Boolean) as ProductItem[];
+
+      if (relationBasedProducts.length > 0) {
+        products = relationBasedProducts;
+        featuredProducts = validRelations
+          .filter((item) => toBool(item.featured))
+          .map((relation) =>
+            productMap.get(String(relation.product_slug || "").trim().toLowerCase())
+          )
+          .filter(Boolean)
+          .slice(0, 3) as ProductItem[];
+      } else {
+        products = publishedProducts.filter((item) => {
+          const itemCollectionSlug = String(item.collection_slug || "")
+            .trim()
+            .toLowerCase();
+
+          return itemCollectionSlug === decodedSlug;
+        });
+
+        featuredProducts = products
+          .filter((item) => toBool(item.featured))
+          .slice(0, 3);
+      }
     }
   } catch (error) {
     errorMessage =

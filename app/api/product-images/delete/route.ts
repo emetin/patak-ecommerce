@@ -14,25 +14,27 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Variant id is required.",
+          error: "Image id is required.",
         },
         { status: 400 }
       );
     }
 
-    const result = await deleteSheetRowsByField("product_variants", "id", id);
+    const result = await deleteSheetRowsByField("product_images", "id", id);
 
     return NextResponse.json({
       ok: true,
       deleted: result.deleted || 0,
-      message: "Variant deleted successfully.",
+      message: "Product image deleted successfully.",
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error ? error.message : "Failed to delete variant.",
+          error instanceof Error
+            ? error.message
+            : "Failed to delete product image.",
       },
       { status: 500 }
     );

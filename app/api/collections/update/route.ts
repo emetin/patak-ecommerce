@@ -1,41 +1,17 @@
 import { NextResponse } from "next/server";
-import { getSheetData, updateSheetRowBySlug } from "../../../../lib/sheets";
+import {
+  getSheetData,
+  getSheetHeaders,
+  updateSheetRowBySlug,
+} from "../../../../lib/sheets";
 
-type CollectionRow = {
-  id?: string;
-  title?: string;
-  slug?: string;
-  description?: string;
-  image?: string;
-  status?: string;
-  created_at?: string;
-  updated_at?: string;
-};
+type CollectionRecord = Record<string, string>;
 
+const SHEET_NAME = "collections";
 const ALLOWED_STATUS = ["published", "draft", "archived"];
-
-function makeSlug(text: string) {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ı/g, "i")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 function normalizeText(value: unknown) {
   return String(value || "").trim();
-}
-
-function normalizeSlug(value: unknown) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function normalizeStatus(value: unknown) {
@@ -46,135 +22,71 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const originalSlug = normalizeSlug(body?.originalSlug);
+    const slug = normalizeText(body?.slug).toLowerCase();
     const title = normalizeText(body?.title);
-    const slugInput = normalizeText(body?.slug);
     const description = normalizeText(body?.description);
     const image = normalizeText(body?.image);
     const status = normalizeStatus(body?.status);
+    const seoTitle = normalizeText(body?.seo_title);
+    const seoDescription = normalizeText(body?.seo_description);
 
-    if (!originalSlug) {
+    if (!slug) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Original slug is required.",
-        },
+        { ok: false, error: "Slug is required." },
         { status: 400 }
       );
     }
 
     if (!title) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Title is required.",
-        },
+        { ok: false, error: "Title is required." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_STATUS.includes(status)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: 'Status must be one of: "published", "draft", or "archived".',
-        },
+        { ok: false, error: "Invalid status value." },
         { status: 400 }
       );
     }
 
-    const finalSlug = makeSlug(slugInput || title);
-
-    if (!finalSlug) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "A valid slug could not be generated.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const items = (await getSheetData("Collections")) as CollectionRow[];
-
-    const currentItem =
+    const items = (await getSheetData(SHEET_NAME)) as CollectionRecord[];
+    const current =
       items.find(
-        (item) =>
-          String(item.slug || "").trim().toLowerCase() === originalSlug
+        (item) => String(item.slug || "").trim().toLowerCase() === slug
       ) || null;
 
-    if (!currentItem) {
+    if (!current) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Collection to update was not found.",
-        },
+        { ok: false, error: "Collection not found." },
         { status: 404 }
       );
     }
 
-    const slugExistsOnAnotherItem = items.some((item) => {
-      const itemSlug = String(item.slug || "").trim().toLowerCase();
-      return itemSlug === finalSlug && itemSlug !== originalSlug;
-    });
+    const headers = await getSheetHeaders(SHEET_NAME);
+    const updatedAt = new Date().toISOString();
 
-    if (slugExistsOnAnotherItem) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "This slug is already used by another collection.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const normalizedTitle = title.toLowerCase();
-
-    const titleExistsOnAnotherItem = items.some((item) => {
-      const itemSlug = String(item.slug || "").trim().toLowerCase();
-      const itemTitle = String(item.title || "").trim().toLowerCase();
-
-      return itemTitle === normalizedTitle && itemSlug !== originalSlug;
-    });
-
-    if (titleExistsOnAnotherItem) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Another collection already uses this title.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const now = new Date().toISOString();
-    const createdAt = String(currentItem.created_at || now);
-    const id = String(currentItem.id || "");
-
-    await updateSheetRowBySlug("Collections", originalSlug, [
-      id,
+    const merged: Record<string, string> = {
+      ...current,
       title,
-      finalSlug,
+      slug,
       description,
       image,
       status,
-      createdAt,
-      now,
-    ]);
+      updated_at: updatedAt,
+      seo_title: seoTitle || title,
+      seo_description: seoDescription || description,
+    };
+
+    const rowValues = headers.map((header) => merged[header] || "");
+
+    await updateSheetRowBySlug(SHEET_NAME, slug, rowValues);
 
     return NextResponse.json({
       ok: true,
       message: "Collection updated successfully.",
-      item: {
-        id,
-        title,
-        slug: finalSlug,
-        description,
-        image,
-        status,
-        created_at: createdAt,
-        updated_at: now,
-      },
+      item: merged,
     });
   } catch (error) {
     return NextResponse.json(
@@ -183,7 +95,7 @@ export async function POST(req: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "An unexpected error occurred while updating the collection.",
+            : "Failed to update collection.",
       },
       { status: 500 }
     );

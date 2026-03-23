@@ -1,56 +1,25 @@
 import { NextResponse } from "next/server";
-import { getSheetData, updateSheetRowBySlug } from "../../../../lib/sheets";
+import {
+  getSheetData,
+  getSheetHeaders,
+  updateSheetRowBySlug,
+} from "../../../../lib/sheets";
 
-type ProductRow = {
-  id?: string;
-  title?: string;
-  slug?: string;
-  description?: string;
-  short_description?: string;
-  image?: string;
-  gallery?: string;
-  collection_slug?: string;
-  status?: string;
-  featured?: string;
-  seo_title?: string;
-  seo_description?: string;
-  created_at?: string;
-  updated_at?: string;
-};
+type ProductRecord = Record<string, string>;
 
+const SHEET_NAME = "products";
 const ALLOWED_STATUS = ["published", "draft", "archived"];
 const ALLOWED_FEATURED = ["true", "false"];
-const SHEET_NAME = "products";
-
-function makeSlug(text: string) {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ı/g, "i")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 function normalizeText(value: unknown) {
   return String(value || "").trim();
-}
-
-function normalizeSlug(value: unknown) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function normalizeStatus(value: unknown) {
   return String(value || "draft").trim().toLowerCase();
 }
 
-function normalizeBooleanString(value: unknown, fallback = "false") {
+function normalizeBool(value: unknown, fallback = "false") {
   return String(value || fallback).trim().toLowerCase();
 }
 
@@ -58,174 +27,101 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const originalSlug = normalizeSlug(body?.originalSlug);
+    const slug = normalizeText(body?.slug).toLowerCase();
     const title = normalizeText(body?.title);
-    const slugInput = normalizeText(body?.slug);
     const description = normalizeText(body?.description);
     const shortDescription = normalizeText(body?.short_description);
     const image = normalizeText(body?.image);
     const gallery = normalizeText(body?.gallery);
     const collectionSlug = normalizeText(body?.collection_slug);
     const status = normalizeStatus(body?.status);
-    const featured = normalizeBooleanString(body?.featured, "false");
+    const featured = normalizeBool(body?.featured, "false");
     const seoTitle = normalizeText(body?.seo_title);
     const seoDescription = normalizeText(body?.seo_description);
+    const vendor = normalizeText(body?.vendor);
+    const productCategory = normalizeText(body?.product_category);
+    const type = normalizeText(body?.type);
+    const tags = normalizeText(body?.tags);
 
-    if (!originalSlug) {
+    if (!slug) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Original slug is required.",
-        },
+        { ok: false, error: "Slug is required." },
         { status: 400 }
       );
     }
 
     if (!title) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Title is required.",
-        },
+        { ok: false, error: "Title is required." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_STATUS.includes(status)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: 'Status must be one of: "published", "draft", or "archived".',
-        },
+        { ok: false, error: "Invalid status value." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_FEATURED.includes(featured)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: 'Featured must be either "true" or "false".',
-        },
+        { ok: false, error: "Invalid featured value." },
         { status: 400 }
       );
     }
 
-    const finalSlug = makeSlug(slugInput || title);
-
-    if (!finalSlug) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "A valid slug could not be generated.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const items = (await getSheetData(SHEET_NAME)) as ProductRow[];
-
-    const currentItem =
+    const items = (await getSheetData(SHEET_NAME)) as ProductRecord[];
+    const current =
       items.find(
-        (item) => String(item.slug || "").trim().toLowerCase() === originalSlug
+        (item) => String(item.slug || "").trim().toLowerCase() === slug
       ) || null;
 
-    if (!currentItem) {
+    if (!current) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Product to update was not found.",
-        },
+        { ok: false, error: "Product not found." },
         { status: 404 }
       );
     }
 
-    const slugExistsOnAnotherItem = items.some((item) => {
-      const itemSlug = String(item.slug || "").trim().toLowerCase();
-      return itemSlug === finalSlug && itemSlug !== originalSlug;
-    });
+    const headers = await getSheetHeaders(SHEET_NAME);
+    const updatedAt = new Date().toISOString();
 
-    if (slugExistsOnAnotherItem) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "This slug is already used by another product.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const normalizedTitle = title.toLowerCase();
-
-    const titleExistsOnAnotherItem = items.some((item) => {
-      const itemSlug = String(item.slug || "").trim().toLowerCase();
-      const itemTitle = String(item.title || "").trim().toLowerCase();
-
-      return itemTitle === normalizedTitle && itemSlug !== originalSlug;
-    });
-
-    if (titleExistsOnAnotherItem) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Another product already uses this title.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const now = new Date().toISOString();
-    const createdAt = String(currentItem.created_at || now);
-    const id = String(currentItem.id || "");
-    const finalSeoTitle = seoTitle || title;
-    const finalSeoDescription =
-      seoDescription || shortDescription || description;
-
-    await updateSheetRowBySlug(SHEET_NAME, originalSlug, [
-      id,
+    const merged: Record<string, string> = {
+      ...current,
       title,
-      finalSlug,
+      slug,
       description,
-      shortDescription,
+      short_description: shortDescription,
       image,
       gallery,
-      collectionSlug,
+      collection_slug: collectionSlug,
       status,
       featured,
-      finalSeoTitle,
-      finalSeoDescription,
-      createdAt,
-      now,
-    ]);
+      updated_at: updatedAt,
+      seo_title: seoTitle || title,
+      seo_description: seoDescription || shortDescription || description,
+      vendor,
+      product_category: productCategory,
+      type,
+      tags,
+    };
+
+    const rowValues = headers.map((header) => merged[header] || "");
+
+    await updateSheetRowBySlug(SHEET_NAME, slug, rowValues);
 
     return NextResponse.json({
       ok: true,
       message: "Product updated successfully.",
-      item: {
-        id,
-        title,
-        slug: finalSlug,
-        description,
-        short_description: shortDescription,
-        image,
-        gallery,
-        collection_slug: collectionSlug,
-        status,
-        featured,
-        seo_title: finalSeoTitle,
-        seo_description: finalSeoDescription,
-        created_at: createdAt,
-        updated_at: now,
-      },
+      item: merged,
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "An unexpected error occurred while updating the product.",
+          error instanceof Error ? error.message : "Failed to update product.",
       },
       { status: 500 }
     );

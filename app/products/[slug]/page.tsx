@@ -25,6 +25,10 @@ type ProductItem = {
   updated_at?: string;
   seo_title?: string;
   seo_description?: string;
+  vendor?: string;
+  product_category?: string;
+  type?: string;
+  tags?: string;
 };
 
 type VariantItem = {
@@ -54,6 +58,16 @@ type VariantItem = {
   updated_at?: string;
 };
 
+type ProductImageItem = {
+  id?: string;
+  product_slug?: string;
+  image_url?: string;
+  sort_order?: string;
+  alt_text?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 function formatCollectionLabel(value?: string) {
   const raw = String(value || "").trim();
   if (!raw) return "Product";
@@ -65,17 +79,35 @@ function formatCollectionLabel(value?: string) {
     .join(" ");
 }
 
-function parseGallery(product: ProductItem, variants: VariantItem[]) {
+function parseGallery(
+  product: ProductItem,
+  variants: VariantItem[],
+  productImages: ProductImageItem[]
+) {
   const variantImages = variants
     .map((variant) => String(variant.variant_image || "").trim())
     .filter(Boolean);
 
+  const sortedProductImages = [...productImages]
+    .sort((a, b) => {
+      const aOrder = Number(String(a.sort_order || "").trim());
+      const bOrder = Number(String(b.sort_order || "").trim());
+      const aValue = Number.isFinite(aOrder) ? aOrder : 999999;
+      const bValue = Number.isFinite(bOrder) ? bOrder : 999999;
+      return aValue - bValue;
+    })
+    .map((item) => String(item.image_url || "").trim())
+    .filter(Boolean);
+
+  const manualGallery = String(product.gallery || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
   const all = [
     String(product.image || "").trim(),
-    ...String(product.gallery || "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean),
+    ...sortedProductImages,
+    ...manualGallery,
     ...variantImages,
   ].filter(Boolean);
 
@@ -137,16 +169,19 @@ export default async function ProductDetailPage({
   let product: ProductItem | null = null;
   let relatedProducts: ProductItem[] = [];
   let variants: VariantItem[] = [];
+  let productImages: ProductImageItem[] = [];
   let errorMessage = "";
 
   try {
-    const [productData, variantData] = await Promise.all([
+    const [productData, variantData, imageData] = await Promise.all([
       getSheetData("products"),
       getSheetData("product_variants"),
+      getSheetData("product_images"),
     ]);
 
     const items = productData as ProductItem[];
     const allVariants = variantData as VariantItem[];
+    const allProductImages = imageData as ProductImageItem[];
 
     const foundProduct =
       items.find(
@@ -162,10 +197,24 @@ export default async function ProductDetailPage({
         .trim()
         .toLowerCase();
 
-      variants = allVariants.filter(
-        (variant) =>
-          String(variant.product_slug || "").trim().toLowerCase() === decodedSlug
-      );
+      variants = allVariants.filter((variant) => {
+        const variantSlug = String(variant.product_slug || "")
+          .trim()
+          .toLowerCase();
+        const variantStatus = String(variant.status || "")
+          .trim()
+          .toLowerCase();
+
+        return (
+          variantSlug === decodedSlug &&
+          (variantStatus === "published" || variantStatus === "")
+        );
+      });
+
+      productImages = allProductImages.filter((item) => {
+        const itemSlug = String(item.product_slug || "").trim().toLowerCase();
+        return itemSlug === decodedSlug;
+      });
 
       relatedProducts = items
         .filter((item) => {
@@ -204,7 +253,7 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  const galleryImages = parseGallery(product, variants);
+  const galleryImages = parseGallery(product, variants, productImages);
   const collectionLabel = formatCollectionLabel(product.collection_slug);
 
   return (
@@ -373,6 +422,11 @@ export default async function ProductDetailPage({
               <div style={sideInfoRowStyle}>
                 <span style={sideInfoKeyStyle}>Variants</span>
                 <span style={sideInfoValueStyle}>{variants.length || 1}</span>
+              </div>
+
+              <div style={sideInfoRowStyle}>
+                <span style={sideInfoKeyStyle}>Gallery Images</span>
+                <span style={sideInfoValueStyle}>{galleryImages.length}</span>
               </div>
 
               <div style={{ marginTop: 20 }}>

@@ -29,7 +29,7 @@ type VariantRecord = {
 };
 
 const SHEET_NAME = "product_variants";
-const ALLOWED_STATUS = ["published", "active", "draft", "archived"];
+const ALLOWED_STATUS = ["published", "draft", "archived"];
 
 function normalizeText(value: unknown) {
   return String(value || "").trim();
@@ -58,15 +58,14 @@ export async function POST(req: Request) {
     const barcode = normalizeText(body?.barcode);
     const price = normalizeText(body?.price);
     const compareAtPrice = normalizeText(body?.compare_at_price);
-    const inventoryTracker = normalizeText(body?.inventory_tracker);
-    const inventoryPolicy = normalizeText(body?.inventory_policy);
-    const fulfillmentService = normalizeText(body?.fulfillment_service);
-    const requiresShipping =
-      normalizeText(body?.requires_shipping) || "true";
+    const inventoryTracker = normalizeText(body?.inventory_tracker) || "none";
+    const inventoryPolicy = normalizeText(body?.inventory_policy) || "deny";
+    const fulfillmentService = normalizeText(body?.fulfillment_service) || "manual";
+    const requiresShipping = normalizeText(body?.requires_shipping) || "true";
     const taxable = normalizeText(body?.taxable) || "true";
     const variantImage = normalizeText(body?.variant_image);
     const weight = normalizeText(body?.weight);
-    const weightUnit = normalizeText(body?.weight_unit);
+    const weightUnit = normalizeText(body?.weight_unit) || "kg";
     const boxQuantity = normalizeText(body?.box_quantity);
     const status = normalizeStatus(body?.status);
 
@@ -84,7 +83,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Status must be one of: "published", "active", "draft", or "archived".',
+          error: 'Status must be one of: "published", "draft", or "archived".',
         },
         { status: 400 }
       );

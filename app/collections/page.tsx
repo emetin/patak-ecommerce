@@ -16,6 +16,8 @@ type CollectionItem = {
   status?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
 
 export const metadata: Metadata = buildPageMetadata({
@@ -30,11 +32,15 @@ export default async function CollectionsPage() {
   let errorMessage = "";
 
   try {
-    const data = await getSheetData("Collections");
+    const data = await getSheetData("collections");
 
-    collections = (data as CollectionItem[]).filter(
-      (item) => String(item.status || "").trim().toLowerCase() === "published"
-    );
+    collections = (data as CollectionItem[])
+      .filter(
+        (item) => String(item.status || "").trim().toLowerCase() === "published"
+      )
+      .sort((a, b) =>
+        String(a.title || "").localeCompare(String(b.title || ""))
+      );
   } catch (error) {
     errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred.";
@@ -79,7 +85,8 @@ export default async function CollectionsPage() {
           <Container>
             <div className="empty-state">
               No published collections found yet. Items with status set to
-              <strong> published</strong> in the Collections sheet will appear here.
+              <strong> published</strong> in the collections sheet will appear
+              here.
             </div>
           </Container>
         </Section>

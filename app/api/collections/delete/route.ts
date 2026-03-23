@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { deleteSheetRowBySlug } from "../../../../lib/sheets";
+import {
+  deleteSheetRowBySlug,
+  deleteSheetRowsByField,
+} from "../../../../lib/sheets";
 
 function normalizeSlug(value: unknown) {
   return String(value || "").trim().toLowerCase();
@@ -14,26 +17,25 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Slug is required.",
+          error: "Collection slug is required.",
         },
         { status: 400 }
       );
     }
 
-    await deleteSheetRowBySlug("Collections", slug);
+    await deleteSheetRowBySlug("collections", slug);
+    await deleteSheetRowsByField("collection_products", "collection_slug", slug);
 
     return NextResponse.json({
       ok: true,
-      message: "Collection deleted successfully.",
+      message: "Collection and related links deleted successfully.",
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete the collection.",
+          error instanceof Error ? error.message : "Failed to delete collection.",
       },
       { status: 500 }
     );

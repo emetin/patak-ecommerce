@@ -32,6 +32,10 @@ export default function NewProductPage() {
   const [featured, setFeatured] = useState("false");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [type, setType] = useState("");
+  const [tags, setTags] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
@@ -68,6 +72,10 @@ export default function NewProductPage() {
           featured,
           seo_title: seoTitle,
           seo_description: seoDescription,
+          vendor,
+          product_category: productCategory,
+          type,
+          tags,
         }),
       });
 
@@ -95,6 +103,10 @@ export default function NewProductPage() {
       setFeatured("false");
       setSeoTitle("");
       setSeoDescription("");
+      setVendor("");
+      setProductCategory("");
+      setType("");
+      setTags("");
     } catch (error) {
       setResultError(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -218,6 +230,46 @@ export default function NewProductPage() {
               </select>
             </div>
 
+            <div>
+              <label style={labelStyle}>Vendor</label>
+              <input
+                value={vendor}
+                onChange={(e) => setVendor(e.target.value)}
+                placeholder="Patak Textile"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Product Category</label>
+              <input
+                value={productCategory}
+                onChange={(e) => setProductCategory(e.target.value)}
+                placeholder="Bath"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Type</label>
+              <input
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                placeholder="Towel"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Tags</label>
+              <input
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="hotel, luxury, bath"
+                style={inputStyle}
+              />
+            </div>
+
             <div style={{ gridColumn: "1 / -1" }}>
               <label style={labelStyle}>Image URL</label>
               <input
@@ -233,7 +285,7 @@ export default function NewProductPage() {
               <textarea
                 value={gallery}
                 onChange={(e) => setGallery(e.target.value)}
-                placeholder="Comma-separated image URLs or a JSON string"
+                placeholder="Comma-separated image URLs"
                 style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
               />
             </div>
@@ -319,7 +371,7 @@ export default function NewProductPage() {
         <ImportPanel
           endpoint="/api/shopify/import"
           description="Upload a CSV or JSON file, or paste content manually. This is suitable for Shopify, Zoho, or your own prepared files after adapting headers to the Patak structure."
-          csvHeader="id,title,slug,description,short_description,image,gallery,collection_slug,status,featured,seo_title,seo_description,created_at,updated_at"
+          csvHeader="id,title,slug,description,short_description,image,gallery,collection_slug,status,featured,created_at,updated_at,seo_title,seo_description,vendor,product_category,type,tags"
         />
       </div>
     </div>

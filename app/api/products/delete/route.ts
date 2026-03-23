@@ -4,9 +4,6 @@ import {
   deleteSheetRowsByField,
 } from "../../../../lib/sheets";
 
-const PRODUCT_SHEET_NAME = "products";
-const VARIANT_SHEET_NAME = "product_variants";
-
 function normalizeSlug(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
@@ -20,27 +17,27 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Slug is required.",
+          error: "Product slug is required.",
         },
         { status: 400 }
       );
     }
 
-    await deleteSheetRowBySlug(PRODUCT_SHEET_NAME, slug);
-    await deleteSheetRowsByField(VARIANT_SHEET_NAME, "product_slug", slug);
+    await deleteSheetRowBySlug("products", slug);
+    await deleteSheetRowsByField("product_variants", "product_slug", slug);
+    await deleteSheetRowsByField("product_images", "product_slug", slug);
+    await deleteSheetRowsByField("collection_products", "product_slug", slug);
 
     return NextResponse.json({
       ok: true,
-      message: "Product and related variants deleted successfully.",
+      message: "Product and related records deleted successfully.",
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to delete the product.",
+          error instanceof Error ? error.message : "Failed to delete product.",
       },
       { status: 500 }
     );

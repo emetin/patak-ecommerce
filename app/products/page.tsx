@@ -21,6 +21,10 @@ type ProductItem = {
   updated_at?: string;
   seo_title?: string;
   seo_description?: string;
+  vendor?: string;
+  product_category?: string;
+  type?: string;
+  tags?: string;
 };
 
 type VariantItem = {
@@ -30,13 +34,6 @@ type VariantItem = {
   compare_at_price?: string;
   status?: string;
 };
-
-export const metadata: Metadata = buildPageMetadata({
-  title: "Products",
-  description:
-    "Explore premium hospitality textile products including bedding, towels, bathrobes and curated hotel textile solutions by Patak Textile.",
-  path: "/products",
-});
 
 function formatCollectionLabel(value?: string) {
   const raw = String(value || "").trim();
@@ -60,6 +57,13 @@ function formatMoney(value: number) {
     currency: "USD",
   }).format(value || 0);
 }
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Products",
+  description:
+    "Explore premium hospitality textile products including bedding, towels, bathrobes and curated hotel textile solutions by Patak Textile.",
+  path: "/products",
+});
 
 export default async function ProductsPage() {
   let products: ProductItem[] = [];
@@ -87,7 +91,10 @@ export default async function ProductsPage() {
         return String(a.title || "").localeCompare(String(b.title || ""));
       });
 
-    variants = variantData as VariantItem[];
+    variants = (variantData as VariantItem[]).filter(
+      (item) =>
+        !item.status || String(item.status || "").trim().toLowerCase() === "published"
+    );
   } catch (error) {
     errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred.";
@@ -178,9 +185,10 @@ export default async function ProductsPage() {
               }}
             >
               {products.map((product, index) => {
-                const productVariants = variantsBySlug.get(
-                  String(product.slug || "").trim().toLowerCase()
-                ) || [];
+                const productVariants =
+                  variantsBySlug.get(
+                    String(product.slug || "").trim().toLowerCase()
+                  ) || [];
 
                 const prices = productVariants
                   .map((variant) => parsePrice(variant.price))

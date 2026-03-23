@@ -12,10 +12,14 @@ type ProductRecord = {
   collection_slug?: string;
   status?: string;
   featured?: string;
-  seo_title?: string;
-  seo_description?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
+  vendor?: string;
+  product_category?: string;
+  type?: string;
+  tags?: string;
 };
 
 const ALLOWED_STATUS = ["published", "draft", "archived"];
@@ -65,6 +69,10 @@ export async function POST(req: Request) {
     const featured = normalizeBooleanString(body?.featured, "false");
     const seoTitle = normalizeText(body?.seo_title);
     const seoDescription = normalizeText(body?.seo_description);
+    const vendor = normalizeText(body?.vendor);
+    const productCategory = normalizeText(body?.product_category);
+    const type = normalizeText(body?.type);
+    const tags = normalizeText(body?.tags);
 
     if (!title) {
       return NextResponse.json(
@@ -158,10 +166,14 @@ export async function POST(req: Request) {
       collectionSlug,
       status,
       featured,
+      now,
+      now,
       finalSeoTitle,
       finalSeoDescription,
-      now,
-      now,
+      vendor,
+      productCategory,
+      type,
+      tags,
     ]);
 
     return NextResponse.json(
@@ -179,10 +191,14 @@ export async function POST(req: Request) {
           collection_slug: collectionSlug,
           status,
           featured,
-          seo_title: finalSeoTitle,
-          seo_description: finalSeoDescription,
           created_at: now,
           updated_at: now,
+          seo_title: finalSeoTitle,
+          seo_description: finalSeoDescription,
+          vendor,
+          product_category: productCategory,
+          type,
+          tags,
         },
       },
       { status: 201 }

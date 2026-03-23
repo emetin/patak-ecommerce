@@ -12,6 +12,8 @@ type CollectionItem = {
   status?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
 
 export default function AdminCollectionsPage() {
@@ -176,8 +178,17 @@ export default function AdminCollectionsPage() {
                 {filteredItems.map((item, index) => (
                   <tr key={item.id || item.slug || index}>
                     <td style={tdStyle}>
-                      <div style={{ fontWeight: 800 }}>
-                        {item.title || "-"}
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div style={{ fontWeight: 800 }}>{item.title || "-"}</div>
+                        <div
+                          style={{
+                            color: "#6f6559",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {item.description || "No description added yet."}
+                        </div>
                       </div>
                     </td>
                     <td style={tdStyle}>{item.slug || "-"}</td>
@@ -186,26 +197,35 @@ export default function AdminCollectionsPage() {
                     </td>
                     <td style={tdStyle}>{item.updated_at || "-"}</td>
                     <td style={tdStyle}>
-                      <div style={actionRowStyle}>
-                        {item.slug ? (
-                          <Link
-                            href={`/admin/collections/${item.slug}`}
-                            style={secondarySmallButtonStyle}
-                          >
-                            Edit
-                          </Link>
-                        ) : null}
+  <div style={actionRowStyle}>
+    {item.slug ? (
+      <Link
+        href={`/admin/collections/${item.slug}`}
+        style={secondarySmallButtonStyle}
+      >
+        Edit
+      </Link>
+    ) : null}
 
-                        {item.slug ? (
-                          <Link
-                            href={`/collections/${item.slug}`}
-                            style={secondarySmallButtonStyle}
-                          >
-                            View
-                          </Link>
-                        ) : null}
-                      </div>
-                    </td>
+    {item.slug ? (
+      <Link
+        href={`/admin/collections/${item.slug}/products`}
+        style={secondarySmallButtonStyle}
+      >
+        Products
+      </Link>
+    ) : null}
+
+    {item.slug ? (
+      <Link
+        href={`/collections/${item.slug}`}
+        style={secondarySmallButtonStyle}
+      >
+        View
+      </Link>
+    ) : null}
+  </div>
+</td>
                   </tr>
                 ))}
               </tbody>

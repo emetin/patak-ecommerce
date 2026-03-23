@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 
 type ProductItem = {
   id?: string;
@@ -16,6 +16,10 @@ type ProductItem = {
   featured?: string;
   seo_title?: string;
   seo_description?: string;
+  vendor?: string;
+  product_category?: string;
+  type?: string;
+  tags?: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -74,14 +78,35 @@ function buildVariantLabel(item: VariantItem) {
 export default function AdminProductDetailPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const slug = decodeURIComponent(params.slug);
+  const { slug: rawSlug } = use(params);
+  const slug = decodeURIComponent(rawSlug);
 
   const [product, setProduct] = useState<ProductItem | null>(null);
   const [variants, setVariants] = useState<VariantItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [gallery, setGallery] = useState("");
+  const [collectionSlug, setCollectionSlug] = useState("");
+  const [statusValue, setStatusValue] = useState("draft");
+  const [featured, setFeatured] = useState("false");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
+  const [vendor, setVendor] = useState("");
+  const [productCategory, setProductCategory] = useState("");
+  const [typeValue, setTypeValue] = useState("");
+  const [tags, setTags] = useState("");
+
+  const [productSaving, setProductSaving] = useState(false);
+  const [productSaveMessage, setProductSaveMessage] = useState("");
+  const [productSaveError, setProductSaveError] = useState("");
+  const [productDeleteLoading, setProductDeleteLoading] = useState(false);
 
   const [option1Name, setOption1Name] = useState("Size");
   const [option1Value, setOption1Value] = useState("");
@@ -95,7 +120,14 @@ export default function AdminProductDetailPage({
   const [compareAtPrice, setCompareAtPrice] = useState("");
   const [boxQuantity, setBoxQuantity] = useState("");
   const [variantImage, setVariantImage] = useState("");
-  const [status, setStatus] = useState("published");
+  const [inventoryTracker, setInventoryTracker] = useState("none");
+  const [inventoryPolicy, setInventoryPolicy] = useState("deny");
+  const [fulfillmentService, setFulfillmentService] = useState("manual");
+  const [requiresShipping, setRequiresShipping] = useState("true");
+  const [taxable, setTaxable] = useState("true");
+  const [weight, setWeight] = useState("");
+  const [weightUnit, setWeightUnit] = useState("kg");
+  const [variantStatus, setVariantStatus] = useState("published");
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
@@ -137,6 +169,21 @@ export default function AdminProductDetailPage({
 
       setProduct(foundProduct);
       setVariants(variantsData.items || []);
+
+      setTitle(foundProduct.title || "");
+      setDescription(foundProduct.description || "");
+      setShortDescription(foundProduct.short_description || "");
+      setImage(foundProduct.image || "");
+      setGallery(foundProduct.gallery || "");
+      setCollectionSlug(foundProduct.collection_slug || "");
+      setStatusValue(foundProduct.status || "draft");
+      setFeatured(foundProduct.featured || "false");
+      setSeoTitle(foundProduct.seo_title || "");
+      setSeoDescription(foundProduct.seo_description || "");
+      setVendor(foundProduct.vendor || "");
+      setProductCategory(foundProduct.product_category || "");
+      setTypeValue(foundProduct.type || "");
+      setTags(foundProduct.tags || "");
     } catch (error) {
       setPageError(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -157,6 +204,89 @@ export default function AdminProductDetailPage({
 
     return values.length ? values.join(" / ") : "Default";
   }, [option1Value, option2Value, option3Value]);
+
+  async function handleProductSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    setProductSaving(true);
+    setProductSaveMessage("");
+    setProductSaveError("");
+
+    try {
+      const response = await fetch("/api/products/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          slug,
+          title,
+          description,
+          short_description: shortDescription,
+          image,
+          gallery,
+          collection_slug: collectionSlug,
+          status: statusValue,
+          featured,
+          seo_title: seoTitle,
+          seo_description: seoDescription,
+          vendor,
+          product_category: productCategory,
+          type: typeValue,
+          tags,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to update product.");
+      }
+
+      setProductSaveMessage("Product updated successfully.");
+      await loadPage();
+    } catch (error) {
+      setProductSaveError(
+        error instanceof Error ? error.message : "An unknown error occurred."
+      );
+    } finally {
+      setProductSaving(false);
+    }
+  }
+
+  async function handleDeleteProduct() {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this product and all related records?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setProductDeleteLoading(true);
+
+      const response = await fetch("/api/products/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ slug }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to delete product.");
+      }
+
+      window.location.href = "/admin/products";
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "An unknown error occurred."
+      );
+    } finally {
+      setProductDeleteLoading(false);
+    }
+  }
 
   async function handleCreateVariant(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -183,9 +313,16 @@ export default function AdminProductDetailPage({
           barcode,
           price,
           compare_at_price: compareAtPrice,
-          box_quantity: boxQuantity,
+          inventory_tracker: inventoryTracker,
+          inventory_policy: inventoryPolicy,
+          fulfillment_service: fulfillmentService,
+          requires_shipping: requiresShipping,
+          taxable,
           variant_image: variantImage,
-          status,
+          weight,
+          weight_unit: weightUnit,
+          box_quantity: boxQuantity,
+          status: variantStatus,
         }),
       });
 
@@ -208,7 +345,14 @@ export default function AdminProductDetailPage({
       setCompareAtPrice("");
       setBoxQuantity("");
       setVariantImage("");
-      setStatus("published");
+      setInventoryTracker("none");
+      setInventoryPolicy("deny");
+      setFulfillmentService("manual");
+      setRequiresShipping("true");
+      setTaxable("true");
+      setWeight("");
+      setWeightUnit("kg");
+      setVariantStatus("published");
 
       await loadPage();
     } catch (error) {
@@ -278,8 +422,7 @@ export default function AdminProductDetailPage({
           </Link>
           <h1 style={titleStyle}>{product.title || "Product"}</h1>
           <p style={subtitleStyle}>
-            Manage product details and create multiple purchasing variants for
-            this product.
+            Edit product details, manage variants, and organize gallery images.
           </p>
         </div>
 
@@ -287,9 +430,23 @@ export default function AdminProductDetailPage({
           <Link href={`/products/${product.slug}`} style={secondaryButtonStyle}>
             View Product
           </Link>
+          <Link
+            href={`/admin/products/${product.slug}/images`}
+            style={secondaryButtonStyle}
+          >
+            Images
+          </Link>
           <Link href="/admin/products/new" style={primaryButtonStyle}>
             + New Product
           </Link>
+          <button
+            type="button"
+            onClick={handleDeleteProduct}
+            style={dangerButtonStyle}
+            disabled={productDeleteLoading}
+          >
+            {productDeleteLoading ? "Deleting..." : "Delete Product"}
+          </button>
         </div>
       </div>
 
@@ -314,6 +471,184 @@ export default function AdminProductDetailPage({
           <div style={summaryValueStyle}>{variants.length}</div>
         </div>
       </div>
+
+      <form onSubmit={handleProductSave} style={cardStyle}>
+        <div style={sectionTitleWrapStyle}>
+          <h2 style={sectionTitleStyle}>Product Details</h2>
+          <p style={sectionTextStyle}>
+            Update the main product information stored in the products sheet.
+          </p>
+        </div>
+
+        <div style={formGridStyle}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={inputStyle}
+              required
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Slug</label>
+            <input value={slug} style={inputStyle} disabled />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Collection Slug</label>
+            <input
+              value={collectionSlug}
+              onChange={(e) => setCollectionSlug(e.target.value)}
+              placeholder="towels"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select
+              value={statusValue}
+              onChange={(e) => setStatusValue(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="draft">draft</option>
+              <option value="published">published</option>
+              <option value="archived">archived</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Featured</label>
+            <select
+              value={featured}
+              onChange={(e) => setFeatured(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Vendor</label>
+            <input
+              value={vendor}
+              onChange={(e) => setVendor(e.target.value)}
+              placeholder="Patak Textile"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Product Category</label>
+            <input
+              value={productCategory}
+              onChange={(e) => setProductCategory(e.target.value)}
+              placeholder="Bath"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Type</label>
+            <input
+              value={typeValue}
+              onChange={(e) => setTypeValue(e.target.value)}
+              placeholder="Towel"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tags</label>
+            <input
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="hotel, luxury, bath"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Image URL</label>
+            <input
+              value={image}
+              onChange={(e) => setImage(e.target.value)}
+              placeholder="https://..."
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Gallery</label>
+            <textarea
+              value={gallery}
+              onChange={(e) => setGallery(e.target.value)}
+              placeholder="Comma-separated image URLs"
+              style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Short Description</label>
+            <textarea
+              value={shortDescription}
+              onChange={(e) => setShortDescription(e.target.value)}
+              placeholder="Short summary"
+              style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Full product description"
+              style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>SEO Title</label>
+            <input
+              value={seoTitle}
+              onChange={(e) => setSeoTitle(e.target.value)}
+              placeholder="SEO title"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>SEO Description</label>
+            <textarea
+              value={seoDescription}
+              onChange={(e) => setSeoDescription(e.target.value)}
+              placeholder="SEO description"
+              style={{ ...inputStyle, minHeight: 120, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        <div style={buttonRowStyle}>
+          <button
+            type="submit"
+            style={primaryButtonStyle}
+            disabled={productSaving}
+          >
+            {productSaving ? "Saving..." : "Save Product"}
+          </button>
+        </div>
+
+        {productSaveMessage ? (
+          <div style={successBoxStyle}>{productSaveMessage}</div>
+        ) : null}
+        {productSaveError ? (
+          <div style={errorBoxStyle}>{productSaveError}</div>
+        ) : null}
+      </form>
 
       <div
         style={{
@@ -445,14 +780,96 @@ export default function AdminProductDetailPage({
             </div>
 
             <div>
+              <label style={labelStyle}>Weight</label>
+              <input
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                placeholder="1.2"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Weight Unit</label>
+              <select
+                value={weightUnit}
+                onChange={(e) => setWeightUnit(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="lb">lb</option>
+                <option value="oz">oz</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Inventory Tracker</label>
+              <select
+                value={inventoryTracker}
+                onChange={(e) => setInventoryTracker(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="none">none</option>
+                <option value="shopify">shopify</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Inventory Policy</label>
+              <select
+                value={inventoryPolicy}
+                onChange={(e) => setInventoryPolicy(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="deny">deny</option>
+                <option value="continue">continue</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Fulfillment Service</label>
+              <select
+                value={fulfillmentService}
+                onChange={(e) => setFulfillmentService(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="manual">manual</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Requires Shipping</label>
+              <select
+                value={requiresShipping}
+                onChange={(e) => setRequiresShipping(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Taxable</label>
+              <select
+                value={taxable}
+                onChange={(e) => setTaxable(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </div>
+
+            <div>
               <label style={labelStyle}>Status</label>
               <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                value={variantStatus}
+                onChange={(e) => setVariantStatus(e.target.value)}
                 style={inputStyle}
               >
                 <option value="published">published</option>
-                <option value="active">active</option>
                 <option value="draft">draft</option>
                 <option value="archived">archived</option>
               </select>
@@ -505,10 +922,15 @@ export default function AdminProductDetailPage({
                   compareAtValue > priceValue && priceValue > 0;
 
                 return (
-                  <div key={item.id || buildVariantLabel(item)} style={variantCardStyle}>
+                  <div
+                    key={item.id || buildVariantLabel(item)}
+                    style={variantCardStyle}
+                  >
                     <div style={variantHeaderStyle}>
                       <div>
-                        <div style={variantTitleStyle}>{buildVariantLabel(item)}</div>
+                        <div style={variantTitleStyle}>
+                          {buildVariantLabel(item)}
+                        </div>
                         <div style={variantMetaStyle}>
                           {item.option1_name || ""}
                           {item.option1_name && item.option1_value
@@ -543,13 +965,11 @@ export default function AdminProductDetailPage({
                         label="Box Quantity"
                         value={item.box_quantity || "-"}
                       />
-                      <InfoBox label="ID" value={item.id || "-"} />
+                      <InfoBox label="Weight" value={item.weight || "-"} />
                     </div>
 
                     {hasDiscount ? (
-                      <div style={discountBadgeStyle}>
-                        Discount active
-                      </div>
+                      <div style={discountBadgeStyle}>Discount active</div>
                     ) : null}
 
                     <div style={actionRowStyle}>
@@ -577,7 +997,7 @@ function StatusBadge({ value }: { value: string }) {
   const normalized = value.toLowerCase();
 
   const style: React.CSSProperties =
-    normalized === "published" || normalized === "active"
+    normalized === "published"
       ? {
           ...badgeStyle,
           background: "#edf8f1",
@@ -866,6 +1286,20 @@ const secondaryButtonStyle: React.CSSProperties = {
   fontWeight: 800,
   cursor: "pointer",
   textDecoration: "none",
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #e5c9c9",
+  background: "#fff5f5",
+  color: "#8f2d2d",
+  fontWeight: 800,
+  cursor: "pointer",
 };
 
 const dangerSmallButtonStyle: React.CSSProperties = {

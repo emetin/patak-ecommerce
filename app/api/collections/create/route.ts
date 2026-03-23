@@ -10,8 +10,11 @@ type CollectionRecord = {
   status?: string;
   created_at?: string;
   updated_at?: string;
+  seo_title?: string;
+  seo_description?: string;
 };
 
+const SHEET_NAME = "collections";
 const ALLOWED_STATUS = ["published", "draft", "archived"];
 
 function makeSlug(text: string) {
@@ -47,6 +50,8 @@ export async function POST(req: Request) {
     const description = normalizeText(body?.description);
     const image = normalizeText(body?.image);
     const status = normalizeStatus(body?.status);
+    const seoTitle = normalizeText(body?.seo_title);
+    const seoDescription = normalizeText(body?.seo_description);
 
     if (!title) {
       return NextResponse.json(
@@ -81,7 +86,7 @@ export async function POST(req: Request) {
     }
 
     const existingCollections = (await getSheetData(
-      "Collections"
+      SHEET_NAME
     )) as CollectionRecord[];
 
     const normalizedTitle = title.toLowerCase();
@@ -118,7 +123,10 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const id = `col_${Date.now()}`;
 
-    await appendSheetRow("Collections", [
+    const finalSeoTitle = seoTitle || title;
+    const finalSeoDescription = seoDescription || description;
+
+    await appendSheetRow(SHEET_NAME, [
       id,
       title,
       finalSlug,
@@ -127,6 +135,8 @@ export async function POST(req: Request) {
       status,
       now,
       now,
+      finalSeoTitle,
+      finalSeoDescription,
     ]);
 
     return NextResponse.json(
@@ -142,6 +152,8 @@ export async function POST(req: Request) {
           status,
           created_at: now,
           updated_at: now,
+          seo_title: finalSeoTitle,
+          seo_description: finalSeoDescription,
         },
       },
       { status: 201 }
