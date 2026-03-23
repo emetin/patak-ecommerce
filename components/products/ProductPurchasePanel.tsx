@@ -62,29 +62,48 @@ function formatMoney(value: number) {
   }).format(value || 0);
 }
 
+function normalize(value?: string) {
+  return String(value || "").trim();
+}
+
+function normalizeLower(value?: string) {
+  return normalize(value).toLowerCase();
+}
+
+function isMeaningfulValue(value?: string) {
+  const normalized = normalizeLower(value);
+  return Boolean(normalized) && normalized !== "default";
+}
+
 function buildVariantLabel(variant: VariantItem) {
   const values = [
     variant.option1_value,
     variant.option2_value,
     variant.option3_value,
   ]
-    .map((item) => String(item || "").trim())
-    .filter(Boolean);
+    .map((item) => normalize(item))
+    .filter((item) => item && item.toLowerCase() !== "default");
 
   return values.length ? values.join(" / ") : "Default";
 }
 
-function getUniqueOptionValues(
+function getOptionMeta(
   variants: VariantItem[],
   optionNameKey: "option1_name" | "option2_name" | "option3_name",
   optionValueKey: "option1_value" | "option2_value" | "option3_value"
 ) {
-  const optionName = String(variants[0]?.[optionNameKey] || "").trim();
+  const optionName =
+    normalize(
+      variants.find((variant) => isMeaningfulValue(variant[optionValueKey]))?.[
+        optionNameKey
+      ]
+    ) || "";
+
   const values = Array.from(
     new Set(
       variants
-        .map((variant) => String(variant[optionValueKey] || "").trim())
-        .filter(Boolean)
+        .map((variant) => normalize(variant[optionValueKey]))
+        .filter((value) => isMeaningfulValue(value))
     )
   );
 
@@ -94,48 +113,154 @@ function getUniqueOptionValues(
   };
 }
 
+function filterOutDefaultVariantsWhenRealOnesExist(variants: VariantItem[]) {
+  const hasRealVariant = variants.some(
+    (variant) =>
+      isMeaningfulValue(variant.option1_value) ||
+      isMeaningfulValue(variant.option2_value) ||
+      isMeaningfulValue(variant.option3_value)
+  );
+
+  if (!hasRealVariant) {
+    return variants;
+  }
+
+  return variants.filter(
+    (variant) =>
+      isMeaningfulValue(variant.option1_value) ||
+      isMeaningfulValue(variant.option2_value) ||
+      isMeaningfulValue(variant.option3_value)
+  );
+}
+
 export default function ProductPurchasePanel({
   product,
   variants,
 }: ProductPurchasePanelProps) {
   const activeVariants = useMemo(() => {
-    const published = variants.filter(
-      (variant) =>
-        ["", "published", "active"].includes(
-          String(variant.status || "").trim().toLowerCase()
-        )
+    const published = variants.filter((variant) =>
+      ["", "published", "active"].includes(normalizeLower(variant.status))
     );
 
-    return published.length ? published : variants;
+    const pool = published.length ? published : variants;
+    return filterOutDefaultVariantsWhenRealOnesExist(pool);
   }, [variants]);
 
-  const option1 = getUniqueOptionValues(activeVariants, "option1_name", "option1_value");
-  const option2 = getUniqueOptionValues(activeVariants, "option2_name", "option2_value");
-  const option3 = getUniqueOptionValues(activeVariants, "option3_name", "option3_value");
+  const option1 = useMemo(
+    () => getOptionMeta(activeVariants, "option1_name", "option1_value"),
+    [activeVariants]
+  );
 
-  const [selectedOption1, setSelectedOption1] = useState(option1.values[0] || "");
-  const [selectedOption2, setSelectedOption2] = useState(option2.values[0] || "");
-  const [selectedOption3, setSelectedOption3] = useState(option3.values[0] || "");
+  const option2 = useMemo(
+    () => getOptionMeta(activeVariants, "option2_name", "option2_value"),
+    [activeVariants]
+  );
+
+  const option3 = useMemo(
+    () => getOptionMeta(activeVariants, "option3_name", "option3_value"),
+    [activeVariants]
+  );
+
+  const [selectedOption1, setSelectedOption1] = useState("");
+  const [selectedOption2, setSelectedOption2] = useState("");
+  const [selectedOption3, setSelectedOption3] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
     setSelectedOption1(option1.values[0] || "");
-    setSelectedOption2(option2.values[0] || "");
-    setSelectedOption3(option3.values[0] || "");
-  }, [option1.values, option2.values, option3.values]);
+    setSelectedOption2("");
+    setSelectedOption3("");
+  }, [option1.values]);
+
+  const availableOption2Values = useMemo(() => {
+    if (!option2.values.length) return [];
+
+    const scoped = activeVariants.filter((variant) => {
+      if (!option1.values.length) return true;
+      return normalize(variant.option1_value) === selectedOption1;
+    });
+
+    return Array.from(
+      new Set(
+        scoped
+          .map((variant) => normalize(variant.option2_value))
+          .filter((value) => isMeaningfulValue(value))
+      )
+    );
+  }, [activeVariants, option1.values.length, option2.values.length, selectedOption1]);
+
+  const availableOption3Values = useMemo(() => {
+    if (!option3.values.length) return [];
+
+    const scoped = activeVariants.filter((variant) => {
+      const option1Matches =
+        !option1.values.length ||
+        normalize(variant.option1_value) === selectedOption1;
+
+      const option2Matches =
+        !option2.values.length ||
+        !availableOption2Values.length ||
+        normalize(variant.option2_value) === selectedOption2;
+
+      return option1Matches && option2Matches;
+    });
+
+    return Array.from(
+      new Set(
+        scoped
+          .map((variant) => normalize(variant.option3_value))
+          .filter((value) => isMeaningfulValue(value))
+      )
+    );
+  }, [
+    activeVariants,
+    option1.values.length,
+    option2.values.length,
+    option3.values.length,
+    selectedOption1,
+    selectedOption2,
+    availableOption2Values.length,
+  ]);
+
+  useEffect(() => {
+    if (!option2.values.length) {
+      setSelectedOption2("");
+      return;
+    }
+
+    setSelectedOption2((prev) =>
+      availableOption2Values.includes(prev) ? prev : availableOption2Values[0] || ""
+    );
+  }, [option2.values.length, availableOption2Values]);
+
+  useEffect(() => {
+    if (!option3.values.length) {
+      setSelectedOption3("");
+      return;
+    }
+
+    setSelectedOption3((prev) =>
+      availableOption3Values.includes(prev) ? prev : availableOption3Values[0] || ""
+    );
+  }, [option3.values.length, availableOption3Values]);
 
   const selectedVariant = useMemo(() => {
     if (!activeVariants.length) return null;
 
     const found = activeVariants.find((variant) => {
-      const v1 = String(variant.option1_value || "").trim();
-      const v2 = String(variant.option2_value || "").trim();
-      const v3 = String(variant.option3_value || "").trim();
+      const v1 = normalize(variant.option1_value);
+      const v2 = normalize(variant.option2_value);
+      const v3 = normalize(variant.option3_value);
 
-      const option1Matches = !option1.values.length || v1 === selectedOption1;
-      const option2Matches = !option2.values.length || v2 === selectedOption2;
-      const option3Matches = !option3.values.length || v3 === selectedOption3;
+      const option1Matches =
+        !option1.values.length || v1 === selectedOption1;
+
+      const option2Matches =
+        !option2.values.length || v2 === selectedOption2;
+
+      const option3Matches =
+        !option3.values.length || v3 === selectedOption3;
 
       return option1Matches && option2Matches && option3Matches;
     });
@@ -167,10 +292,11 @@ export default function ProductPurchasePanel({
     const cartItem: CartItem = {
       product_slug: String(product.slug || ""),
       product_title: String(product.title || "Product"),
-      product_image: String(
-        selectedVariant.variant_image || product.image || ""
+      product_image: String(selectedVariant.variant_image || product.image || ""),
+      variant_id: String(
+        selectedVariant.id ||
+          `${product.slug}-${buildVariantLabel(selectedVariant)}`
       ),
-      variant_id: String(selectedVariant.id || buildVariantLabel(selectedVariant)),
       variant_label: buildVariantLabel(selectedVariant),
       sku: String(selectedVariant.sku || ""),
       price,
@@ -198,6 +324,39 @@ export default function ProductPurchasePanel({
   function buyNow() {
     addToCart();
     window.location.href = "/contact-us";
+  }
+
+  if (!activeVariants.length) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          borderRadius: 28,
+          border: "1px solid #e5ddd2",
+          background: "#fff",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 28,
+            lineHeight: 1.2,
+            fontWeight: 800,
+            marginBottom: 12,
+          }}
+        >
+          Request Quote
+        </div>
+
+        <div
+          style={{
+            color: "#6f6559",
+            lineHeight: 1.7,
+          }}
+        >
+          No purchasing variants are currently available for this product.
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -271,7 +430,7 @@ export default function ProductPurchasePanel({
       {option2.optionName ? (
         <VariantSelectBlock
           label={option2.optionName}
-          values={option2.values}
+          values={availableOption2Values}
           value={selectedOption2}
           onChange={setSelectedOption2}
         />
@@ -280,7 +439,7 @@ export default function ProductPurchasePanel({
       {option3.optionName ? (
         <VariantSelectBlock
           label={option3.optionName}
-          values={option3.values}
+          values={availableOption3Values}
           value={selectedOption3}
           onChange={setSelectedOption3}
         />
@@ -399,6 +558,8 @@ function VariantSelectBlock({
   value: string;
   onChange: (value: string) => void;
 }) {
+  if (!values.length) return null;
+
   return (
     <div style={{ marginTop: 14 }}>
       <div

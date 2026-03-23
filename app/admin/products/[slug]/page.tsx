@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type ProductItem = {
@@ -15,141 +14,205 @@ type ProductItem = {
   collection_slug?: string;
   status?: string;
   featured?: string;
+  seo_title?: string;
+  seo_description?: string;
   created_at?: string;
   updated_at?: string;
 };
 
-function makeSlug(text: string) {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ı/g, "i")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
+type VariantItem = {
+  id?: string;
+  product_slug?: string;
+  option1_name?: string;
+  option1_value?: string;
+  option2_name?: string;
+  option2_value?: string;
+  option3_name?: string;
+  option3_value?: string;
+  sku?: string;
+  barcode?: string;
+  price?: string;
+  compare_at_price?: string;
+  inventory_tracker?: string;
+  inventory_policy?: string;
+  fulfillment_service?: string;
+  requires_shipping?: string;
+  taxable?: string;
+  variant_image?: string;
+  weight?: string;
+  weight_unit?: string;
+  box_quantity?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+function parsePrice(value?: string) {
+  const num = Number(String(value || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(num) ? num : 0;
 }
 
-export default function AdminProductEditPage({
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(value || 0);
+}
+
+function buildVariantLabel(item: VariantItem) {
+  const values = [
+    item.option1_value,
+    item.option2_value,
+    item.option3_value,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return values.length ? values.join(" / ") : "Default";
+}
+
+export default function AdminProductDetailPage({
   params,
 }: {
   params: { slug: string };
 }) {
-  const router = useRouter();
-  const originalSlug = decodeURIComponent(params.slug).trim().toLowerCase();
+  const slug = decodeURIComponent(params.slug);
 
+  const [product, setProduct] = useState<ProductItem | null>(null);
+  const [variants, setVariants] = useState<VariantItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [pageError, setPageError] = useState("");
 
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
-  const [image, setImage] = useState("");
-  const [gallery, setGallery] = useState("");
-  const [collectionSlug, setCollectionSlug] = useState("");
-  const [status, setStatus] = useState("draft");
-  const [featured, setFeatured] = useState("false");
+  const [option1Name, setOption1Name] = useState("Size");
+  const [option1Value, setOption1Value] = useState("");
+  const [option2Name, setOption2Name] = useState("");
+  const [option2Value, setOption2Value] = useState("");
+  const [option3Name, setOption3Name] = useState("");
+  const [option3Value, setOption3Value] = useState("");
+  const [sku, setSku] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [price, setPrice] = useState("");
+  const [compareAtPrice, setCompareAtPrice] = useState("");
+  const [boxQuantity, setBoxQuantity] = useState("");
+  const [variantImage, setVariantImage] = useState("");
+  const [status, setStatus] = useState("published");
 
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [resultMessage, setResultMessage] = useState("");
-  const [resultError, setResultError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [deleteLoadingId, setDeleteLoadingId] = useState("");
 
-  const suggestedSlug = useMemo(() => makeSlug(title), [title]);
+  async function loadPage() {
+    try {
+      setLoading(true);
+      setPageError("");
+
+      const [productsResponse, variantsResponse] = await Promise.all([
+        fetch("/api/products/list", { cache: "no-store" }),
+        fetch(`/api/variants/list?product_slug=${encodeURIComponent(slug)}`, {
+          cache: "no-store",
+        }),
+      ]);
+
+      const productsData = await productsResponse.json();
+      const variantsData = await variantsResponse.json();
+
+      if (!productsResponse.ok || !productsData.ok) {
+        throw new Error(productsData?.error || "Failed to load product.");
+      }
+
+      if (!variantsResponse.ok || !variantsData.ok) {
+        throw new Error(variantsData?.error || "Failed to load variants.");
+      }
+
+      const foundProduct =
+        (productsData.items || []).find(
+          (item: ProductItem) =>
+            String(item.slug || "").trim().toLowerCase() === slug.toLowerCase()
+        ) || null;
+
+      if (!foundProduct) {
+        throw new Error("Product not found.");
+      }
+
+      setProduct(foundProduct);
+      setVariants(variantsData.items || []);
+    } catch (error) {
+      setPageError(
+        error instanceof Error ? error.message : "An unknown error occurred."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadItem() {
-      try {
-        setLoading(true);
-        setLoadError("");
+    loadPage();
+  }, [slug]);
 
-        const response = await fetch("/api/products/list", {
-          cache: "no-store",
-        });
-        const data = await response.json();
+  const optionPreview = useMemo(() => {
+    const values = [option1Value, option2Value, option3Value]
+      .map((value) => value.trim())
+      .filter(Boolean);
 
-        if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Failed to load products.");
-        }
+    return values.length ? values.join(" / ") : "Default";
+  }, [option1Value, option2Value, option3Value]);
 
-        const item = (data.items as ProductItem[]).find(
-          (product) =>
-            String(product.slug || "").trim().toLowerCase() === originalSlug
-        );
-
-        if (!item) {
-          throw new Error("Product was not found.");
-        }
-
-        setTitle(item.title || "");
-        setSlug(item.slug || "");
-        setDescription(item.description || "");
-        setShortDescription(item.short_description || "");
-        setImage(item.image || "");
-        setGallery(item.gallery || "");
-        setCollectionSlug(item.collection_slug || "");
-        setStatus(String(item.status || "draft").toLowerCase());
-        setFeatured(String(item.featured || "false").toLowerCase());
-      } catch (error) {
-        setLoadError(
-          error instanceof Error ? error.message : "An unknown error occurred."
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadItem();
-  }, [originalSlug]);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleCreateVariant(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    try {
-      setSaving(true);
-      setResultMessage("");
-      setResultError("");
+    setSaving(true);
+    setSaveMessage("");
+    setSaveError("");
 
-      const response = await fetch("/api/products/update", {
+    try {
+      const response = await fetch("/api/variants/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          originalSlug,
-          title,
-          slug,
-          description,
-          short_description: shortDescription,
-          image,
-          gallery,
-          collection_slug: collectionSlug,
+          product_slug: slug,
+          option1_name: option1Name,
+          option1_value: option1Value,
+          option2_name: option2Name,
+          option2_value: option2Value,
+          option3_name: option3Name,
+          option3_value: option3Value,
+          sku,
+          barcode,
+          price,
+          compare_at_price: compareAtPrice,
+          box_quantity: boxQuantity,
+          variant_image: variantImage,
           status,
-          featured,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to update the product.");
+        throw new Error(data?.error || "Failed to create variant.");
       }
 
-      const updatedSlug = String(data?.item?.slug || slug || originalSlug).trim();
+      setSaveMessage("Variant created successfully.");
 
-      setResultMessage("Product updated successfully.");
+      setOption1Value("");
+      setOption2Name("");
+      setOption2Value("");
+      setOption3Name("");
+      setOption3Value("");
+      setSku("");
+      setBarcode("");
+      setPrice("");
+      setCompareAtPrice("");
+      setBoxQuantity("");
+      setVariantImage("");
+      setStatus("published");
 
-      if (updatedSlug && updatedSlug.toLowerCase() !== originalSlug) {
-        router.replace(`/admin/products/${updatedSlug}`);
-      }
+      await loadPage();
     } catch (error) {
-      setResultError(
+      setSaveError(
         error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
@@ -157,129 +220,226 @@ export default function AdminProductEditPage({
     }
   }
 
-  async function handleDelete() {
+  async function handleDeleteVariant(id?: string) {
+    if (!id) return;
+
     const confirmed = window.confirm(
-      "Are you sure you want to delete this product?"
+      "Are you sure you want to delete this variant?"
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
-      setDeleting(true);
-      setResultMessage("");
-      setResultError("");
+      setDeleteLoadingId(id);
 
-      const response = await fetch("/api/products/delete", {
+      const response = await fetch("/api/variants/delete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          slug: originalSlug,
-        }),
+        body: JSON.stringify({ id }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to delete the product.");
+        throw new Error(data?.error || "Failed to delete variant.");
       }
 
-      router.push("/admin/products");
-      router.refresh();
+      setVariants((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
-      setResultError(
+      alert(
         error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
-      setDeleting(false);
+      setDeleteLoadingId("");
     }
   }
 
   if (loading) {
-    return (
-      <div className="simple-page">
-        <div className="container">
-          <div className="data-box">Loading...</div>
-        </div>
-      </div>
-    );
+    return <div style={cardStyle}>Loading...</div>;
   }
 
-  if (loadError) {
+  if (pageError || !product) {
     return (
-      <div className="simple-page">
-        <div className="container">
-          <Link
-            href="/admin/products"
-            className="btn-secondary"
-            style={{ marginBottom: 20 }}
-          >
-            ← Products Admin
-          </Link>
-
-          <div className="data-box">
-            <h3>Error</h3>
-            <pre>{loadError}</pre>
-          </div>
-        </div>
+      <div style={errorBoxStyle}>
+        <strong>Error:</strong>
+        <div style={{ marginTop: 8 }}>{pageError || "Product not found."}</div>
       </div>
     );
   }
 
   return (
-    <div className="simple-page">
-      <div className="container" style={{ maxWidth: 900 }}>
-        <Link
-          href="/admin/products"
-          className="btn-secondary"
-          style={{ marginBottom: 20 }}
-        >
-          ← Products Admin
-        </Link>
+    <div style={{ display: "grid", gap: 24 }}>
+      <div style={pageHeaderStyle}>
+        <div>
+          <Link href="/admin/products" style={backLinkStyle}>
+            ← Back to Products
+          </Link>
+          <h1 style={titleStyle}>{product.title || "Product"}</h1>
+          <p style={subtitleStyle}>
+            Manage product details and create multiple purchasing variants for
+            this product.
+          </p>
+        </div>
 
-        <h1>Edit Product</h1>
-        <p className="lead">
-          Update the product record or remove it from the system.
-        </p>
+        <div style={headerActionsStyle}>
+          <Link href={`/products/${product.slug}`} style={secondaryButtonStyle}>
+            View Product
+          </Link>
+          <Link href="/admin/products/new" style={primaryButtonStyle}>
+            + New Product
+          </Link>
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="data-box">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 16,
-            }}
-          >
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Title</label>
+      <div style={summaryGridStyle}>
+        <div style={summaryCardStyle}>
+          <div style={summaryLabelStyle}>Product Slug</div>
+          <div style={summaryValueStyle}>{product.slug || "-"}</div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={summaryLabelStyle}>Collection</div>
+          <div style={summaryValueStyle}>{product.collection_slug || "-"}</div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={summaryLabelStyle}>Status</div>
+          <div style={summaryValueStyle}>{product.status || "-"}</div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={summaryLabelStyle}>Variants</div>
+          <div style={summaryValueStyle}>{variants.length}</div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.05fr 1.15fr",
+          gap: 24,
+          alignItems: "start",
+        }}
+      >
+        <form onSubmit={handleCreateVariant} style={cardStyle}>
+          <div style={sectionTitleWrapStyle}>
+            <h2 style={sectionTitleStyle}>Add New Variant</h2>
+            <p style={sectionTextStyle}>
+              Add size, color, pack, or any other option combination for this
+              product.
+            </p>
+          </div>
+
+          <div style={formGridStyle}>
+            <div>
+              <label style={labelStyle}>Option 1 Name</label>
               <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                value={option1Name}
+                onChange={(e) => setOption1Name(e.target.value)}
+                placeholder="Size"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Option 1 Value</label>
+              <input
+                value={option1Value}
+                onChange={(e) => setOption1Value(e.target.value)}
+                placeholder="Queen"
                 style={inputStyle}
                 required
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Slug</label>
+              <label style={labelStyle}>Option 2 Name</label>
               <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
+                value={option2Name}
+                onChange={(e) => setOption2Name(e.target.value)}
+                placeholder="Color"
                 style={inputStyle}
               />
-              <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
-              </div>
             </div>
 
             <div>
-              <label style={labelStyle}>Collection Slug</label>
+              <label style={labelStyle}>Option 2 Value</label>
               <input
-                value={collectionSlug}
-                onChange={(e) => setCollectionSlug(e.target.value)}
+                value={option2Value}
+                onChange={(e) => setOption2Value(e.target.value)}
+                placeholder="White"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Option 3 Name</label>
+              <input
+                value={option3Name}
+                onChange={(e) => setOption3Name(e.target.value)}
+                placeholder="Pack"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Option 3 Value</label>
+              <input
+                value={option3Value}
+                onChange={(e) => setOption3Value(e.target.value)}
+                placeholder="Set of 12"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Price</label>
+              <input
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="120"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Compare At Price</label>
+              <input
+                value={compareAtPrice}
+                onChange={(e) => setCompareAtPrice(e.target.value)}
+                placeholder="150"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>SKU</label>
+              <input
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                placeholder="GTX-TWL-QUEEN-WHT"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Barcode</label>
+              <input
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="1234567890123"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Box Quantity</label>
+              <input
+                value={boxQuantity}
+                onChange={(e) => setBoxQuantity(e.target.value)}
+                placeholder="12"
                 style={inputStyle}
               />
             </div>
@@ -291,115 +451,462 @@ export default function AdminProductEditPage({
                 onChange={(e) => setStatus(e.target.value)}
                 style={inputStyle}
               >
-                <option value="draft">draft</option>
                 <option value="published">published</option>
+                <option value="active">active</option>
+                <option value="draft">draft</option>
                 <option value="archived">archived</option>
               </select>
             </div>
 
-            <div>
-              <label style={labelStyle}>Featured</label>
-              <select
-                value={featured}
-                onChange={(e) => setFeatured(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="false">false</option>
-                <option value="true">true</option>
-              </select>
-            </div>
-
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Image URL</label>
+              <label style={labelStyle}>Variant Image URL</label>
               <input
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
+                value={variantImage}
+                onChange={(e) => setVariantImage(e.target.value)}
+                placeholder="https://..."
                 style={inputStyle}
               />
             </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Gallery</label>
-              <textarea
-                value={gallery}
-                onChange={(e) => setGallery(e.target.value)}
-                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Short Description</label>
-              <textarea
-                value={shortDescription}
-                onChange={(e) => setShortDescription(e.target.value)}
-                style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                style={{ ...inputStyle, minHeight: 180, resize: "vertical" }}
-              />
-            </div>
           </div>
 
-          <div
-            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
-          >
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
+          <div style={previewBoxStyle}>
+            <div style={previewLabelStyle}>Preview</div>
+            <div style={previewValueStyle}>{optionPreview}</div>
+          </div>
 
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete Product"}
+          <div style={buttonRowStyle}>
+            <button type="submit" style={primaryButtonStyle} disabled={saving}>
+              {saving ? "Saving..." : "Create Variant"}
             </button>
           </div>
 
-          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
-          {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
+          {saveMessage ? <div style={successBoxStyle}>{saveMessage}</div> : null}
+          {saveError ? <div style={errorBoxStyle}>{saveError}</div> : null}
         </form>
+
+        <div style={cardStyle}>
+          <div style={sectionTitleWrapStyle}>
+            <h2 style={sectionTitleStyle}>Existing Variants</h2>
+            <p style={sectionTextStyle}>
+              Review each option combination created for this product.
+            </p>
+          </div>
+
+          {variants.length === 0 ? (
+            <div style={emptyStateStyle}>
+              No variants have been created for this product yet.
+            </div>
+          ) : (
+            <div style={variantListStyle}>
+              {variants.map((item) => {
+                const priceValue = parsePrice(item.price);
+                const compareAtValue = parsePrice(item.compare_at_price);
+                const hasDiscount =
+                  compareAtValue > priceValue && priceValue > 0;
+
+                return (
+                  <div key={item.id || buildVariantLabel(item)} style={variantCardStyle}>
+                    <div style={variantHeaderStyle}>
+                      <div>
+                        <div style={variantTitleStyle}>{buildVariantLabel(item)}</div>
+                        <div style={variantMetaStyle}>
+                          {item.option1_name || ""}
+                          {item.option1_name && item.option1_value
+                            ? `: ${item.option1_value}`
+                            : ""}
+                          {item.option2_name && item.option2_value
+                            ? ` • ${item.option2_name}: ${item.option2_value}`
+                            : ""}
+                          {item.option3_name && item.option3_value
+                            ? ` • ${item.option3_name}: ${item.option3_value}`
+                            : ""}
+                        </div>
+                      </div>
+
+                      <StatusBadge value={item.status || "-"} />
+                    </div>
+
+                    <div style={variantInfoGridStyle}>
+                      <InfoBox
+                        label="Price"
+                        value={priceValue > 0 ? formatMoney(priceValue) : "-"}
+                      />
+                      <InfoBox
+                        label="Compare At"
+                        value={
+                          compareAtValue > 0 ? formatMoney(compareAtValue) : "-"
+                        }
+                      />
+                      <InfoBox label="SKU" value={item.sku || "-"} />
+                      <InfoBox label="Barcode" value={item.barcode || "-"} />
+                      <InfoBox
+                        label="Box Quantity"
+                        value={item.box_quantity || "-"}
+                      />
+                      <InfoBox label="ID" value={item.id || "-"} />
+                    </div>
+
+                    {hasDiscount ? (
+                      <div style={discountBadgeStyle}>
+                        Discount active
+                      </div>
+                    ) : null}
+
+                    <div style={actionRowStyle}>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteVariant(item.id)}
+                        style={dangerSmallButtonStyle}
+                        disabled={deleteLoadingId === item.id}
+                      >
+                        {deleteLoadingId === item.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-const labelStyle: React.CSSProperties = {
-  display: "block",
+function StatusBadge({ value }: { value: string }) {
+  const normalized = value.toLowerCase();
+
+  const style: React.CSSProperties =
+    normalized === "published" || normalized === "active"
+      ? {
+          ...badgeStyle,
+          background: "#edf8f1",
+          color: "#1d6a43",
+          border: "1px solid #cfe7d8",
+        }
+      : normalized === "draft"
+      ? {
+          ...badgeStyle,
+          background: "#fff7e8",
+          color: "#8a6418",
+          border: "1px solid #ecd8ad",
+        }
+      : {
+          ...badgeStyle,
+          background: "#f3f3f3",
+          color: "#5e5e5e",
+          border: "1px solid #dddddd",
+        };
+
+  return <span style={style}>{value}</span>;
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={infoBoxStyle}>
+      <div style={infoBoxLabelStyle}>{label}</div>
+      <div style={infoBoxValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+const pageHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 20,
+  flexWrap: "wrap",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 40,
+  lineHeight: 1.1,
+  margin: "10px 0 10px",
+  fontWeight: 800,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#6f6559",
+  fontSize: 16,
+  maxWidth: 760,
+};
+
+const backLinkStyle: React.CSSProperties = {
+  display: "inline-block",
+  textDecoration: "none",
+  color: "#5e5448",
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const headerActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: 16,
+};
+
+const summaryCardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 20,
+  padding: 18,
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#7c7267",
   marginBottom: 8,
   fontWeight: 700,
 };
 
+const summaryValueStyle: React.CSSProperties = {
+  fontSize: 22,
+  fontWeight: 800,
+  wordBreak: "break-word",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  padding: 24,
+  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+};
+
+const sectionTitleWrapStyle: React.CSSProperties = {
+  marginBottom: 18,
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 24,
+  fontWeight: 800,
+};
+
+const sectionTextStyle: React.CSSProperties = {
+  margin: "10px 0 0",
+  color: "#6f6559",
+  fontSize: 15,
+  lineHeight: 1.7,
+};
+
+const formGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 16,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 8,
+  fontWeight: 800,
+  fontSize: 15,
+};
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: 48,
-  padding: "12px 14px",
-  borderRadius: 14,
-  border: "1px solid #ddd3c5",
-  background: "#fff",
+  minHeight: 52,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid #d9cfbf",
+  background: "#fcfbf8",
   outline: "none",
+  fontSize: 15,
+};
+
+const previewBoxStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: 16,
+  borderRadius: 18,
+  background: "#f8f5ef",
+  border: "1px solid #e3dbcf",
+};
+
+const previewLabelStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#7c7267",
+  marginBottom: 8,
+  fontWeight: 700,
+};
+
+const previewValueStyle: React.CSSProperties = {
+  fontWeight: 800,
+  fontSize: 18,
+};
+
+const buttonRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  marginTop: 24,
+  flexWrap: "wrap",
+};
+
+const variantListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 16,
+};
+
+const variantCardStyle: React.CSSProperties = {
+  border: "1px solid #e8dfd2",
+  borderRadius: 20,
+  padding: 18,
+  background: "#fcfbf8",
+};
+
+const variantHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 16,
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const variantTitleStyle: React.CSSProperties = {
+  fontSize: 20,
+  fontWeight: 800,
+};
+
+const variantMetaStyle: React.CSSProperties = {
+  marginTop: 6,
+  color: "#6f6559",
+  fontSize: 14,
+  lineHeight: 1.6,
+};
+
+const variantInfoGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 12,
+};
+
+const infoBoxStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e8dfd2",
+  borderRadius: 16,
+  padding: 14,
+};
+
+const infoBoxLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "#7b7367",
+  fontWeight: 700,
+  marginBottom: 8,
+};
+
+const infoBoxValueStyle: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 800,
+  wordBreak: "break-word",
+};
+
+const discountBadgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  marginTop: 14,
+  padding: "7px 12px",
+  borderRadius: 999,
+  background: "#eef8f0",
+  color: "#2f7d62",
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const badgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 32,
+  padding: "0 12px",
+  borderRadius: 999,
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const actionRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginTop: 16,
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #2f7d62",
+  background: "#2f7d62",
+  color: "#fff",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
+};
+
+const dangerSmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #e5c9c9",
+  background: "#fff5f5",
+  color: "#8f2d2d",
+  fontWeight: 700,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 14,
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 20,
+  padding: 20,
+  color: "#6f6559",
+  fontWeight: 700,
 };
 
 const successBoxStyle: React.CSSProperties = {
   marginTop: 18,
   padding: 14,
-  borderRadius: 14,
+  borderRadius: 16,
   background: "#eef8f0",
   border: "1px solid #cfe5d4",
+  color: "#245843",
+  fontWeight: 700,
 };
 
 const errorBoxStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 14,
-  borderRadius: 14,
+  padding: 18,
+  borderRadius: 16,
   background: "#fff1f1",
-  border: "1px solid #efc9c9",
-  color: "#7a2222",
+  border: "1px solid #f0c9c9",
+  color: "#8d2f2f",
 };

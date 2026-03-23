@@ -30,10 +30,13 @@ export default function NewProductPage() {
   const [collectionSlug, setCollectionSlug] = useState("");
   const [status, setStatus] = useState("draft");
   const [featured, setFeatured] = useState("false");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
   const [resultError, setResultError] = useState("");
+  const [createdSlug, setCreatedSlug] = useState("");
 
   const suggestedSlug = useMemo(() => makeSlug(title), [title]);
 
@@ -43,8 +46,11 @@ export default function NewProductPage() {
     setLoading(true);
     setResultMessage("");
     setResultError("");
+    setCreatedSlug("");
 
     try {
+      const finalSlug = slug || suggestedSlug;
+
       const response = await fetch("/api/products/create", {
         method: "POST",
         headers: {
@@ -52,7 +58,7 @@ export default function NewProductPage() {
         },
         body: JSON.stringify({
           title,
-          slug,
+          slug: finalSlug,
           description,
           short_description: shortDescription,
           image,
@@ -60,6 +66,8 @@ export default function NewProductPage() {
           collection_slug: collectionSlug,
           status,
           featured,
+          seo_title: seoTitle,
+          seo_description: seoDescription,
         }),
       });
 
@@ -69,7 +77,12 @@ export default function NewProductPage() {
         throw new Error(data?.error || "Failed to create the product.");
       }
 
-      setResultMessage("Product created successfully.");
+      const finalCreatedSlug = String(data?.item?.slug || finalSlug || "").trim();
+
+      setResultMessage(
+        "Product created successfully. You can now add variants from the product management screen."
+      );
+      setCreatedSlug(finalCreatedSlug);
 
       setTitle("");
       setSlug("");
@@ -80,6 +93,8 @@ export default function NewProductPage() {
       setCollectionSlug("");
       setStatus("draft");
       setFeatured("false");
+      setSeoTitle("");
+      setSeoDescription("");
     } catch (error) {
       setResultError(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -98,7 +113,8 @@ export default function NewProductPage() {
           </Link>
           <h1 style={titleStyle}>New Product</h1>
           <p style={subtitleStyle}>
-            Create a single product or upload a CSV/JSON file for bulk import.
+            Create the base product first. After saving, add size, color, pack,
+            and pricing combinations from the product’s variant management page.
           </p>
         </div>
 
@@ -126,6 +142,20 @@ export default function NewProductPage() {
         <form onSubmit={handleSubmit} style={cardStyle}>
           <div style={sectionTitleWrapStyle}>
             <h2 style={sectionTitleStyle}>Create Product Manually</h2>
+            <p style={sectionTextStyle}>
+              This step creates the main product record only. Variant combinations
+              such as Queen, King, White, Ivory, or Set of 12 are added after the
+              product is created.
+            </p>
+          </div>
+
+          <div style={noticeBoxStyle}>
+            <div style={noticeTitleStyle}>How variants work</div>
+            <div style={noticeTextStyle}>
+              First create the product here. Then open the product from the admin
+              products list and add multiple variants from its dedicated variant
+              management page.
+            </div>
           </div>
 
           <div style={formGridStyle}>
@@ -227,6 +257,26 @@ export default function NewProductPage() {
                 style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
               />
             </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>SEO Title</label>
+              <input
+                value={seoTitle}
+                onChange={(e) => setSeoTitle(e.target.value)}
+                placeholder="SEO title"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>SEO Description</label>
+              <textarea
+                value={seoDescription}
+                onChange={(e) => setSeoDescription(e.target.value)}
+                placeholder="SEO description"
+                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+              />
+            </div>
           </div>
 
           <div style={buttonRowStyle}>
@@ -239,14 +289,37 @@ export default function NewProductPage() {
             </Link>
           </div>
 
-          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
+          {resultMessage ? (
+            <div style={successBoxStyle}>
+              <div>{resultMessage}</div>
+
+              {createdSlug ? (
+                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <Link
+                    href={`/admin/products/${createdSlug}`}
+                    style={primarySmallButtonStyle}
+                  >
+                    Manage Variants
+                  </Link>
+
+                  <Link
+                    href={`/products/${createdSlug}`}
+                    style={secondarySmallButtonStyle}
+                  >
+                    View Product
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
         </form>
 
         <ImportPanel
-          endpoint="/api/products/import"
+          endpoint="/api/shopify/import"
           description="Upload a CSV or JSON file, or paste content manually. This is suitable for Shopify, Zoho, or your own prepared files after adapting headers to the Patak structure."
-          csvHeader="id,title,slug,description,short_description,image,gallery,collection_slug,status,featured,created_at,updated_at"
+          csvHeader="id,title,slug,description,short_description,image,gallery,collection_slug,status,featured,seo_title,seo_description,created_at,updated_at"
         />
       </div>
     </div>
@@ -272,6 +345,7 @@ const subtitleStyle: React.CSSProperties = {
   margin: 0,
   color: "#6f6559",
   fontSize: 16,
+  maxWidth: 760,
 };
 
 const backLinkStyle: React.CSSProperties = {
@@ -304,6 +378,33 @@ const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 24,
   fontWeight: 800,
+};
+
+const sectionTextStyle: React.CSSProperties = {
+  margin: "10px 0 0",
+  color: "#6f6559",
+  fontSize: 15,
+  lineHeight: 1.7,
+};
+
+const noticeBoxStyle: React.CSSProperties = {
+  marginBottom: 20,
+  padding: 16,
+  borderRadius: 18,
+  background: "#f8f5ef",
+  border: "1px solid #e3dbcf",
+};
+
+const noticeTitleStyle: React.CSSProperties = {
+  fontWeight: 800,
+  fontSize: 15,
+  marginBottom: 8,
+};
+
+const noticeTextStyle: React.CSSProperties = {
+  color: "#6f6559",
+  fontSize: 14,
+  lineHeight: 1.7,
 };
 
 const formGridStyle: React.CSSProperties = {
@@ -373,12 +474,46 @@ const secondaryButtonStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
+const primarySmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 40,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #2f7d62",
+  background: "#2f7d62",
+  color: "#fff",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 14,
+};
+
+const secondarySmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 40,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 14,
+};
+
 const successBoxStyle: React.CSSProperties = {
   marginTop: 18,
   padding: 14,
   borderRadius: 16,
   background: "#eef8f0",
   border: "1px solid #cfe5d4",
+  color: "#245843",
+  fontWeight: 700,
 };
 
 const errorBoxStyle: React.CSSProperties = {
@@ -388,4 +523,5 @@ const errorBoxStyle: React.CSSProperties = {
   background: "#fff1f1",
   border: "1px solid #efc9c9",
   color: "#7a2222",
+  fontWeight: 700,
 };

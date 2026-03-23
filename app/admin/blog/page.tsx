@@ -3,19 +3,21 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type CollectionItem = {
+type BlogItem = {
   id?: string;
   title?: string;
   slug?: string;
-  description?: string;
+  excerpt?: string;
+  content?: string;
   image?: string;
   status?: string;
+  featured?: string;
   created_at?: string;
   updated_at?: string;
 };
 
-export default function AdminCollectionsPage() {
-  const [items, setItems] = useState<CollectionItem[]>([]);
+export default function AdminBlogPage() {
+  const [items, setItems] = useState<BlogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -23,18 +25,18 @@ export default function AdminCollectionsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    async function loadCollections() {
+    async function loadPosts() {
       try {
         setLoading(true);
         setErrorMessage("");
 
-        const response = await fetch("/api/collections/list", {
+        const response = await fetch("/api/blog/list", {
           cache: "no-store",
         });
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Failed to load collections.");
+          throw new Error(data?.error || "Failed to load blog posts.");
         }
 
         setItems(data.items || []);
@@ -47,7 +49,7 @@ export default function AdminCollectionsPage() {
       }
     }
 
-    loadCollections();
+    loadPosts();
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -56,14 +58,16 @@ export default function AdminCollectionsPage() {
     return items.filter((item) => {
       const title = String(item.title || "").toLowerCase();
       const slug = String(item.slug || "").toLowerCase();
-      const description = String(item.description || "").toLowerCase();
+      const excerpt = String(item.excerpt || "").toLowerCase();
+      const content = String(item.content || "").toLowerCase();
       const status = String(item.status || "").toLowerCase();
 
       const matchesSearch =
         !normalizedSearch ||
         title.includes(normalizedSearch) ||
         slug.includes(normalizedSearch) ||
-        description.includes(normalizedSearch);
+        excerpt.includes(normalizedSearch) ||
+        content.includes(normalizedSearch);
 
       const matchesStatus =
         statusFilter === "all" || status === statusFilter.toLowerCase();
@@ -76,33 +80,24 @@ export default function AdminCollectionsPage() {
     <div style={{ display: "grid", gap: 24 }}>
       <div style={pageHeaderStyle}>
         <div>
-          <h1 style={titleStyle}>Collections</h1>
+          <h1 style={titleStyle}>Blog</h1>
           <p style={subtitleStyle}>
-            Review and manage collection records used across the Patak content
+            Review and manage blog content records used across the Patak content
             structure.
           </p>
         </div>
 
         <div style={headerActionsStyle}>
-          <Link href="/admin/collections/new" style={primaryButtonStyle}>
-            + New Collection
+          <Link href="/admin/blog/new" style={primaryButtonStyle}>
+            + New Post
           </Link>
-          <a
-            href="/api/collections/export?format=csv"
-            style={secondaryButtonStyle}
-          >
+          <a href="/api/blog/export?format=csv" style={secondaryButtonStyle}>
             Export CSV
           </a>
-          <a
-            href="/api/collections/export?format=json"
-            style={secondaryButtonStyle}
-          >
+          <a href="/api/blog/export?format=json" style={secondaryButtonStyle}>
             Export JSON
           </a>
-          <a
-            href="/api/collections/export?format=xml"
-            style={secondaryButtonStyle}
-          >
+          <a href="/api/blog/export?format=xml" style={secondaryButtonStyle}>
             Export XML
           </a>
         </div>
@@ -121,13 +116,13 @@ export default function AdminCollectionsPage() {
           </div>
         </div>
 
-        <div style={filterGridStyleCollections}>
+        <div style={filterGridStyle}>
           <div>
             <label style={labelStyle}>Search</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title, slug, or description"
+              placeholder="Search by title, slug, excerpt, or content"
               style={inputStyle}
             />
           </div>
@@ -157,7 +152,7 @@ export default function AdminCollectionsPage() {
         </div>
       ) : filteredItems.length === 0 ? (
         <div style={emptyStateStyle}>
-          No collections matched your current search or filters.
+          No blog posts matched your current search or filters.
         </div>
       ) : (
         <div style={tableCardStyle}>
@@ -168,6 +163,7 @@ export default function AdminCollectionsPage() {
                   <th style={thStyle}>Title</th>
                   <th style={thStyle}>Slug</th>
                   <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Featured</th>
                   <th style={thStyle}>Updated</th>
                   <th style={thStyle}>Actions</th>
                 </tr>
@@ -176,20 +172,33 @@ export default function AdminCollectionsPage() {
                 {filteredItems.map((item, index) => (
                   <tr key={item.id || item.slug || index}>
                     <td style={tdStyle}>
-                      <div style={{ fontWeight: 800 }}>
-                        {item.title || "-"}
+                      <div style={{ fontWeight: 800 }}>{item.title || "-"}</div>
+                      <div
+                        style={{
+                          marginTop: 6,
+                          color: "#6f6559",
+                          fontSize: 13,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {item.excerpt || "No excerpt added yet."}
                       </div>
                     </td>
                     <td style={tdStyle}>{item.slug || "-"}</td>
                     <td style={tdStyle}>
                       <StatusBadge value={item.status || "-"} />
                     </td>
+                    <td style={tdStyle}>
+                      {String(item.featured || "").toLowerCase() === "true"
+                        ? "Yes"
+                        : "No"}
+                    </td>
                     <td style={tdStyle}>{item.updated_at || "-"}</td>
                     <td style={tdStyle}>
                       <div style={actionRowStyle}>
                         {item.slug ? (
                           <Link
-                            href={`/admin/collections/${item.slug}`}
+                            href={`/admin/blog/${item.slug}`}
                             style={secondarySmallButtonStyle}
                           >
                             Edit
@@ -198,7 +207,7 @@ export default function AdminCollectionsPage() {
 
                         {item.slug ? (
                           <Link
-                            href={`/collections/${item.slug}`}
+                            href={`/blog/${item.slug}`}
                             style={secondarySmallButtonStyle}
                           >
                             View
@@ -316,7 +325,7 @@ const statValueStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const filterGridStyleCollections: React.CSSProperties = {
+const filterGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "2fr 1fr",
   gap: 16,
@@ -451,6 +460,6 @@ const errorBoxStyle: React.CSSProperties = {
   padding: 18,
   borderRadius: 16,
   background: "#fff1f1",
-  border: "1px solid #efc9c9",
-  color: "#7a2222",
+  border: "1px solid #f0c9c9",
+  color: "#8d2f2f",
 };

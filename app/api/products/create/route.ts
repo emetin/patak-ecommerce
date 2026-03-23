@@ -12,12 +12,15 @@ type ProductRecord = {
   collection_slug?: string;
   status?: string;
   featured?: string;
+  seo_title?: string;
+  seo_description?: string;
   created_at?: string;
   updated_at?: string;
 };
 
 const ALLOWED_STATUS = ["published", "draft", "archived"];
 const ALLOWED_FEATURED = ["true", "false"];
+const SHEET_NAME = "products";
 
 function makeSlug(text: string) {
   return text
@@ -60,6 +63,8 @@ export async function POST(req: Request) {
     const collectionSlug = normalizeText(body?.collection_slug);
     const status = normalizeStatus(body?.status);
     const featured = normalizeBooleanString(body?.featured, "false");
+    const seoTitle = normalizeText(body?.seo_title);
+    const seoDescription = normalizeText(body?.seo_description);
 
     if (!title) {
       return NextResponse.json(
@@ -103,7 +108,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingProducts = (await getSheetData("Products")) as ProductRecord[];
+    const existingProducts = (await getSheetData(SHEET_NAME)) as ProductRecord[];
 
     const normalizedTitle = title.toLowerCase();
     const normalizedSlug = finalSlug.toLowerCase();
@@ -139,7 +144,10 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const id = `prd_${Date.now()}`;
 
-    await appendSheetRow("Products", [
+    const finalSeoTitle = seoTitle || title;
+    const finalSeoDescription = seoDescription || shortDescription || description;
+
+    await appendSheetRow(SHEET_NAME, [
       id,
       title,
       finalSlug,
@@ -150,6 +158,8 @@ export async function POST(req: Request) {
       collectionSlug,
       status,
       featured,
+      finalSeoTitle,
+      finalSeoDescription,
       now,
       now,
     ]);
@@ -169,6 +179,8 @@ export async function POST(req: Request) {
           collection_slug: collectionSlug,
           status,
           featured,
+          seo_title: finalSeoTitle,
+          seo_description: finalSeoDescription,
           created_at: now,
           updated_at: now,
         },

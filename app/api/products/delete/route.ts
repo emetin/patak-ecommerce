@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { deleteSheetRowBySlug } from "../../../../lib/sheets";
+import {
+  deleteSheetRowBySlug,
+  deleteSheetRowsByField,
+} from "../../../../lib/sheets";
+
+const PRODUCT_SHEET_NAME = "products";
+const VARIANT_SHEET_NAME = "product_variants";
 
 function normalizeSlug(value: unknown) {
   return String(value || "").trim().toLowerCase();
@@ -20,11 +26,12 @@ export async function POST(req: Request) {
       );
     }
 
-    await deleteSheetRowBySlug("Products", slug);
+    await deleteSheetRowBySlug(PRODUCT_SHEET_NAME, slug);
+    await deleteSheetRowsByField(VARIANT_SHEET_NAME, "product_slug", slug);
 
     return NextResponse.json({
       ok: true,
-      message: "Product deleted successfully.",
+      message: "Product and related variants deleted successfully.",
     });
   } catch (error) {
     return NextResponse.json(

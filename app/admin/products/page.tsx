@@ -1,92 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import ImportPanel from "../../../components/admin/ImportPanel";
-function makeSlug(text: string) {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ı/g, "i")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+import { useEffect, useMemo, useState } from "react";
 
-export default function NewProductPage() {
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [description, setDescription] = useState("");
-  const [shortDescription, setShortDescription] = useState("");
-  const [image, setImage] = useState("");
-  const [gallery, setGallery] = useState("");
-  const [collectionSlug, setCollectionSlug] = useState("");
-  const [status, setStatus] = useState("draft");
-  const [featured, setFeatured] = useState("false");
-  const [seoTitle, setSeoTitle] = useState("");
-  const [seoDescription, setSeoDescription] = useState("");
+type ProductItem = {
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  short_description?: string;
+  image?: string;
+  gallery?: string;
+  collection_slug?: string;
+  status?: string;
+  featured?: string;
+  seo_title?: string;
+  seo_description?: string;
+  created_at?: string;
+  updated_at?: string;
+};
 
-  const [loading, setLoading] = useState(false);
-  const [resultMessage, setResultMessage] = useState("");
-  const [resultError, setResultError] = useState("");
+export default function AdminProductsPage() {
+  const [items, setItems] = useState<ProductItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [deleteLoadingSlug, setDeleteLoadingSlug] = useState("");
 
-  const suggestedSlug = useMemo(() => makeSlug(title), [title]);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    setLoading(true);
-    setResultMessage("");
-    setResultError("");
-
+  async function loadProducts() {
     try {
-      const response = await fetch("/api/products/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title,
-          slug,
-          description,
-          short_description: shortDescription,
-          image,
-          gallery,
-          collection_slug: collectionSlug,
-          status,
-          featured,
-          seo_title: seoTitle,
-          seo_description: seoDescription,
-        }),
+      setLoading(true);
+      setErrorMessage("");
+
+      const response = await fetch("/api/products/list", {
+        cache: "no-store",
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to create the product.");
+        throw new Error(data?.error || "Failed to load products.");
       }
 
-      setResultMessage("Product created successfully.");
-
-      setTitle("");
-      setSlug("");
-      setDescription("");
-      setShortDescription("");
-      setImage("");
-      setGallery("");
-      setCollectionSlug("");
-      setStatus("draft");
-      setFeatured("false");
-      setSeoTitle("");
-      setSeoDescription("");
+      setItems(data.items || []);
     } catch (error) {
-      setResultError(
+      setErrorMessage(
         error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
@@ -94,20 +53,84 @@ export default function NewProductPage() {
     }
   }
 
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  async function handleDelete(slug?: string) {
+    if (!slug) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this product?"
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeleteLoadingSlug(slug);
+
+      const response = await fetch("/api/products/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ slug }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to delete product.");
+      }
+
+      setItems((prev) => prev.filter((item) => item.slug !== slug));
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "An unknown error occurred."
+      );
+    } finally {
+      setDeleteLoadingSlug("");
+    }
+  }
+
+  const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return items.filter((item) => {
+      const title = String(item.title || "").toLowerCase();
+      const slug = String(item.slug || "").toLowerCase();
+      const description = String(item.description || "").toLowerCase();
+      const shortDescription = String(item.short_description || "").toLowerCase();
+      const status = String(item.status || "").toLowerCase();
+
+      const matchesSearch =
+        !normalizedSearch ||
+        title.includes(normalizedSearch) ||
+        slug.includes(normalizedSearch) ||
+        description.includes(normalizedSearch) ||
+        shortDescription.includes(normalizedSearch);
+
+      const matchesStatus =
+        statusFilter === "all" || status === statusFilter.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [items, search, statusFilter]);
+
   return (
     <div style={{ display: "grid", gap: 24 }}>
       <div style={pageHeaderStyle}>
         <div>
-          <Link href="/admin/products" style={backLinkStyle}>
-            ← Back to Products
-          </Link>
-          <h1 style={titleStyle}>New Product</h1>
+          <h1 style={titleStyle}>Products</h1>
           <p style={subtitleStyle}>
-            Create a single product or upload a CSV/JSON file for bulk import.
+            Review, search, export, and manage all product records.
           </p>
         </div>
 
         <div style={headerActionsStyle}>
+          <Link href="/admin/products/new" style={primaryButtonStyle}>
+            + New Product
+          </Link>
           <a href="/api/products/export?format=csv" style={secondaryButtonStyle}>
             Export CSV
           </a>
@@ -120,162 +143,179 @@ export default function NewProductPage() {
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1.2fr 0.9fr",
-          gap: 24,
-          alignItems: "start",
-        }}
-      >
-        <form onSubmit={handleSubmit} style={cardStyle}>
-          <div style={sectionTitleWrapStyle}>
-            <h2 style={sectionTitleStyle}>Create Product Manually</h2>
+      <div style={filterCardStyle}>
+        <div style={statsRowStyle}>
+          <div style={statBoxStyle}>
+            <div style={statLabelStyle}>Total Records</div>
+            <div style={statValueStyle}>{items.length}</div>
           </div>
 
-          <div style={formGridStyle}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Title</label>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Luxury Hotel Towel Set"
-                style={inputStyle}
-                required
-              />
-            </div>
+          <div style={statBoxStyle}>
+            <div style={statLabelStyle}>Filtered Results</div>
+            <div style={statValueStyle}>{filteredItems.length}</div>
+          </div>
+        </div>
 
-            <div>
-              <label style={labelStyle}>Slug</label>
-              <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder="luxury-hotel-towel-set"
-                style={inputStyle}
-              />
-              <div style={helperTextStyle}>
-                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
-              </div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Collection Slug</label>
-              <input
-                value={collectionSlug}
-                onChange={(e) => setCollectionSlug(e.target.value)}
-                placeholder="towels"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="draft">draft</option>
-                <option value="published">published</option>
-                <option value="archived">archived</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Featured</label>
-              <select
-                value={featured}
-                onChange={(e) => setFeatured(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="false">false</option>
-                <option value="true">true</option>
-              </select>
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Image URL</label>
-              <input
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                placeholder="https://..."
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Gallery</label>
-              <textarea
-                value={gallery}
-                onChange={(e) => setGallery(e.target.value)}
-                placeholder="Comma-separated image URLs or a JSON string"
-                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Short Description</label>
-              <textarea
-                value={shortDescription}
-                onChange={(e) => setShortDescription(e.target.value)}
-                placeholder="Short product summary"
-                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Description</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Full product description"
-                style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>SEO Title</label>
-              <input
-                value={seoTitle}
-                onChange={(e) => setSeoTitle(e.target.value)}
-                placeholder="SEO title"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>SEO Description</label>
-              <textarea
-                value={seoDescription}
-                onChange={(e) => setSeoDescription(e.target.value)}
-                placeholder="SEO description"
-                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
-              />
-            </div>
+        <div style={filterGridStyle}>
+          <div>
+            <label style={labelStyle}>Search</label>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by title, slug, or description"
+              style={inputStyle}
+            />
           </div>
 
-          <div style={buttonRowStyle}>
-            <button type="submit" style={primaryButtonStyle} disabled={loading}>
-              {loading ? "Saving..." : "Create Product"}
-            </button>
-
-            <Link href="/admin/products" style={secondaryButtonStyle}>
-              Back to Products
-            </Link>
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="all">all</option>
+              <option value="published">published</option>
+              <option value="draft">draft</option>
+              <option value="archived">archived</option>
+            </select>
           </div>
-
-          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
-          {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
-        </form>
-
-        <ImportPanel
-          endpoint="/api/shopify/import"
-          description="Upload a CSV or JSON file, or paste content manually. This is suitable for Shopify, Zoho, or your own prepared files after adapting headers to the Patak structure."
-          csvHeader="id,title,slug,description,short_description,image,gallery,collection_slug,status,featured,seo_title,seo_description,created_at,updated_at"
-        />
+        </div>
       </div>
+
+      {loading ? (
+        <div style={cardStyle}>Loading...</div>
+      ) : errorMessage ? (
+        <div style={errorBoxStyle}>
+          <strong>Error:</strong>
+          <div style={{ marginTop: 8 }}>{errorMessage}</div>
+        </div>
+      ) : filteredItems.length === 0 ? (
+        <div style={emptyStateStyle}>
+          No products matched your current search or filters.
+        </div>
+      ) : (
+        <div style={tableCardStyle}>
+          <div style={tableScrollStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Product</th>
+                  <th style={thStyle}>Slug</th>
+                  <th style={thStyle}>Collection</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Featured</th>
+                  <th style={thStyle}>Updated</th>
+                  <th style={thStyle}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item, index) => (
+                  <tr key={item.id || item.slug || index}>
+                    <td style={tdStyle}>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <div style={{ fontWeight: 800 }}>{item.title || "-"}</div>
+                        <div
+                          style={{
+                            color: "#6f6559",
+                            fontSize: 13,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {item.short_description ||
+                            item.description ||
+                            "No description added yet."}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td style={tdStyle}>{item.slug || "-"}</td>
+
+                    <td style={tdStyle}>{item.collection_slug || "-"}</td>
+
+                    <td style={tdStyle}>
+                      <StatusBadge value={item.status || "-"} />
+                    </td>
+
+                    <td style={tdStyle}>
+                      {String(item.featured || "").toLowerCase() === "true"
+                        ? "Yes"
+                        : "No"}
+                    </td>
+
+                    <td style={tdStyle}>{item.updated_at || "-"}</td>
+
+                    <td style={tdStyle}>
+                      <div style={actionRowStyle}>
+                        {item.slug ? (
+                          <Link
+                            href={`/admin/products/${item.slug}`}
+                            style={secondarySmallButtonStyle}
+                          >
+                            Edit
+                          </Link>
+                        ) : null}
+
+                        {item.slug ? (
+                          <Link
+                            href={`/products/${item.slug}`}
+                            style={secondarySmallButtonStyle}
+                          >
+                            View
+                          </Link>
+                        ) : null}
+
+                        {item.slug ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item.slug)}
+                            style={dangerSmallButtonStyle}
+                            disabled={deleteLoadingSlug === item.slug}
+                          >
+                            {deleteLoadingSlug === item.slug
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function StatusBadge({ value }: { value: string }) {
+  const normalized = value.toLowerCase();
+
+  const style: React.CSSProperties =
+    normalized === "published"
+      ? {
+          ...badgeStyle,
+          background: "#edf8f1",
+          color: "#1d6a43",
+          border: "1px solid #cfe7d8",
+        }
+      : normalized === "draft"
+      ? {
+          ...badgeStyle,
+          background: "#fff7e8",
+          color: "#8a6418",
+          border: "1px solid #ecd8ad",
+        }
+      : {
+          ...badgeStyle,
+          background: "#f3f3f3",
+          color: "#5e5e5e",
+          border: "1px solid #dddddd",
+        };
+
+  return <span style={style}>{value}</span>;
 }
 
 const pageHeaderStyle: React.CSSProperties = {
@@ -289,22 +329,16 @@ const pageHeaderStyle: React.CSSProperties = {
 const titleStyle: React.CSSProperties = {
   fontSize: 42,
   lineHeight: 1.1,
-  margin: "10px 0 10px",
+  margin: 0,
   fontWeight: 800,
 };
 
 const subtitleStyle: React.CSSProperties = {
-  margin: 0,
+  marginTop: 10,
+  marginBottom: 0,
   color: "#6f6559",
   fontSize: 16,
-};
-
-const backLinkStyle: React.CSSProperties = {
-  display: "inline-block",
-  textDecoration: "none",
-  color: "#5e5448",
-  fontWeight: 700,
-  marginBottom: 4,
+  maxWidth: 760,
 };
 
 const headerActionsStyle: React.CSSProperties = {
@@ -318,22 +352,46 @@ const cardStyle: React.CSSProperties = {
   border: "1px solid #ddd3c5",
   borderRadius: 24,
   padding: 24,
+};
+
+const filterCardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  padding: 24,
   boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
 };
 
-const sectionTitleWrapStyle: React.CSSProperties = {
-  marginBottom: 18,
+const statsRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 14,
+  flexWrap: "wrap",
+  marginBottom: 20,
 };
 
-const sectionTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 24,
+const statBoxStyle: React.CSSProperties = {
+  minWidth: 180,
+  background: "#f8f5ef",
+  border: "1px solid #e3dbcf",
+  borderRadius: 18,
+  padding: 16,
+};
+
+const statLabelStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#7c7267",
+  marginBottom: 8,
+  fontWeight: 700,
+};
+
+const statValueStyle: React.CSSProperties = {
+  fontSize: 28,
   fontWeight: 800,
 };
 
-const formGridStyle: React.CSSProperties = {
+const filterGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1fr 1fr",
+  gridTemplateColumns: "2fr 1fr",
   gap: 16,
 };
 
@@ -342,12 +400,6 @@ const labelStyle: React.CSSProperties = {
   marginBottom: 8,
   fontWeight: 800,
   fontSize: 15,
-};
-
-const helperTextStyle: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 13,
-  color: "#7d7266",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -361,10 +413,55 @@ const inputStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
-const buttonRowStyle: React.CSSProperties = {
+const tableCardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  overflow: "hidden",
+  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+};
+
+const tableScrollStyle: React.CSSProperties = {
+  overflowX: "auto",
+};
+
+const tableStyle: React.CSSProperties = {
+  width: "100%",
+  borderCollapse: "collapse",
+};
+
+const thStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "18px 18px",
+  fontSize: 13,
+  letterSpacing: "0.04em",
+  textTransform: "uppercase",
+  color: "#7d7266",
+  background: "#f8f5ef",
+  borderBottom: "1px solid #e5dccf",
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: "18px 18px",
+  borderBottom: "1px solid #efe8dc",
+  verticalAlign: "top",
+  fontSize: 15,
+};
+
+const badgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 32,
+  padding: "0 12px",
+  borderRadius: 999,
+  fontWeight: 800,
+  fontSize: 13,
+};
+
+const actionRowStyle: React.CSSProperties = {
   display: "flex",
-  gap: 12,
-  marginTop: 24,
+  gap: 8,
   flexWrap: "wrap",
 };
 
@@ -398,19 +495,51 @@ const secondaryButtonStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
-const successBoxStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 14,
-  borderRadius: 16,
-  background: "#eef8f0",
-  border: "1px solid #cfe5d4",
+const secondarySmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 700,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 14,
+};
+
+const dangerSmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #e5c9c9",
+  background: "#fff5f5",
+  color: "#8f2d2d",
+  fontWeight: 700,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 14,
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  padding: 28,
+  color: "#6f6559",
+  fontWeight: 700,
 };
 
 const errorBoxStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 14,
+  padding: 18,
   borderRadius: 16,
   background: "#fff1f1",
-  border: "1px solid #efc9c9",
-  color: "#7a2222",
+  border: "1px solid #f0c9c9",
+  color: "#8d2f2f",
 };

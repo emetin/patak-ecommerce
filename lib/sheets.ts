@@ -116,7 +116,7 @@ export async function getSheetRows(
   const rows = await withRetry(async () => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A:Z`,
+      range: `${sheetName}!A:ZZ`,
     });
 
     return (response.data.values || []) as string[][];
@@ -179,7 +179,7 @@ export async function appendSheetRow(sheetName: string, row: string[]) {
   await withRetry(async () => {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A:Z`,
+      range: `${sheetName}!A:ZZ`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [row],
@@ -202,7 +202,7 @@ export async function appendSheetRows(sheetName: string, rows: string[][]) {
   await withRetry(async () => {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A:Z`,
+      range: `${sheetName}!A:ZZ`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: rows,
@@ -509,3 +509,4 @@ export async function deleteSheetRowsByField(
 
   return { ok: true, deleted: rows.length };
 }
+

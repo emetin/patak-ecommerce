@@ -12,12 +12,15 @@ type ProductRow = {
   collection_slug?: string;
   status?: string;
   featured?: string;
+  seo_title?: string;
+  seo_description?: string;
   created_at?: string;
   updated_at?: string;
 };
 
 const ALLOWED_STATUS = ["published", "draft", "archived"];
 const ALLOWED_FEATURED = ["true", "false"];
+const SHEET_NAME = "products";
 
 function makeSlug(text: string) {
   return text
@@ -65,6 +68,8 @@ export async function POST(req: Request) {
     const collectionSlug = normalizeText(body?.collection_slug);
     const status = normalizeStatus(body?.status);
     const featured = normalizeBooleanString(body?.featured, "false");
+    const seoTitle = normalizeText(body?.seo_title);
+    const seoDescription = normalizeText(body?.seo_description);
 
     if (!originalSlug) {
       return NextResponse.json(
@@ -118,12 +123,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const items = (await getSheetData("Products")) as ProductRow[];
+    const items = (await getSheetData(SHEET_NAME)) as ProductRow[];
 
     const currentItem =
       items.find(
-        (item) =>
-          String(item.slug || "").trim().toLowerCase() === originalSlug
+        (item) => String(item.slug || "").trim().toLowerCase() === originalSlug
       ) || null;
 
     if (!currentItem) {
@@ -173,8 +177,11 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const createdAt = String(currentItem.created_at || now);
     const id = String(currentItem.id || "");
+    const finalSeoTitle = seoTitle || title;
+    const finalSeoDescription =
+      seoDescription || shortDescription || description;
 
-    await updateSheetRowBySlug("Products", originalSlug, [
+    await updateSheetRowBySlug(SHEET_NAME, originalSlug, [
       id,
       title,
       finalSlug,
@@ -185,6 +192,8 @@ export async function POST(req: Request) {
       collectionSlug,
       status,
       featured,
+      finalSeoTitle,
+      finalSeoDescription,
       createdAt,
       now,
     ]);
@@ -203,6 +212,8 @@ export async function POST(req: Request) {
         collection_slug: collectionSlug,
         status,
         featured,
+        seo_title: finalSeoTitle,
+        seo_description: finalSeoDescription,
         created_at: createdAt,
         updated_at: now,
       },
