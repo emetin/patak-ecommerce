@@ -4,7 +4,7 @@ import { getSheetData } from "../../../lib/sheets";
 import { buildPageMetadata } from "../../../lib/seo";
 import { normalizeImageUrl } from "../../../lib/image-url";
 import ProductDetailClient from "../../../components/products/ProductDetailClient";
-import type { VariantItem } from "../../../components/products/ProductPurchasePanel";
+import type { VariantItem } from "../../../components/products/ProductInfoPanel";
 
 type ProductItem = {
   id?: string;

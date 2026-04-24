@@ -36,18 +36,8 @@ type VariantItem = {
   option3_value?: string;
   sku?: string;
   barcode?: string;
-  price?: string;
-  compare_at_price?: string;
-  inventory_tracker?: string;
-  inventory_policy?: string;
-  fulfillment_service?: string;
-  requires_shipping?: string;
-  taxable?: string;
   image_id?: string;
   variant_image?: string;
-  weight?: string;
-  weight_unit?: string;
-  box_quantity?: string;
   status?: string;
   created_at?: string;
   updated_at?: string;
@@ -64,32 +54,41 @@ type ProductImageItem = {
   updated_at?: string;
 };
 
-function parsePrice(value?: string) {
-  const num = Number(String(value || "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(num) ? num : 0;
+function normalizeText(value?: string) {
+  return String(value || "").trim();
 }
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value || 0);
+function normalizeLower(value?: string) {
+  return normalizeText(value).toLowerCase();
+}
+
+function isTrue(value?: string) {
+  return normalizeLower(value) === "true";
+}
+
+function isDefaultValue(value?: string) {
+  const normalized = normalizeLower(value);
+  return !normalized || normalized === "default";
+}
+
+function isRealVariant(item: VariantItem) {
+  return (
+    !isDefaultValue(item.option1_value) ||
+    !isDefaultValue(item.option2_value) ||
+    !isDefaultValue(item.option3_value)
+  );
 }
 
 function buildVariantLabel(item: VariantItem) {
   const values = [item.option1_value, item.option2_value, item.option3_value]
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
+    .map((value) => normalizeText(value))
+    .filter((value) => value && value.toLowerCase() !== "default");
 
   return values.length ? values.join(" / ") : "Default";
 }
 
-function isTrue(value?: string) {
-  return String(value || "").trim().toLowerCase() === "true";
-}
-
 function toSafeOrder(value?: string) {
-  const num = Number(String(value || "").trim());
+  const num = Number(normalizeText(value));
   return Number.isFinite(num) ? num : 999999;
 }
 
@@ -106,13 +105,31 @@ function sortImages(images: ProductImageItem[]) {
   });
 }
 
+function makeEditableVariant(item?: VariantItem): VariantItem {
+  return {
+    id: item?.id || "",
+    product_slug: item?.product_slug || "",
+    option1_name: item?.option1_name || "Size",
+    option1_value: item?.option1_value || "",
+    option2_name: item?.option2_name || "",
+    option2_value: item?.option2_value || "",
+    option3_name: item?.option3_name || "",
+    option3_value: item?.option3_value || "",
+    sku: item?.sku || "",
+    barcode: item?.barcode || "",
+    image_id: item?.image_id || "",
+    variant_image: item?.variant_image || "",
+    status: item?.status || "published",
+  };
+}
+
 export default function AdminProductDetailPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug: rawSlug } = use(params);
-  const slug = decodeURIComponent(rawSlug);
+  const slug = decodeURIComponent(rawSlug).trim().toLowerCase();
 
   const [product, setProduct] = useState<ProductItem | null>(null);
   const [variants, setVariants] = useState<VariantItem[]>([]);
@@ -151,22 +168,18 @@ export default function AdminProductDetailPage({
   const [option3Value, setOption3Value] = useState("");
   const [sku, setSku] = useState("");
   const [barcode, setBarcode] = useState("");
-  const [price, setPrice] = useState("");
-  const [compareAtPrice, setCompareAtPrice] = useState("");
-  const [boxQuantity, setBoxQuantity] = useState("");
-  const [inventoryTracker, setInventoryTracker] = useState("none");
-  const [inventoryPolicy, setInventoryPolicy] = useState("deny");
-  const [fulfillmentService, setFulfillmentService] = useState("manual");
-  const [requiresShipping, setRequiresShipping] = useState("true");
-  const [taxable, setTaxable] = useState("true");
-  const [weight, setWeight] = useState("");
-  const [weightUnit, setWeightUnit] = useState("kg");
   const [variantStatus, setVariantStatus] = useState("published");
 
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState("");
-  const [saveError, setSaveError] = useState("");
+  const [variantSaving, setVariantSaving] = useState(false);
+  const [variantSaveMessage, setVariantSaveMessage] = useState("");
+  const [variantSaveError, setVariantSaveError] = useState("");
   const [deleteLoadingId, setDeleteLoadingId] = useState("");
+
+  const [editingVariantId, setEditingVariantId] = useState("");
+  const [editingVariant, setEditingVariant] = useState<VariantItem>(
+    makeEditableVariant()
+  );
+  const [variantUpdateLoadingId, setVariantUpdateLoadingId] = useState("");
 
   const productLoadedSlugRef = useRef("");
   const variantsLoadedSlugRef = useRef("");
@@ -177,20 +190,20 @@ export default function AdminProductDetailPage({
       setLoading(true);
       setPageError("");
 
-      const productResponse = await fetch(
+      const response = await fetch(
         `/api/products/get?slug=${encodeURIComponent(slug)}`,
         {
           cache: "no-store",
         }
       );
 
-      const productData = await productResponse.json();
+      const data = await response.json();
 
-      if (!productResponse.ok || !productData.ok) {
-        throw new Error(productData?.error || "Failed to load product.");
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to load product.");
       }
 
-      const foundProduct = productData.item || null;
+      const foundProduct = data.item || null;
 
       if (!foundProduct) {
         throw new Error("Product not found.");
@@ -237,9 +250,9 @@ export default function AdminProductDetailPage({
         throw new Error(data?.error || "Failed to load variants.");
       }
 
-      setVariants(Array.isArray(data.items) ? data.items : []);
-    } catch (error) {
-      console.error("Failed to load variants:", error);
+      const items = Array.isArray(data.items) ? data.items : [];
+      setVariants(items.filter((item: VariantItem) => isRealVariant(item)));
+    } catch {
       setVariants([]);
     } finally {
       setVariantsLoading(false);
@@ -264,8 +277,7 @@ export default function AdminProductDetailPage({
       }
 
       setProductImages(Array.isArray(data.items) ? data.items : []);
-    } catch (error) {
-      console.error("Failed to load product images:", error);
+    } catch {
       setProductImages([]);
     } finally {
       setImagesLoading(false);
@@ -296,14 +308,6 @@ export default function AdminProductDetailPage({
     loadImages();
   }, [slug, loadImages]);
 
-  const optionPreview = useMemo(() => {
-    const values = [option1Value, option2Value, option3Value]
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    return values.length ? values.join(" / ") : "Default";
-  }, [option1Value, option2Value, option3Value]);
-
   const sortedImages = useMemo(() => sortImages(productImages), [productImages]);
 
   const mainImage = useMemo(() => {
@@ -324,10 +328,11 @@ export default function AdminProductDetailPage({
       sortedImages.find((item) => isTrue(item.is_main))
     );
     const altTextCount = sortedImages.filter((item) =>
-      String(item.alt_text || "").trim()
+      normalizeText(item.alt_text)
     ).length;
 
     let score = 0;
+
     if (imageCount > 0) score += 35;
     if (mainImageExists) score += 35;
     if (imageCount >= 3) score += 15;
@@ -340,6 +345,14 @@ export default function AdminProductDetailPage({
       score,
     };
   }, [sortedImages]);
+
+  const variantPreview = useMemo(() => {
+    const values = [option1Value, option2Value, option3Value]
+      .map((value) => normalizeText(value))
+      .filter((value) => value && value.toLowerCase() !== "default");
+
+    return values.length ? values.join(" / ") : "No real option selected";
+  }, [option1Value, option2Value, option3Value]);
 
   async function handleProductSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -428,9 +441,9 @@ export default function AdminProductDetailPage({
   async function handleCreateVariant(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    setSaving(true);
-    setSaveMessage("");
-    setSaveError("");
+    setVariantSaving(true);
+    setVariantSaveMessage("");
+    setVariantSaveError("");
 
     try {
       const response = await fetch("/api/variants/create", {
@@ -448,18 +461,8 @@ export default function AdminProductDetailPage({
           option3_value: option3Value,
           sku,
           barcode,
-          price,
-          compare_at_price: compareAtPrice,
-          inventory_tracker: inventoryTracker,
-          inventory_policy: inventoryPolicy,
-          fulfillment_service: fulfillmentService,
-          requires_shipping: requiresShipping,
-          taxable,
           image_id: "",
           variant_image: "",
-          weight,
-          weight_unit: weightUnit,
-          box_quantity: boxQuantity,
           status: variantStatus,
         }),
       });
@@ -470,8 +473,9 @@ export default function AdminProductDetailPage({
         throw new Error(data?.error || "Failed to create variant.");
       }
 
-      setSaveMessage("Variant created successfully.");
+      setVariantSaveMessage("Variant created successfully.");
 
+      setOption1Name("Size");
       setOption1Value("");
       setOption2Name("");
       setOption2Value("");
@@ -479,25 +483,15 @@ export default function AdminProductDetailPage({
       setOption3Value("");
       setSku("");
       setBarcode("");
-      setPrice("");
-      setCompareAtPrice("");
-      setBoxQuantity("");
-      setInventoryTracker("none");
-      setInventoryPolicy("deny");
-      setFulfillmentService("manual");
-      setRequiresShipping("true");
-      setTaxable("true");
-      setWeight("");
-      setWeightUnit("kg");
       setVariantStatus("published");
 
       await loadVariants();
     } catch (error) {
-      setSaveError(
+      setVariantSaveError(
         error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
-      setSaving(false);
+      setVariantSaving(false);
     }
   }
 
@@ -527,13 +521,83 @@ export default function AdminProductDetailPage({
         throw new Error(data?.error || "Failed to delete variant.");
       }
 
-      setVariants((prev) => prev.filter((item) => item.id !== id));
+      if (editingVariantId === id) {
+        cancelVariantEdit();
+      }
+
+      await loadVariants();
     } catch (error) {
       alert(
         error instanceof Error ? error.message : "An unknown error occurred."
       );
     } finally {
       setDeleteLoadingId("");
+    }
+  }
+
+  function startVariantEdit(item: VariantItem) {
+    setEditingVariantId(item.id || "");
+    setEditingVariant(makeEditableVariant(item));
+    setVariantSaveMessage("");
+    setVariantSaveError("");
+  }
+
+  function cancelVariantEdit() {
+    setEditingVariantId("");
+    setEditingVariant(makeEditableVariant());
+  }
+
+  function updateEditingVariant(patch: Partial<VariantItem>) {
+    setEditingVariant((prev) => ({
+      ...prev,
+      ...patch,
+    }));
+  }
+
+  async function handleUpdateVariant(id?: string) {
+    if (!id) return;
+
+    setVariantUpdateLoadingId(id);
+    setVariantSaveMessage("");
+    setVariantSaveError("");
+
+    try {
+      const response = await fetch("/api/variants/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id,
+          option1_name: editingVariant.option1_name,
+          option1_value: editingVariant.option1_value,
+          option2_name: editingVariant.option2_name,
+          option2_value: editingVariant.option2_value,
+          option3_name: editingVariant.option3_name,
+          option3_value: editingVariant.option3_value,
+          sku: editingVariant.sku,
+          barcode: editingVariant.barcode,
+          image_id: editingVariant.image_id,
+          variant_image: editingVariant.variant_image,
+          status: editingVariant.status,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to update variant.");
+      }
+
+      setVariantSaveMessage("Variant updated successfully.");
+      cancelVariantEdit();
+      await loadVariants();
+    } catch (error) {
+      setVariantSaveError(
+        error instanceof Error ? error.message : "Failed to update variant."
+      );
+    } finally {
+      setVariantUpdateLoadingId("");
     }
   }
 
@@ -557,11 +621,12 @@ export default function AdminProductDetailPage({
           <Link href="/admin/products" style={backLinkStyle}>
             ← Back to Products
           </Link>
+
           <h1 style={titleStyle}>{product.title || "Product"}</h1>
+
           <p style={subtitleStyle}>
-            Edit core product details here. Manage all product gallery images
-            from the dedicated Image Manager to keep the media structure clean
-            and consistent.
+            Edit product content, catalog details, images, and informational
+            variants.
           </p>
         </div>
 
@@ -569,21 +634,25 @@ export default function AdminProductDetailPage({
           <Link href={`/products/${product.slug}`} style={secondaryButtonStyle}>
             View Product
           </Link>
+
           <Link
             href={`/admin/products/${slug}/images`}
             style={primaryButtonStyle}
           >
-            Open Image Manager
+            Image Manager
           </Link>
+
           <Link
             href={`/admin/products/${slug}/variant-images`}
             style={secondaryButtonStyle}
           >
             Variant Images
           </Link>
+
           <Link href="/admin/products/new" style={secondaryButtonStyle}>
             + New Product
           </Link>
+
           <button
             type="button"
             onClick={handleDeleteProduct}
@@ -596,27 +665,13 @@ export default function AdminProductDetailPage({
       </div>
 
       <div style={summaryGridStyle}>
-        <div style={summaryCardStyle}>
-          <div style={summaryLabelStyle}>Product Slug</div>
-          <div style={summaryValueStyle}>{product.slug || "-"}</div>
-        </div>
-
-        <div style={summaryCardStyle}>
-          <div style={summaryLabelStyle}>Collection</div>
-          <div style={summaryValueStyle}>{product.collection_slug || "-"}</div>
-        </div>
-
-        <div style={summaryCardStyle}>
-          <div style={summaryLabelStyle}>Status</div>
-          <div style={summaryValueStyle}>{product.status || "-"}</div>
-        </div>
-
-        <div style={summaryCardStyle}>
-          <div style={summaryLabelStyle}>Variants</div>
-          <div style={summaryValueStyle}>
-            {variantsLoading ? "..." : variants.length}
-          </div>
-        </div>
+        <SummaryCard label="Slug" value={product.slug || "-"} />
+        <SummaryCard label="Collection" value={product.collection_slug || "-"} />
+        <SummaryCard label="Status" value={product.status || "-"} />
+        <SummaryCard
+          label="Variants"
+          value={variantsLoading ? "..." : String(variants.length)}
+        />
       </div>
 
       <div style={galleryOverviewGridStyle}>
@@ -624,9 +679,8 @@ export default function AdminProductDetailPage({
           <div style={sectionTitleWrapStyle}>
             <h2 style={sectionTitleStyle}>Gallery Progress</h2>
             <p style={sectionTextStyle}>
-              Image Manager is now the primary source for product gallery
-              control. This section shows the current media readiness for the
-              product.
+              Product images are managed from Image Manager. The main image is
+              synced automatically to the product image field.
             </p>
           </div>
 
@@ -643,11 +697,13 @@ export default function AdminProductDetailPage({
                 value={`${galleryStats.imageCount}`}
                 ok={galleryStats.imageCount > 0}
               />
+
               <ProgressRow
                 label="Main Image Selected"
                 value={galleryStats.mainImageExists ? "Yes" : "No"}
                 ok={galleryStats.mainImageExists}
               />
+
               <ProgressRow
                 label="Alt Text Coverage"
                 value={`${galleryStats.altTextCount}/${galleryStats.imageCount || 0}`}
@@ -656,6 +712,7 @@ export default function AdminProductDetailPage({
                   galleryStats.altTextCount === galleryStats.imageCount
                 }
               />
+
               <ProgressRow
                 label="Recommended Gallery Size"
                 value={galleryStats.imageCount >= 3 ? "Reached" : "Need 3+"}
@@ -665,9 +722,8 @@ export default function AdminProductDetailPage({
           </div>
 
           <div style={noticeBoxStyle}>
-            Manual gallery editing from this page has been intentionally reduced.
-            Use the dedicated Image Manager so the storefront, listing pages, and
-            detail pages all use the same media source.
+            For a clean CMS structure, gallery editing should be done from Image
+            Manager instead of the product sheet fields.
           </div>
 
           <div style={buttonRowStyle}>
@@ -684,8 +740,7 @@ export default function AdminProductDetailPage({
           <div style={sectionTitleWrapStyle}>
             <h2 style={sectionTitleStyle}>Current Main Image</h2>
             <p style={sectionTextStyle}>
-              This preview reflects the image that should represent the product
-              across product cards and detail pages.
+              This is the image used in product cards and detail pages.
             </p>
           </div>
 
@@ -698,11 +753,15 @@ export default function AdminProductDetailPage({
                 alt={product.title || "Product image"}
                 style={mainPreviewImageStyle}
               />
+
               <div style={mainPreviewMetaStyle}>
                 <div style={summaryLabelStyle}>Source</div>
                 <div style={mainPreviewValueStyle}>
-                  {mainImage?.image_url ? "Image Manager" : "Product image field"}
+                  {mainImage?.image_url
+                    ? "Image Manager"
+                    : "Product image field"}
                 </div>
+
                 <div style={{ marginTop: 10 }}>
                   <Link
                     href={`/admin/products/${slug}/images`}
@@ -715,8 +774,7 @@ export default function AdminProductDetailPage({
             </div>
           ) : (
             <div style={emptyStateStyle}>
-              No image selected yet. Add images from Image Manager to complete the
-              gallery.
+              No image selected yet. Add images from Image Manager.
             </div>
           )}
         </div>
@@ -726,8 +784,7 @@ export default function AdminProductDetailPage({
         <div style={sectionTitleWrapStyle}>
           <h2 style={sectionTitleStyle}>Product Details</h2>
           <p style={sectionTextStyle}>
-            Update the product information stored in the products sheet. Media is
-            controlled separately through Image Manager.
+            Update the product information stored in the products sheet.
           </p>
         </div>
 
@@ -827,7 +884,7 @@ export default function AdminProductDetailPage({
             <input
               value={image}
               readOnly
-              placeholder="This is synced by Image Manager when a main image is selected"
+              placeholder="Synced by Image Manager"
               style={{
                 ...inputStyle,
                 background: "#f5f1ea",
@@ -835,9 +892,10 @@ export default function AdminProductDetailPage({
                 cursor: "not-allowed",
               }}
             />
+
             <div style={helperTextStyle}>
-              This field is synced automatically from Image Manager and is kept
-              only for compatibility.
+              This field is synced automatically from Image Manager and kept for
+              compatibility.
             </div>
           </div>
 
@@ -856,6 +914,7 @@ export default function AdminProductDetailPage({
                 cursor: "not-allowed",
               }}
             />
+
             <div style={helperTextStyle}>
               Legacy field only. Gallery should be managed from Image Manager.
             </div>
@@ -915,6 +974,7 @@ export default function AdminProductDetailPage({
         {productSaveMessage ? (
           <div style={successBoxStyle}>{productSaveMessage}</div>
         ) : null}
+
         {productSaveError ? (
           <div style={errorBoxStyle}>{productSaveError}</div>
         ) : null}
@@ -930,10 +990,10 @@ export default function AdminProductDetailPage({
       >
         <form onSubmit={handleCreateVariant} style={cardStyle}>
           <div style={sectionTitleWrapStyle}>
-            <h2 style={sectionTitleStyle}>Add New Variant</h2>
+            <h2 style={sectionTitleStyle}>Add Informational Variant</h2>
             <p style={sectionTextStyle}>
-              Add size, color, pack, or other option combinations for this
-              product.
+              Add only real product options such as size, color, or pack.
+              Default variants are blocked.
             </p>
           </div>
 
@@ -994,27 +1054,7 @@ export default function AdminProductDetailPage({
               <input
                 value={option3Value}
                 onChange={(e) => setOption3Value(e.target.value)}
-                placeholder="Set of 12"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Price</label>
-              <input
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="120"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Compare At Price</label>
-              <input
-                value={compareAtPrice}
-                onChange={(e) => setCompareAtPrice(e.target.value)}
-                placeholder="150"
+                placeholder="Set of 2"
                 style={inputStyle}
               />
             </div>
@@ -1024,7 +1064,7 @@ export default function AdminProductDetailPage({
               <input
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
-                placeholder="GTX-TWL-QUEEN-WHT"
+                placeholder="PTX-SKU-001"
                 style={inputStyle}
               />
             </div>
@@ -1034,106 +1074,13 @@ export default function AdminProductDetailPage({
               <input
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
-                placeholder="1234567890123"
+                placeholder="123456789"
                 style={inputStyle}
               />
             </div>
 
-            <div>
-              <label style={labelStyle}>Box Quantity</label>
-              <input
-                value={boxQuantity}
-                onChange={(e) => setBoxQuantity(e.target.value)}
-                placeholder="12"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Weight</label>
-              <input
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="1.2"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Weight Unit</label>
-              <select
-                value={weightUnit}
-                onChange={(e) => setWeightUnit(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="kg">kg</option>
-                <option value="g">g</option>
-                <option value="lb">lb</option>
-                <option value="oz">oz</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Inventory Tracker</label>
-              <select
-                value={inventoryTracker}
-                onChange={(e) => setInventoryTracker(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="none">none</option>
-                <option value="shopify">shopify</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Inventory Policy</label>
-              <select
-                value={inventoryPolicy}
-                onChange={(e) => setInventoryPolicy(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="deny">deny</option>
-                <option value="continue">continue</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Fulfillment Service</label>
-              <select
-                value={fulfillmentService}
-                onChange={(e) => setFulfillmentService(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="manual">manual</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Requires Shipping</label>
-              <select
-                value={requiresShipping}
-                onChange={(e) => setRequiresShipping(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Taxable</label>
-              <select
-                value={taxable}
-                onChange={(e) => setTaxable(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="true">true</option>
-                <option value="false">false</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Status</label>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Variant Status</label>
               <select
                 value={variantStatus}
                 onChange={(e) => setVariantStatus(e.target.value)}
@@ -1146,26 +1093,35 @@ export default function AdminProductDetailPage({
             </div>
           </div>
 
-          <div style={previewBoxStyle}>
-            <div style={previewLabelStyle}>Preview</div>
-            <div style={previewValueStyle}>{optionPreview}</div>
+          <div style={variantPreviewBoxStyle}>
+            Preview: <strong>{variantPreview}</strong>
           </div>
 
           <div style={buttonRowStyle}>
-            <button type="submit" style={primaryButtonStyle} disabled={saving}>
-              {saving ? "Saving..." : "Create Variant"}
+            <button
+              type="submit"
+              style={primaryButtonStyle}
+              disabled={variantSaving}
+            >
+              {variantSaving ? "Creating..." : "Add Variant"}
             </button>
           </div>
 
-          {saveMessage ? <div style={successBoxStyle}>{saveMessage}</div> : null}
-          {saveError ? <div style={errorBoxStyle}>{saveError}</div> : null}
+          {variantSaveMessage ? (
+            <div style={successBoxStyle}>{variantSaveMessage}</div>
+          ) : null}
+
+          {variantSaveError ? (
+            <div style={errorBoxStyle}>{variantSaveError}</div>
+          ) : null}
         </form>
 
         <div style={cardStyle}>
           <div style={sectionTitleWrapStyle}>
             <h2 style={sectionTitleStyle}>Existing Variants</h2>
             <p style={sectionTextStyle}>
-              Review each option combination created for this product.
+              These variants are informational only. They do not include pricing,
+              stock, shipping, or checkout data.
             </p>
           </div>
 
@@ -1173,77 +1129,202 @@ export default function AdminProductDetailPage({
             <div style={emptyStateStyle}>Loading variants...</div>
           ) : variants.length === 0 ? (
             <div style={emptyStateStyle}>
-              No variants have been created for this product yet.
+              No real variants added yet. Products without options can stay
+              empty.
             </div>
           ) : (
             <div style={variantListStyle}>
               {variants.map((item) => {
-                const priceValue = parsePrice(item.price);
-                const compareAtValue = parsePrice(item.compare_at_price);
-                const hasDiscount =
-                  compareAtValue > priceValue && priceValue > 0;
+                const isEditing = editingVariantId === item.id;
 
                 return (
-                  <div
-                    key={item.id || buildVariantLabel(item)}
-                    style={variantCardStyle}
-                  >
-                    <div style={variantHeaderStyle}>
-                      <div>
-                        <div style={variantTitleStyle}>
-                          {buildVariantLabel(item)}
+                  <div key={item.id} style={variantCardStyle}>
+                    {isEditing ? (
+                      <div style={{ display: "grid", gap: 12, flex: 1 }}>
+                        <div style={formGridStyle}>
+                          <div>
+                            <label style={labelStyle}>Option 1 Name</label>
+                            <input
+                              value={editingVariant.option1_name || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  option1_name: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Option 1 Value</label>
+                            <input
+                              value={editingVariant.option1_value || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  option1_value: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Option 2 Name</label>
+                            <input
+                              value={editingVariant.option2_name || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  option2_name: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Option 2 Value</label>
+                            <input
+                              value={editingVariant.option2_value || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  option2_value: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Option 3 Name</label>
+                            <input
+                              value={editingVariant.option3_name || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  option3_name: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Option 3 Value</label>
+                            <input
+                              value={editingVariant.option3_value || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  option3_value: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>SKU</label>
+                            <input
+                              value={editingVariant.sku || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({ sku: e.target.value })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Barcode</label>
+                            <input
+                              value={editingVariant.barcode || ""}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  barcode: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            />
+                          </div>
+
+                          <div style={{ gridColumn: "1 / -1" }}>
+                            <label style={labelStyle}>Status</label>
+                            <select
+                              value={editingVariant.status || "published"}
+                              onChange={(e) =>
+                                updateEditingVariant({
+                                  status: e.target.value,
+                                })
+                              }
+                              style={inputStyle}
+                            >
+                              <option value="published">published</option>
+                              <option value="draft">draft</option>
+                              <option value="archived">archived</option>
+                            </select>
+                          </div>
                         </div>
-                        <div style={variantMetaStyle}>
-                          {item.option1_name || ""}
-                          {item.option1_name && item.option1_value
-                            ? `: ${item.option1_value}`
-                            : ""}
-                          {item.option2_name && item.option2_value
-                            ? ` • ${item.option2_name}: ${item.option2_value}`
-                            : ""}
-                          {item.option3_name && item.option3_value
-                            ? ` • ${item.option3_name}: ${item.option3_value}`
-                            : ""}
+
+                        <div style={buttonRowStyle}>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateVariant(item.id)}
+                            style={primaryButtonStyle}
+                            disabled={variantUpdateLoadingId === item.id}
+                          >
+                            {variantUpdateLoadingId === item.id
+                              ? "Saving..."
+                              : "Save Variant"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={cancelVariantEdit}
+                            style={secondaryButtonStyle}
+                          >
+                            Cancel
+                          </button>
                         </div>
                       </div>
+                    ) : (
+                      <>
+                        <div>
+                          <div style={variantTitleStyle}>
+                            {buildVariantLabel(item)}
+                          </div>
 
-                      <StatusBadge value={item.status || "-"} />
-                    </div>
+                          <div style={variantMetaGridStyle}>
+                            <VariantMeta label="SKU" value={item.sku || "-"} />
+                            <VariantMeta
+                              label="Barcode"
+                              value={item.barcode || "-"}
+                            />
+                            <VariantMeta
+                              label="Status"
+                              value={item.status || "-"}
+                            />
+                          </div>
+                        </div>
 
-                    <div style={variantInfoGridStyle}>
-                      <InfoBox
-                        label="Price"
-                        value={priceValue > 0 ? formatMoney(priceValue) : "-"}
-                      />
-                      <InfoBox
-                        label="Compare At"
-                        value={
-                          compareAtValue > 0 ? formatMoney(compareAtValue) : "-"
-                        }
-                      />
-                      <InfoBox label="SKU" value={item.sku || "-"} />
-                      <InfoBox label="Barcode" value={item.barcode || "-"} />
-                      <InfoBox
-                        label="Box Quantity"
-                        value={item.box_quantity || "-"}
-                      />
-                      <InfoBox label="Weight" value={item.weight || "-"} />
-                    </div>
+                        <div style={variantActionsStyle}>
+                          <button
+                            type="button"
+                            onClick={() => startVariantEdit(item)}
+                            style={secondarySmallButtonStyle}
+                          >
+                            Edit
+                          </button>
 
-                    {hasDiscount ? (
-                      <div style={discountBadgeStyle}>Discount active</div>
-                    ) : null}
-
-                    <div style={actionRowStyle}>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteVariant(item.id)}
-                        style={dangerSmallButtonStyle}
-                        disabled={deleteLoadingId === item.id}
-                      >
-                        {deleteLoadingId === item.id ? "Deleting..." : "Delete"}
-                      </button>
-                    </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteVariant(item.id)}
+                            style={dangerSmallButtonStyle}
+                            disabled={deleteLoadingId === item.id}
+                          >
+                            {deleteLoadingId === item.id
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
@@ -1255,39 +1336,11 @@ export default function AdminProductDetailPage({
   );
 }
 
-function StatusBadge({ value }: { value: string }) {
-  const normalized = value.toLowerCase();
-
-  const style: React.CSSProperties =
-    normalized === "published"
-      ? {
-          ...badgeStyle,
-          background: "#edf8f1",
-          color: "#1d6a43",
-          border: "1px solid #cfe7d8",
-        }
-      : normalized === "draft"
-        ? {
-            ...badgeStyle,
-            background: "#fff7e8",
-            color: "#8a6418",
-            border: "1px solid #ecd8ad",
-          }
-        : {
-            ...badgeStyle,
-            background: "#f3f3f3",
-            color: "#5e5e5e",
-            border: "1px solid #dddddd",
-          };
-
-  return <span style={style}>{value}</span>;
-}
-
-function InfoBox({ label, value }: { label: string; value: string }) {
+function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div style={infoBoxStyle}>
-      <div style={infoBoxLabelStyle}>{label}</div>
-      <div style={infoBoxValueStyle}>{value}</div>
+    <div style={summaryCardStyle}>
+      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryValueStyle}>{value}</div>
     </div>
   );
 }
@@ -1303,13 +1356,17 @@ function ProgressRow({
 }) {
   return (
     <div style={progressRowStyle}>
-      <div>
-        <div style={progressRowLabelStyle}>{label}</div>
-        <div style={progressRowValueStyle}>{value}</div>
-      </div>
-      <span style={ok ? progressOkBadgeStyle : progressPendingBadgeStyle}>
-        {ok ? "Done" : "Pending"}
-      </span>
+      <span>{label}</span>
+      <strong style={{ color: ok ? "#1d6a43" : "#8a6418" }}>{value}</strong>
+    </div>
+  );
+}
+
+function VariantMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={variantMetaItemStyle}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }
@@ -1320,6 +1377,14 @@ const pageHeaderStyle: React.CSSProperties = {
   alignItems: "flex-start",
   gap: 20,
   flexWrap: "wrap",
+};
+
+const backLinkStyle: React.CSSProperties = {
+  display: "inline-block",
+  textDecoration: "none",
+  color: "#5e5448",
+  fontWeight: 700,
+  marginBottom: 4,
 };
 
 const titleStyle: React.CSSProperties = {
@@ -1336,14 +1401,6 @@ const subtitleStyle: React.CSSProperties = {
   maxWidth: 760,
 };
 
-const backLinkStyle: React.CSSProperties = {
-  display: "inline-block",
-  textDecoration: "none",
-  color: "#5e5448",
-  fontWeight: 700,
-  marginBottom: 4,
-};
-
 const headerActionsStyle: React.CSSProperties = {
   display: "flex",
   gap: 10,
@@ -1353,7 +1410,7 @@ const headerActionsStyle: React.CSSProperties = {
 const summaryGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-  gap: 16,
+  gap: 14,
 };
 
 const summaryCardStyle: React.CSSProperties = {
@@ -1361,13 +1418,14 @@ const summaryCardStyle: React.CSSProperties = {
   border: "1px solid #ddd3c5",
   borderRadius: 20,
   padding: 18,
+  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
 };
 
 const summaryLabelStyle: React.CSSProperties = {
   fontSize: 13,
   color: "#7c7267",
   marginBottom: 8,
-  fontWeight: 700,
+  fontWeight: 800,
 };
 
 const summaryValueStyle: React.CSSProperties = {
@@ -1376,19 +1434,19 @@ const summaryValueStyle: React.CSSProperties = {
   wordBreak: "break-word",
 };
 
+const galleryOverviewGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 24,
+  alignItems: "start",
+};
+
 const cardStyle: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #ddd3c5",
   borderRadius: 24,
   padding: 24,
   boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
-};
-
-const galleryOverviewGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1.05fr 0.95fr",
-  gap: 24,
-  alignItems: "start",
 };
 
 const sectionTitleWrapStyle: React.CSSProperties = {
@@ -1402,110 +1460,66 @@ const sectionTitleStyle: React.CSSProperties = {
 };
 
 const sectionTextStyle: React.CSSProperties = {
-  margin: "10px 0 0",
+  margin: "8px 0 0",
   color: "#6f6559",
-  fontSize: 15,
   lineHeight: 1.7,
 };
 
 const galleryProgressTopStyle: React.CSSProperties = {
   display: "flex",
-  gap: 18,
-  alignItems: "stretch",
-  marginBottom: 20,
+  gap: 20,
+  alignItems: "center",
+  marginBottom: 18,
+  flexWrap: "wrap",
 };
 
 const progressRingWrapStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  width: 132,
+  height: 132,
 };
 
 const progressRingStyle: React.CSSProperties = {
-  width: 120,
-  height: 120,
+  width: 132,
+  height: 132,
   borderRadius: "50%",
-  border: "10px solid #e7decf",
+  background: "#eef8f0",
+  border: "10px solid #2f7d62",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "#faf8f4",
 };
 
 const progressValueStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 800,
-  color: "#171717",
+  fontSize: 26,
+  fontWeight: 900,
+  color: "#1d6a43",
 };
 
 const progressRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  alignItems: "center",
   gap: 14,
-  padding: "12px 14px",
-  borderRadius: 16,
-  background: "#faf8f4",
-  border: "1px solid #e8dfd2",
-};
-
-const progressRowLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#7c7267",
-  fontWeight: 700,
-  marginBottom: 4,
-};
-
-const progressRowValueStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 800,
-  color: "#171717",
-};
-
-const progressOkBadgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 30,
-  padding: "0 12px",
-  borderRadius: 999,
-  background: "#edf8f1",
-  color: "#1d6a43",
-  border: "1px solid #cfe7d8",
-  fontWeight: 800,
-  fontSize: 12,
-};
-
-const progressPendingBadgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 30,
-  padding: "0 12px",
-  borderRadius: 999,
-  background: "#fff7e8",
-  color: "#8a6418",
-  border: "1px solid #ecd8ad",
-  fontWeight: 800,
-  fontSize: 12,
+  padding: "10px 0",
+  borderBottom: "1px solid #eee5d9",
+  color: "#5f564c",
 };
 
 const noticeBoxStyle: React.CSSProperties = {
-  marginTop: 4,
-  padding: 16,
-  borderRadius: 18,
+  marginTop: 18,
+  padding: 14,
+  borderRadius: 16,
   background: "#f8f5ef",
   border: "1px solid #e3dbcf",
-  color: "#6f6559",
-  lineHeight: 1.7,
+  color: "#5f564c",
   fontSize: 14,
+  lineHeight: 1.7,
 };
 
 const mainPreviewWrapStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "220px 1fr",
+  gridTemplateColumns: "180px 1fr",
   gap: 18,
-  alignItems: "start",
+  alignItems: "center",
 };
 
 const mainPreviewImageStyle: React.CSSProperties = {
@@ -1513,8 +1527,8 @@ const mainPreviewImageStyle: React.CSSProperties = {
   aspectRatio: "1 / 1",
   objectFit: "cover",
   borderRadius: 18,
+  border: "1px solid #e5ddd2",
   background: "#f5f5f5",
-  border: "1px solid #e8dfd2",
 };
 
 const mainPreviewMetaStyle: React.CSSProperties = {
@@ -1523,9 +1537,8 @@ const mainPreviewMetaStyle: React.CSSProperties = {
 };
 
 const mainPreviewValueStyle: React.CSSProperties = {
-  fontSize: 18,
   fontWeight: 800,
-  color: "#171717",
+  fontSize: 18,
 };
 
 const formGridStyle: React.CSSProperties = {
@@ -1541,13 +1554,6 @@ const labelStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
-const helperTextStyle: React.CSSProperties = {
-  marginTop: 8,
-  fontSize: 13,
-  color: "#7d7266",
-  lineHeight: 1.6,
-};
-
 const inputStyle: React.CSSProperties = {
   width: "100%",
   minHeight: 52,
@@ -1559,24 +1565,10 @@ const inputStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
-const previewBoxStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 16,
-  borderRadius: 18,
-  background: "#f8f5ef",
-  border: "1px solid #e3dbcf",
-};
-
-const previewLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#7c7267",
-  marginBottom: 8,
-  fontWeight: 700,
-};
-
-const previewValueStyle: React.CSSProperties = {
-  fontWeight: 800,
-  fontSize: 18,
+const helperTextStyle: React.CSSProperties = {
+  marginTop: 8,
+  color: "#6d655b",
+  fontSize: 14,
 };
 
 const buttonRowStyle: React.CSSProperties = {
@@ -1584,96 +1576,6 @@ const buttonRowStyle: React.CSSProperties = {
   gap: 12,
   marginTop: 24,
   flexWrap: "wrap",
-};
-
-const variantListStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 16,
-};
-
-const variantCardStyle: React.CSSProperties = {
-  border: "1px solid #e8dfd2",
-  borderRadius: 20,
-  padding: 18,
-  background: "#fcfbf8",
-};
-
-const variantHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 16,
-  alignItems: "flex-start",
-  flexWrap: "wrap",
-  marginBottom: 16,
-};
-
-const variantTitleStyle: React.CSSProperties = {
-  fontSize: 20,
-  fontWeight: 800,
-};
-
-const variantMetaStyle: React.CSSProperties = {
-  marginTop: 6,
-  color: "#6f6559",
-  fontSize: 14,
-  lineHeight: 1.6,
-};
-
-const variantInfoGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: 12,
-};
-
-const infoBoxStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e8dfd2",
-  borderRadius: 16,
-  padding: 14,
-};
-
-const infoBoxLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "#7b7367",
-  fontWeight: 700,
-  marginBottom: 8,
-};
-
-const infoBoxValueStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 800,
-  wordBreak: "break-word",
-};
-
-const discountBadgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  marginTop: 14,
-  padding: "7px 12px",
-  borderRadius: 999,
-  background: "#eef8f0",
-  color: "#2f7d62",
-  fontWeight: 800,
-  fontSize: 13,
-};
-
-const badgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 32,
-  padding: "0 12px",
-  borderRadius: 999,
-  fontWeight: 800,
-  fontSize: 13,
-};
-
-const actionRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  marginTop: 16,
 };
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -1702,8 +1604,22 @@ const secondaryButtonStyle: React.CSSProperties = {
   background: "#fff",
   color: "#171717",
   fontWeight: 800,
-  cursor: "pointer",
   textDecoration: "none",
+  cursor: "pointer",
+};
+
+const secondarySmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const dangerButtonStyle: React.CSSProperties = {
@@ -1732,17 +1648,71 @@ const dangerSmallButtonStyle: React.CSSProperties = {
   color: "#8f2d2d",
   fontWeight: 700,
   cursor: "pointer",
-  textDecoration: "none",
-  fontSize: 14,
 };
 
 const emptyStateStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #ddd3c5",
-  borderRadius: 20,
-  padding: 20,
-  color: "#6f6559",
+  padding: 18,
+  borderRadius: 18,
+  background: "#faf8f4",
+  border: "1px dashed #d9cfbf",
+  color: "#7b7367",
   fontWeight: 700,
+};
+
+const variantPreviewBoxStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: 14,
+  borderRadius: 16,
+  background: "#f8f5ef",
+  border: "1px solid #e3dbcf",
+  color: "#5f564c",
+};
+
+const variantListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+};
+
+const variantCardStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 14,
+  alignItems: "flex-start",
+  padding: 16,
+  borderRadius: 18,
+  background: "#faf8f4",
+  border: "1px solid #e5ddd2",
+};
+
+const variantActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+};
+
+const variantTitleStyle: React.CSSProperties = {
+  fontWeight: 900,
+  fontSize: 17,
+  marginBottom: 10,
+};
+
+const variantMetaGridStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const variantMetaItemStyle: React.CSSProperties = {
+  display: "inline-flex",
+  gap: 6,
+  alignItems: "center",
+  padding: "7px 10px",
+  borderRadius: 999,
+  background: "#fff",
+  border: "1px solid #e5ddd2",
+  color: "#5f564c",
+  fontSize: 13,
 };
 
 const successBoxStyle: React.CSSProperties = {
@@ -1751,14 +1721,13 @@ const successBoxStyle: React.CSSProperties = {
   borderRadius: 16,
   background: "#eef8f0",
   border: "1px solid #cfe5d4",
-  color: "#245843",
-  fontWeight: 700,
 };
 
 const errorBoxStyle: React.CSSProperties = {
-  padding: 18,
+  marginTop: 18,
+  padding: 14,
   borderRadius: 16,
   background: "#fff1f1",
-  border: "1px solid #f0c9c9",
-  color: "#8d2f2f",
+  border: "1px solid #efc9c9",
+  color: "#7a2222",
 };

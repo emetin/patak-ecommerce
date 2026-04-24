@@ -1,6 +1,45 @@
+function normalizeText(value?: string) {
+  return String(value || "").trim();
+}
+
+function isInvalidImageReference(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized) return true;
+
+  if (normalized.startsWith("img_")) return true;
+  if (normalized.startsWith("var_")) return true;
+  if (normalized.startsWith("prd_")) return true;
+  if (normalized.startsWith("col_")) return true;
+  if (normalized.startsWith("blog_")) return true;
+
+  if (normalized === "default") return true;
+  if (normalized === "null") return true;
+  if (normalized === "undefined") return true;
+  if (normalized === "-") return true;
+
+  return false;
+}
+
+function isProbablyImagePath(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized.startsWith("/uploads/")) return true;
+  if (normalized.startsWith("/images/")) return true;
+  if (normalized.startsWith("/assets/")) return true;
+  if (normalized.startsWith("http://")) return true;
+  if (normalized.startsWith("https://")) return true;
+  if (normalized.startsWith("data:image/")) return true;
+
+  return false;
+}
+
 export function extractGoogleDriveFileId(url: string) {
-  const value = String(url || "").trim();
-  if (!value) return "";
+  const value = normalizeText(url);
+
+  if (!value) {
+    return "";
+  }
 
   const patterns = [
     /\/file\/d\/([a-zA-Z0-9_-]+)/,
@@ -12,6 +51,7 @@ export function extractGoogleDriveFileId(url: string) {
 
   for (const pattern of patterns) {
     const match = value.match(pattern);
+
     if (match?.[1]) {
       return match[1];
     }
@@ -21,8 +61,15 @@ export function extractGoogleDriveFileId(url: string) {
 }
 
 export function normalizeImageUrl(url?: string) {
-  const value = String(url || "").trim();
-  if (!value) return "";
+  const value = normalizeText(url);
+
+  if (!value) {
+    return "";
+  }
+
+  if (isInvalidImageReference(value)) {
+    return "";
+  }
 
   if (
     value.includes("drive.google.com") ||
@@ -34,6 +81,10 @@ export function normalizeImageUrl(url?: string) {
     if (fileId) {
       return `https://drive.google.com/thumbnail?id=${fileId}&sz=w2000`;
     }
+  }
+
+  if (!isProbablyImagePath(value)) {
+    return "";
   }
 
   return value;
@@ -48,9 +99,13 @@ export function normalizeImageUrls(urls: string[]) {
 
 export function getCanonicalImageKey(url?: string) {
   const normalized = normalizeImageUrl(url);
-  if (!normalized) return "";
+
+  if (!normalized) {
+    return "";
+  }
 
   const driveId = extractGoogleDriveFileId(normalized);
+
   if (driveId) {
     return `drive:${driveId}`;
   }
@@ -62,7 +117,10 @@ export function areSameImageUrls(a?: string, b?: string) {
   const aKey = getCanonicalImageKey(a);
   const bKey = getCanonicalImageKey(b);
 
-  if (!aKey || !bKey) return false;
+  if (!aKey || !bKey) {
+    return false;
+  }
+
   return aKey === bKey;
 }
 

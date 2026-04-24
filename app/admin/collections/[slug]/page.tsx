@@ -173,11 +173,12 @@ export default function AdminCollectionDetailPage({
     }
   }
 
-  async function handleImageUpload(
-    e: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+
+    if (!file) {
+      return;
+    }
 
     setImageUploadError("");
     setImageUploading(true);
@@ -187,15 +188,17 @@ export default function AdminCollectionDetailPage({
         throw new Error("Please select a valid image file.");
       }
 
-      const maxSizeMb = 4;
+      const maxSizeMb = 10;
+
       if (file.size > maxSizeMb * 1024 * 1024) {
         throw new Error(`Image must be smaller than ${maxSizeMb}MB.`);
       }
 
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("folder", "collections");
 
-      const response = await fetch("/api/upload", {
+      const response = await fetch("/api/upload/image", {
         method: "POST",
         body: formData,
       });
@@ -213,6 +216,7 @@ export default function AdminCollectionDetailPage({
       );
     } finally {
       setImageUploading(false);
+
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -222,6 +226,7 @@ export default function AdminCollectionDetailPage({
   function clearImage() {
     setImage("");
     setImageUploadError("");
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }

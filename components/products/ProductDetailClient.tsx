@@ -7,7 +7,7 @@ import SectionHeading from "../ui/SectionHeading";
 import ButtonLink from "../ui/ButtonLink";
 import ProductCard from "../cards/ProductCard";
 import ProductGallery from "./ProductGallery";
-import ProductPurchasePanel, { VariantItem } from "./ProductPurchasePanel";
+import ProductInfoPanel, { VariantItem } from "./ProductInfoPanel";
 import {
   areSameImageUrls,
   normalizeImageUrl,
@@ -56,7 +56,10 @@ function normalizeLower(value?: string) {
 
 function formatCollectionLabel(value?: string) {
   const raw = normalizeText(value);
-  if (!raw) return "Product";
+
+  if (!raw) {
+    return "Product";
+  }
 
   return raw
     .split("-")
@@ -84,7 +87,10 @@ function sortProductImages(images: ProductImageItem[]) {
     }
 
     const byOrder = toSafeOrder(a.sort_order) - toSafeOrder(b.sort_order);
-    if (byOrder !== 0) return byOrder;
+
+    if (byOrder !== 0) {
+      return byOrder;
+    }
 
     return normalizeText(a.id).localeCompare(normalizeText(b.id));
   });
@@ -126,7 +132,9 @@ function buildOrderedGallery(
   );
 
   const variantUrls = variants
-    .map((variant) => normalizeImageUrl(variant.variant_image || variant.image_id || ""))
+    .map((variant) =>
+      normalizeImageUrl(variant.variant_image || variant.image_id || "")
+    )
     .filter(Boolean);
 
   return uniqueImageUrls([
@@ -152,7 +160,9 @@ export default function ProductDetailClient({
   productImages,
   allProductImages,
 }: ProductDetailClientProps) {
-  const [selectedVariant, setSelectedVariant] = useState<VariantItem | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<VariantItem | null>(
+    null
+  );
   const [selectedImage, setSelectedImage] = useState("");
 
   const baseGalleryImages = useMemo(
@@ -167,7 +177,7 @@ export default function ProductDetailClient({
 
   const selectedVariantImage = useMemo(() => {
     return normalizeImageUrl(
-      String(selectedVariant?.variant_image || selectedVariant?.image_id || "").trim()
+      String(selectedVariant?.variant_image || selectedVariant?.image_id || "")
     );
   }, [selectedVariant]);
 
@@ -304,11 +314,10 @@ export default function ProductDetailClient({
                 </p>
               </div>
 
-              <ProductPurchasePanel
+              <ProductInfoPanel
                 product={{
                   title: product.title,
                   slug: product.slug,
-                  image: primaryImage,
                 }}
                 variants={variants}
                 onVariantChange={setSelectedVariant}
@@ -372,8 +381,8 @@ export default function ProductDetailClient({
             >
               <SectionHeading
                 kicker="Product Description"
-                title="Crafted presentation for hospitality-focused textile projects"
-                text="Explore the product with a cleaner and more refined presentation structure tailored for premium textile collections."
+                title="Detailed product information for textile projects"
+                text="Explore this product through a clean catalog structure designed for corporate and hospitality-focused inquiries."
               />
 
               <div
@@ -408,12 +417,12 @@ export default function ProductDetailClient({
                   marginBottom: 14,
                 }}
               >
-                Why this product page works
+                Catalog Page
               </div>
 
-              <InfoCard text="The page opens directly with the product, creating a more familiar ecommerce experience without a separate hero block." />
-              <InfoCard text="Gallery, purchase actions, options, and product details are organized into a cleaner and more premium structure." />
-              <InfoCard text="Variant image selection is now synchronized with the main gallery, so the visual flow feels more stable and intentional." />
+              <InfoCard text="This page is designed as a corporate catalog page, not an ecommerce sales page." />
+              <InfoCard text="Product options are shown only for information purposes, including SKU and barcode when available." />
+              <InfoCard text="Customers can request more details for the selected product through the contact form." />
 
               <div style={{ marginTop: 20 }}>
                 <ButtonLink href="/about-us" variant="secondary">
@@ -469,13 +478,7 @@ export default function ProductDetailClient({
   );
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{

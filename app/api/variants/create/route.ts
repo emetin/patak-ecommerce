@@ -14,6 +14,10 @@ function normalizeText(value: unknown) {
   return String(value || "").trim();
 }
 
+function normalizeLower(value: unknown) {
+  return normalizeText(value).toLowerCase();
+}
+
 function normalizeStatus(value: unknown) {
   return String(value || "draft").trim().toLowerCase();
 }
@@ -22,12 +26,17 @@ function buildVariantId() {
   return `var_${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
+function isDefaultValue(value: unknown) {
+  const normalized = normalizeLower(value);
+  return !normalized || normalized === "default";
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const productSlug = normalizeText(body?.product_slug).toLowerCase();
-    const option1Name = normalizeText(body?.option1_name);
+    const productSlug = normalizeLower(body?.product_slug);
+    const option1Name = normalizeText(body?.option1_name || "Size");
     const option1Value = normalizeText(body?.option1_value);
     const option2Name = normalizeText(body?.option2_name);
     const option2Value = normalizeText(body?.option2_value);
@@ -35,17 +44,7 @@ export async function POST(req: Request) {
     const option3Value = normalizeText(body?.option3_value);
     const sku = normalizeText(body?.sku);
     const barcode = normalizeText(body?.barcode);
-    const price = normalizeText(body?.price);
-    const compareAtPrice = normalizeText(body?.compare_at_price);
-    const inventoryTracker = normalizeText(body?.inventory_tracker);
-    const inventoryPolicy = normalizeText(body?.inventory_policy);
-    const fulfillmentService = normalizeText(body?.fulfillment_service);
-    const requiresShipping = normalizeText(body?.requires_shipping);
-    const taxable = normalizeText(body?.taxable);
-    const variantImage = normalizeText(body?.variant_image);
-    const weight = normalizeText(body?.weight);
-    const weightUnit = normalizeText(body?.weight_unit);
-    const boxQuantity = normalizeText(body?.box_quantity);
+    const variantImage = normalizeText(body?.variant_image || body?.image_id);
     const status = normalizeStatus(body?.status);
 
     if (!productSlug) {
@@ -55,9 +54,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!option1Value) {
+    if (isDefaultValue(option1Value) && isDefaultValue(option2Value) && isDefaultValue(option3Value)) {
       return NextResponse.json(
-        { ok: false, error: "Option 1 value is required." },
+        { ok: false, error: "Default variants are not allowed. Please enter a real option value." },
         { status: 400 }
       );
     }
@@ -69,14 +68,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const existing = (await getSheetData(SHEET_NAME)) as VariantRecord[];
+    const existing = (await getSheetData(SHEET_NAME, {
+      forceFresh: true,
+      ttlSeconds: 30,
+    })) as VariantRecord[];
 
     const duplicate = existing.find((item) => {
       return (
-        String(item.product_slug || "").trim().toLowerCase() === productSlug &&
-        String(item.option1_value || "").trim() === option1Value &&
-        String(item.option2_value || "").trim() === option2Value &&
-        String(item.option3_value || "").trim() === option3Value
+        normalizeLower(item.product_slug) === productSlug &&
+        normalizeText(item.option1_value) === option1Value &&
+        normalizeText(item.option2_value) === option2Value &&
+        normalizeText(item.option3_value) === option3Value
       );
     });
 
@@ -90,7 +92,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const headers = await getSheetHeaders(SHEET_NAME);
+    const headers = await getSheetHeaders(SHEET_NAME, {
+      forceFresh: true,
+      ttlSeconds: 30,
+    });
+
     const now = new Date().toISOString();
 
     const item: Record<string, string> = {
@@ -104,18 +110,8 @@ export async function POST(req: Request) {
       option3_value: option3Value,
       sku,
       barcode,
-      price,
-      compare_at_price: compareAtPrice,
-      inventory_tracker: inventoryTracker,
-      inventory_policy: inventoryPolicy,
-      fulfillment_service: fulfillmentService,
-      requires_shipping: requiresShipping,
-      taxable,
       variant_image: variantImage,
       image_id: variantImage,
-      weight,
-      weight_unit: weightUnit,
-      box_quantity: boxQuantity,
       status,
       created_at: now,
       updated_at: now,

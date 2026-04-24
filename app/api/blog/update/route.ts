@@ -1,24 +1,18 @@
 import { NextResponse } from "next/server";
-import { getSheetData, updateSheetRowBySlug } from "../../../../lib/sheets";
+import {
+  getSheetData,
+  getSheetHeaders,
+  updateSheetRowBySlug,
+} from "../../../../lib/sheets";
 
-type BlogRow = {
-  id?: string;
-  title?: string;
-  slug?: string;
-  excerpt?: string;
-  content?: string;
-  image?: string;
-  status?: string;
-  featured?: string;
-  created_at?: string;
-  updated_at?: string;
-};
+type BlogRow = Record<string, string>;
 
+const SHEET_NAME = "blog";
 const ALLOWED_STATUS = ["published", "draft", "archived"];
 const ALLOWED_FEATURED = ["true", "false"];
 
 function makeSlug(text: string) {
-  return text
+  return String(text || "")
     .toLowerCase()
     .trim()
     .replace(/ğ/g, "g")
@@ -53,7 +47,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const originalSlug = normalizeSlug(body?.originalSlug);
+    const originalSlug = normalizeSlug(body?.originalSlug || body?.slug);
     const title = normalizeText(body?.title);
     const slugInput = normalizeText(body?.slug);
     const excerpt = normalizeText(body?.excerpt);
@@ -64,40 +58,28 @@ export async function POST(req: Request) {
 
     if (!originalSlug) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Original slug is required.",
-        },
+        { ok: false, error: "Original slug is required." },
         { status: 400 }
       );
     }
 
     if (!title) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Title is required.",
-        },
+        { ok: false, error: "Title is required." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_STATUS.includes(status)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: 'Status must be one of: "published", "draft", or "archived".',
-        },
+        { ok: false, error: "Invalid status value." },
         { status: 400 }
       );
     }
 
     if (!ALLOWED_FEATURED.includes(featured)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: 'Featured must be either "true" or "false".',
-        },
+        { ok: false, error: "Invalid featured value." },
         { status: 400 }
       );
     }
@@ -106,98 +88,66 @@ export async function POST(req: Request) {
 
     if (!finalSlug) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "A valid slug could not be generated.",
-        },
+        { ok: false, error: "A valid slug could not be generated." },
         { status: 400 }
       );
     }
 
-    const items = (await getSheetData("blog")) as BlogRow[];
+    const items = (await getSheetData(SHEET_NAME, {
+      forceFresh: true,
+      ttlSeconds: 30,
+    })) as BlogRow[];
 
     const currentItem =
-      items.find(
-        (item) =>
-          String(item.slug || "").trim().toLowerCase() === originalSlug
-      ) || null;
+      items.find((item) => normalizeSlug(item.slug) === originalSlug) || null;
 
     if (!currentItem) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Blog post to update was not found.",
-        },
+        { ok: false, error: "Blog post was not found." },
         { status: 404 }
       );
     }
 
     const slugExistsOnAnotherItem = items.some((item) => {
-      const itemSlug = String(item.slug || "").trim().toLowerCase();
+      const itemSlug = normalizeSlug(item.slug);
       return itemSlug === finalSlug && itemSlug !== originalSlug;
     });
 
     if (slugExistsOnAnotherItem) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "This slug is already used by another blog post.",
-        },
+        { ok: false, error: "This slug is already used by another blog post." },
         { status: 400 }
       );
     }
 
-    const normalizedTitle = title.toLowerCase();
-
-    const titleExistsOnAnotherItem = items.some((item) => {
-      const itemSlug = String(item.slug || "").trim().toLowerCase();
-      const itemTitle = String(item.title || "").trim().toLowerCase();
-
-      return itemTitle === normalizedTitle && itemSlug !== originalSlug;
+    const headers = await getSheetHeaders(SHEET_NAME, {
+      forceFresh: true,
+      ttlSeconds: 30,
     });
 
-    if (titleExistsOnAnotherItem) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Another blog post already uses this title.",
-        },
-        { status: 400 }
-      );
-    }
-
     const now = new Date().toISOString();
-    const createdAt = String(currentItem.created_at || now);
-    const id = String(currentItem.id || "");
 
-    await updateSheetRowBySlug("blog", originalSlug, [
-      id,
+    const updatedItem: BlogRow = {
+      ...currentItem,
       title,
-      finalSlug,
+      slug: finalSlug,
       excerpt,
       content,
       image,
       status,
       featured,
-      createdAt,
-      now,
-    ]);
+      created_at: currentItem.created_at || now,
+      updated_at: now,
+    };
+
+    const rowValues = headers.map((header) => updatedItem[header] || "");
+
+    await updateSheetRowBySlug(SHEET_NAME, originalSlug, rowValues);
 
     return NextResponse.json({
       ok: true,
       message: "Blog post updated successfully.",
-      item: {
-        id,
-        title,
-        slug: finalSlug,
-        excerpt,
-        content,
-        image,
-        status,
-        featured,
-        created_at: createdAt,
-        updated_at: now,
-      },
+      item: updatedItem,
     });
   } catch (error) {
     return NextResponse.json(
@@ -206,7 +156,7 @@ export async function POST(req: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "An unexpected error occurred while updating the blog post.",
+            : "Failed to update blog post.",
       },
       { status: 500 }
     );

@@ -22,9 +22,19 @@ export async function POST(req: Request) {
 
     const result = await deleteSheetRowsByField("product_variants", "id", id);
 
+    if (!result.deleted) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Variant not found.",
+        },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
-      deleted: result.deleted || 0,
+      deleted: result.deleted,
       message: "Variant deleted successfully.",
     });
   } catch (error) {

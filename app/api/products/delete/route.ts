@@ -8,6 +8,28 @@ function normalizeSlug(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
 
+async function safeDeleteRowsByField(
+  sheetName: string,
+  fieldName: string,
+  fieldValue: string
+) {
+  try {
+    return await deleteSheetRowsByField(sheetName, fieldName, fieldValue);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    if (
+      message.includes("was not found") ||
+      message.includes("Unable to parse range") ||
+      message.includes("Sheet metadata was not found")
+    ) {
+      return { ok: true, deleted: 0, skipped: true };
+    }
+
+    throw error;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -24,9 +46,9 @@ export async function POST(req: Request) {
     }
 
     await deleteSheetRowBySlug("products", slug);
-    await deleteSheetRowsByField("product_variants", "product_slug", slug);
-    await deleteSheetRowsByField("product_images", "product_slug", slug);
-    await deleteSheetRowsByField("collection_products", "product_slug", slug);
+
+    await safeDeleteRowsByField("product_variants", "product_slug", slug);
+    await safeDeleteRowsByField("product_images", "product_slug", slug);
 
     return NextResponse.json({
       ok: true,

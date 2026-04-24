@@ -11,14 +11,22 @@ function normalizeLower(value: unknown) {
   return normalizeText(value).toLowerCase();
 }
 
-function toSafeNumber(value: unknown, fallback = 999999) {
-  const num = Number(normalizeText(value));
-  return Number.isFinite(num) ? num : fallback;
-}
-
 function isPublishedLike(value: unknown) {
   const normalized = normalizeLower(value);
   return normalized === "" || normalized === "published" || normalized === "active";
+}
+
+function isDefaultValue(value: unknown) {
+  const normalized = normalizeLower(value);
+  return !normalized || normalized === "default";
+}
+
+function isRealVariant(item: VariantRecord) {
+  return (
+    !isDefaultValue(item.option1_value) ||
+    !isDefaultValue(item.option2_value) ||
+    !isDefaultValue(item.option3_value)
+  );
 }
 
 function buildVariantSortKey(item: VariantRecord) {
@@ -31,12 +39,34 @@ function buildVariantSortKey(item: VariantRecord) {
   ].join(" | ");
 }
 
+function toOutputItem(item: VariantRecord) {
+  return {
+    id: normalizeText(item.id),
+    product_slug: normalizeText(item.product_slug),
+    option1_name: normalizeText(item.option1_name),
+    option1_value: normalizeText(item.option1_value),
+    option2_name: normalizeText(item.option2_name),
+    option2_value: normalizeText(item.option2_value),
+    option3_name: normalizeText(item.option3_name),
+    option3_value: normalizeText(item.option3_value),
+    sku: normalizeText(item.sku),
+    barcode: normalizeText(item.barcode),
+    image_id: normalizeText(item.image_id),
+    variant_image: normalizeText(item.variant_image),
+    status: normalizeText(item.status),
+    created_at: normalizeText(item.created_at),
+    updated_at: normalizeText(item.updated_at),
+  };
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
 
     const productSlug = normalizeLower(searchParams.get("product_slug"));
     const includeAll = normalizeLower(searchParams.get("include_all")) === "true";
+    const includeDefault =
+      normalizeLower(searchParams.get("include_default")) === "true";
 
     const rows = (await getSheetData("product_variants", {
       forceFresh: true,
@@ -51,56 +81,23 @@ export async function GET(req: Request) {
       );
     }
 
-    if (!includeAll) {
-      const publishedItems = items.filter((item) => isPublishedLike(item.status));
-      items = publishedItems.length ? publishedItems : items;
+    if (!includeDefault) {
+      items = items.filter(isRealVariant);
     }
 
-    items = [...items].sort((a, b) => {
-      const aBoxQty = toSafeNumber(a.box_quantity, 999999);
-      const bBoxQty = toSafeNumber(b.box_quantity, 999999);
+    if (!includeAll) {
+      items = items.filter((item) => isPublishedLike(item.status));
+    }
 
-      if (aBoxQty !== bBoxQty) {
-        return aBoxQty - bBoxQty;
-      }
-
-      return buildVariantSortKey(a).localeCompare(buildVariantSortKey(b));
-    });
+    items = [...items].sort((a, b) =>
+      buildVariantSortKey(a).localeCompare(buildVariantSortKey(b))
+    );
 
     return NextResponse.json(
       {
         ok: true,
         total: items.length,
-        items: items.map((item) => ({
-          id: normalizeText(item.id),
-          product_slug: normalizeText(item.product_slug),
-          option1_name: normalizeText(item.option1_name),
-          option1_value: normalizeText(item.option1_value),
-          option2_name: normalizeText(item.option2_name),
-          option2_value: normalizeText(item.option2_value),
-          option3_name: normalizeText(item.option3_name),
-          option3_value: normalizeText(item.option3_value),
-          sku: normalizeText(item.sku),
-          barcode: normalizeText(item.barcode),
-          price: normalizeText(item.price),
-          compare_at_price: normalizeText(item.compare_at_price),
-          inventory_tracker: normalizeText(item.inventory_tracker),
-          inventory_policy: normalizeText(item.inventory_policy),
-          fulfillment_service: normalizeText(item.fulfillment_service),
-          requires_shipping: normalizeText(item.requires_shipping),
-          taxable: normalizeText(item.taxable),
-
-          // KRITIK ALANLAR
-          image_id: normalizeText(item.image_id),
-          variant_image: normalizeText(item.variant_image),
-
-          weight: normalizeText(item.weight),
-          weight_unit: normalizeText(item.weight_unit),
-          box_quantity: normalizeText(item.box_quantity),
-          status: normalizeText(item.status),
-          created_at: normalizeText(item.created_at),
-          updated_at: normalizeText(item.updated_at),
-        })),
+        items: items.map(toOutputItem),
       },
       {
         headers: {

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 
 type BlogItem = {
   id?: string;
@@ -18,7 +18,7 @@ type BlogItem = {
 };
 
 function makeSlug(text: string) {
-  return text
+  return String(text || "")
     .toLowerCase()
     .trim()
     .replace(/ğ/g, "g")
@@ -33,13 +33,18 @@ function makeSlug(text: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
+}
+
 export default function AdminBlogEditPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
   const router = useRouter();
-  const originalSlug = decodeURIComponent(params.slug).trim().toLowerCase();
+  const { slug: rawSlug } = use(params);
+  const originalSlug = decodeURIComponent(rawSlug).trim().toLowerCase();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -57,6 +62,11 @@ export default function AdminBlogEditPage({
   const [resultMessage, setResultMessage] = useState("");
   const [resultError, setResultError] = useState("");
 
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const suggestedSlug = useMemo(() => makeSlug(title), [title]);
 
   useEffect(() => {
@@ -68,6 +78,7 @@ export default function AdminBlogEditPage({
         const response = await fetch("/api/blog/list", {
           cache: "no-store",
         });
+
         const data = await response.json();
 
         if (!response.ok || !data.ok) {
@@ -75,7 +86,8 @@ export default function AdminBlogEditPage({
         }
 
         const item = (data.items as BlogItem[]).find(
-          (post) => String(post.slug || "").trim().toLowerCase() === originalSlug
+          (post) =>
+            String(post.slug || "").trim().toLowerCase() === originalSlug
         );
 
         if (!item) {
@@ -116,13 +128,13 @@ export default function AdminBlogEditPage({
         },
         body: JSON.stringify({
           originalSlug,
-          title,
-          slug,
-          excerpt,
-          content,
-          image,
-          status,
-          featured,
+          title: normalizeText(title),
+          slug: normalizeText(slug),
+          excerpt: normalizeText(excerpt),
+          content: normalizeText(content),
+          image: normalizeText(image),
+          status: normalizeText(status).toLowerCase(),
+          featured: normalizeText(featured).toLowerCase(),
         }),
       });
 
@@ -132,11 +144,13 @@ export default function AdminBlogEditPage({
         throw new Error(data?.error || "Failed to update the blog post.");
       }
 
-      const updatedSlug = String(data?.item?.slug || slug || originalSlug).trim();
+      const updatedSlug = String(data?.item?.slug || slug || originalSlug)
+        .trim()
+        .toLowerCase();
 
       setResultMessage("Blog post updated successfully.");
 
-      if (updatedSlug && updatedSlug.toLowerCase() !== originalSlug) {
+      if (updatedSlug && updatedSlug !== originalSlug) {
         router.replace(`/admin/blog/${updatedSlug}`);
       }
     } catch (error) {
@@ -189,180 +203,455 @@ export default function AdminBlogEditPage({
     }
   }
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setImageUploadError("");
+    setImageUploading(true);
+
+    try {
+      if (!file.type.startsWith("image/")) {
+        throw new Error("Please select a valid image file.");
+      }
+
+      const maxSizeMb = 10;
+
+      if (file.size > maxSizeMb * 1024 * 1024) {
+        throw new Error(`Image must be smaller than ${maxSizeMb}MB.`);
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "blog");
+
+      const response = await fetch("/api/upload/image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok || !data.url) {
+        throw new Error(data?.error || "Image upload failed.");
+      }
+
+      setImage(data.url);
+    } catch (error) {
+      setImageUploadError(
+        error instanceof Error ? error.message : "Image upload failed."
+      );
+    } finally {
+      setImageUploading(false);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function clearImage() {
+    setImage("");
+    setImageUploadError("");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   if (loading) {
-    return (
-      <div className="simple-page">
-        <div className="container">
-          <div className="data-box">Loading...</div>
-        </div>
-      </div>
-    );
+    return <div style={cardStyle}>Loading...</div>;
   }
 
   if (loadError) {
     return (
-      <div className="simple-page">
-        <div className="container">
-          <Link
-            href="/admin/blog"
-            className="btn-secondary"
-            style={{ marginBottom: 20 }}
-          >
-            ← Blog Admin
-          </Link>
-          <div className="data-box">
-            <h3>Error</h3>
-            <pre>{loadError}</pre>
-          </div>
+      <div style={cardStyle}>
+        <Link href="/admin/blog" style={secondaryButtonStyle}>
+          ← Blog Admin
+        </Link>
+
+        <div style={errorBoxStyle}>
+          <strong>Error</strong>
+          <div style={{ marginTop: 8 }}>{loadError}</div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="simple-page">
-      <div className="container" style={{ maxWidth: 900 }}>
-        <Link
-          href="/admin/blog"
-          className="btn-secondary"
-          style={{ marginBottom: 20 }}
-        >
-          ← Blog Admin
-        </Link>
+    <div style={{ display: "grid", gap: 24 }}>
+      <div style={pageHeaderStyle}>
+        <div>
+          <Link href="/admin/blog" style={backLinkStyle}>
+            ← Back to Blog
+          </Link>
 
-        <h1>Edit Blog Post</h1>
-        <p className="lead">
-          Update the blog post record or remove it from the system.
-        </p>
+          <h1 style={titleStyle}>Edit Blog Post</h1>
 
-        <form onSubmit={handleSubmit} className="data-box">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 16,
-            }}
+          <p style={subtitleStyle}>
+            Update blog content, image, publication status, and featured state.
+          </p>
+        </div>
+
+        <div style={headerActionsStyle}>
+          <Link href={`/blog/${slug}`} style={secondaryButtonStyle}>
+            View
+          </Link>
+
+          <button
+            type="button"
+            onClick={handleDelete}
+            style={dangerButtonStyle}
+            disabled={deleting}
           >
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Title</label>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                style={inputStyle}
-                required
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Slug</label>
-              <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                style={inputStyle}
-              />
-              <div style={{ marginTop: 6, color: "#6d655b", fontSize: 14 }}>
-                Suggested slug: <strong>{suggestedSlug || "-"}</strong>
-              </div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Image URL</label>
-              <input
-                value={image}
-                onChange={(e) => setImage(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Status</label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="draft">draft</option>
-                <option value="published">published</option>
-                <option value="archived">archived</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={labelStyle}>Featured</label>
-              <select
-                value={featured}
-                onChange={(e) => setFeatured(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="false">false</option>
-                <option value="true">true</option>
-              </select>
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Excerpt</label>
-              <textarea
-                value={excerpt}
-                onChange={(e) => setExcerpt(e.target.value)}
-                style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
-              />
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Content</label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                style={{ ...inputStyle, minHeight: 220, resize: "vertical" }}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{ display: "flex", gap: 12, marginTop: 24, flexWrap: "wrap" }}
-          >
-            <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
-
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete Blog Post"}
-            </button>
-          </div>
-
-          {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
-          {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
-        </form>
+            {deleting ? "Deleting..." : "Delete Blog Post"}
+          </button>
+        </div>
       </div>
+
+      <form onSubmit={handleSubmit} style={cardStyle}>
+        <div style={formGridStyle}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={inputStyle}
+              required
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Slug</label>
+            <input
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              style={inputStyle}
+              placeholder={suggestedSlug || "blog-post-slug"}
+            />
+            <div style={helperTextStyle}>
+              Suggested slug: <strong>{suggestedSlug || "-"}</strong>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="draft">draft</option>
+              <option value="published">published</option>
+              <option value="archived">archived</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Featured</label>
+            <select
+              value={featured}
+              onChange={(e) => setFeatured(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Blog Image</label>
+
+            <div style={imageToolsWrapStyle}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                style={fileInputStyle}
+              />
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={secondaryButtonStyle}
+                disabled={imageUploading}
+              >
+                {imageUploading ? "Uploading..." : "Upload Image"}
+              </button>
+
+              {image ? (
+                <button
+                  type="button"
+                  onClick={clearImage}
+                  style={dangerSmallButtonStyle}
+                >
+                  Remove Image
+                </button>
+              ) : null}
+            </div>
+
+            {imageUploadError ? (
+              <div style={errorInlineStyle}>{imageUploadError}</div>
+            ) : null}
+
+            {image ? (
+              <div style={imagePreviewCardStyle}>
+                <img
+                  src={image}
+                  alt={title || "Blog image"}
+                  style={imagePreviewStyle}
+                />
+              </div>
+            ) : (
+              <div style={emptyImageBoxStyle}>No image selected.</div>
+            )}
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Image URL / Stored Value</label>
+            <input
+              value={image}
+              onChange={(e) => setImage(e.target.value)}
+              style={inputStyle}
+              placeholder="/uploads/blog/image.jpg"
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Excerpt</label>
+            <textarea
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Content</label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              style={{ ...inputStyle, minHeight: 260, resize: "vertical" }}
+            />
+          </div>
+        </div>
+
+        <div style={buttonRowStyle}>
+          <button type="submit" style={primaryButtonStyle} disabled={saving}>
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+
+        {resultMessage ? (
+          <div style={successBoxStyle}>{resultMessage}</div>
+        ) : null}
+
+        {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
+      </form>
     </div>
   );
 }
 
+const pageHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 20,
+  flexWrap: "wrap",
+};
+
+const backLinkStyle: React.CSSProperties = {
+  display: "inline-block",
+  textDecoration: "none",
+  color: "#5e5448",
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 40,
+  lineHeight: 1.1,
+  margin: "10px 0 10px",
+  fontWeight: 800,
+};
+
+const subtitleStyle: React.CSSProperties = {
+  margin: 0,
+  color: "#6f6559",
+  fontSize: 16,
+};
+
+const headerActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  padding: 24,
+  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+};
+
+const formGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 16,
+};
+
 const labelStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 8,
-  fontWeight: 700,
+  fontWeight: 800,
+  fontSize: 15,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: 48,
-  padding: "12px 14px",
-  borderRadius: 14,
-  border: "1px solid #ddd3c5",
-  background: "#fff",
+  minHeight: 52,
+  padding: "14px 16px",
+  borderRadius: 16,
+  border: "1px solid #d9cfbf",
+  background: "#fcfbf8",
   outline: "none",
+  fontSize: 15,
+};
+
+const helperTextStyle: React.CSSProperties = {
+  marginTop: 8,
+  color: "#6d655b",
+  fontSize: 14,
+};
+
+const imageToolsWrapStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  alignItems: "center",
+  marginBottom: 14,
+};
+
+const fileInputStyle: React.CSSProperties = {
+  display: "none",
+};
+
+const imagePreviewCardStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 320,
+  borderRadius: 20,
+  overflow: "hidden",
+  border: "1px solid #e5ddd2",
+  background: "#faf8f4",
+  marginTop: 6,
+};
+
+const imagePreviewStyle: React.CSSProperties = {
+  width: "100%",
+  aspectRatio: "1 / 1",
+  objectFit: "cover",
+  display: "block",
+};
+
+const emptyImageBoxStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 320,
+  minHeight: 180,
+  borderRadius: 20,
+  border: "1px dashed #d9cfbf",
+  background: "#faf8f4",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#7b7367",
+  fontWeight: 700,
+  marginTop: 6,
+  padding: 16,
+  textAlign: "center",
+};
+
+const errorInlineStyle: React.CSSProperties = {
+  marginBottom: 12,
+  padding: 12,
+  borderRadius: 12,
+  background: "#fff1f1",
+  border: "1px solid #efc9c9",
+  color: "#7a2222",
+};
+
+const buttonRowStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 12,
+  marginTop: 24,
+  flexWrap: "wrap",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #2f7d62",
+  background: "#2f7d62",
+  color: "#fff",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 800,
+  textDecoration: "none",
+  cursor: "pointer",
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #e5c9c9",
+  background: "#fff5f5",
+  color: "#8f2d2d",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const dangerSmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 42,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #e5c9c9",
+  background: "#fff5f5",
+  color: "#8f2d2d",
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const successBoxStyle: React.CSSProperties = {
   marginTop: 18,
   padding: 14,
-  borderRadius: 14,
+  borderRadius: 16,
   background: "#eef8f0",
   border: "1px solid #cfe5d4",
 };
@@ -370,7 +659,7 @@ const successBoxStyle: React.CSSProperties = {
 const errorBoxStyle: React.CSSProperties = {
   marginTop: 18,
   padding: 14,
-  borderRadius: 14,
+  borderRadius: 16,
   background: "#fff1f1",
   border: "1px solid #efc9c9",
   color: "#7a2222",

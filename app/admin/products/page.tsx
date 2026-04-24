@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeImageUrl } from "../../../lib/image-url";
 
 type ProductItem = {
@@ -9,22 +9,17 @@ type ProductItem = {
   title?: string;
   slug?: string;
   image?: string;
+  main_image?: string;
   collection_slug?: string;
   status?: string;
   featured?: string;
   short_description?: string;
   updated_at?: string;
-};
-
-type ProductImageItem = {
-  id?: string;
-  product_slug?: string;
-  image_url?: string;
-  sort_order?: string;
-  alt_text?: string;
-  is_main?: string;
-  created_at?: string;
-  updated_at?: string;
+  image_count?: number;
+  alt_count?: number;
+  main_image_exists?: boolean;
+  gallery_score?: number;
+  gallery_issues?: string[];
 };
 
 const PAGE_SIZE = 50;
@@ -41,101 +36,11 @@ function isTrue(value: unknown) {
   return normalizeLower(value) === "true";
 }
 
-function toSafeOrder(value: unknown) {
-  const num = Number(normalizeText(value));
-  return Number.isFinite(num) ? num : 999999;
-}
-
-function sortImages(images: ProductImageItem[]) {
-  return [...images].sort((a, b) => {
-    const aMain = isTrue(a.is_main);
-    const bMain = isTrue(b.is_main);
-
-    if (aMain !== bMain) {
-      return aMain ? -1 : 1;
-    }
-
-    return toSafeOrder(a.sort_order) - toSafeOrder(b.sort_order);
-  });
-}
-
-function buildImageMap(allImages: ProductImageItem[]) {
-  const map = new Map<string, ProductImageItem[]>();
-
-  for (const item of allImages) {
-    const slug = normalizeLower(item.product_slug);
-    if (!slug) continue;
-
-    if (!map.has(slug)) {
-      map.set(slug, []);
-    }
-
-    map.get(slug)!.push(item);
-  }
-
-  for (const [slug, images] of map.entries()) {
-    map.set(slug, sortImages(images));
-  }
-
-  return map;
-}
-
-function getGalleryState(
-  product: ProductItem,
-  imageMap: Map<string, ProductImageItem[]>
-) {
-  const slug = normalizeLower(product.slug);
-  const images = imageMap.get(slug) || [];
-
-  const mainImage = images.find((item) => isTrue(item.is_main)) || null;
-  const firstImage = images[0] || null;
-  const altCount = images.filter((item) => normalizeText(item.alt_text)).length;
-
-  const primaryImage = normalizeImageUrl(
-    mainImage?.image_url || firstImage?.image_url || product.image || ""
-  );
-
-  const issues: string[] = [];
-
-  if (images.length === 0) {
-    issues.push("No gallery images");
-  }
-
-  if (images.length > 0 && !mainImage) {
-    issues.push("No main image");
-  }
-
-  if (images.length > 0 && altCount < images.length) {
-    issues.push("Missing alt text");
-  }
-
-  if (images.length > 0 && images.length < 3) {
-    issues.push("Low image count");
-  }
-
-  let score = 0;
-  if (images.length > 0) score += 35;
-  if (mainImage) score += 35;
-  if (images.length >= 3) score += 15;
-  if (images.length > 0 && altCount === images.length) score += 15;
-
-  return {
-    images,
-    imageCount: images.length,
-    mainImageExists: Boolean(mainImage),
-    altCount,
-    primaryImage,
-    issues,
-    score,
-  };
-}
-
 export default function AdminProductsPage() {
   const [items, setItems] = useState<ProductItem[]>([]);
-  const [allImages, setAllImages] = useState<ProductImageItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [imagesLoading, setImagesLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -164,7 +69,11 @@ export default function AdminProductsPage() {
     };
   }, [searchInput]);
 
-  const loadProducts = useCallback(async () => {
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter]);
+
+  async function loadOverview(signal?: AbortSignal) {
     const params = new URLSearchParams();
     params.set("page", String(page));
     params.set("limit", String(PAGE_SIZE));
@@ -177,9 +86,13 @@ export default function AdminProductsPage() {
       params.set("q", search.trim());
     }
 
-    const response = await fetch(`/api/products/list?${params.toString()}`, {
-      cache: "no-store",
-    });
+    const response = await fetch(
+      `/api/admin/products-overview?${params.toString()}`,
+      {
+        cache: "no-store",
+        signal,
+      }
+    );
 
     const data = await response.json();
 
@@ -188,67 +101,52 @@ export default function AdminProductsPage() {
     }
 
     return data;
-  }, [page, search, statusFilter]);
+  }
 
-  const loadAllImages = useCallback(async () => {
-    const response = await fetch("/api/product-images/list", {
-      cache: "no-store",
-    });
+  useEffect(() => {
+    const controller = new AbortController();
 
-    const data = await response.json();
+    async function run() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
 
-    if (!response.ok || !data.ok) {
-      throw new Error(data?.error || "Failed to load product images.");
+        const data = await loadOverview(controller.signal);
+
+        setItems(Array.isArray(data.products) ? data.products : []);
+        setTotal(Number(data.total || 0));
+        setTotalPages(Number(data.totalPages || 1));
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+
+        setErrorMessage(
+          error instanceof Error ? error.message : "An unknown error occurred."
+        );
+      } finally {
+        setLoading(false);
+      }
     }
 
-    return Array.isArray(data.items) ? data.items : [];
-  }, []);
+    run();
 
-  const loadProductsOnly = useCallback(async () => {
+    return () => {
+      controller.abort();
+    };
+  }, [page, search, statusFilter]);
+
+  async function reloadCurrentPage() {
     try {
       setLoading(true);
-      setErrorMessage("");
-
-      const productData = await loadProducts();
-
-      setItems(Array.isArray(productData.items) ? productData.items : []);
-      setTotal(Number(productData.total || 0));
-      setTotalPages(Number(productData.totalPages || 1));
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "An unknown error occurred."
-      );
+      const data = await loadOverview();
+      setItems(Array.isArray(data.products) ? data.products : []);
+      setTotal(Number(data.total || 0));
+      setTotalPages(Number(data.totalPages || 1));
     } finally {
       setLoading(false);
     }
-  }, [loadProducts]);
-
-  const loadImagesOnly = useCallback(async () => {
-    try {
-      setImagesLoading(true);
-
-      const imageItems = await loadAllImages();
-      setAllImages(imageItems);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "An unknown error occurred."
-      );
-    } finally {
-      setImagesLoading(false);
-    }
-  }, [loadAllImages]);
-
-  useEffect(() => {
-    loadProductsOnly();
-  }, [loadProductsOnly]);
-
-  useEffect(() => {
-    loadImagesOnly();
-  }, [loadImagesOnly]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [statusFilter]);
+  }
 
   async function handleDelete(slug?: string) {
     if (!slug) return;
@@ -276,7 +174,7 @@ export default function AdminProductsPage() {
         throw new Error(data?.error || "Failed to delete product.");
       }
 
-      await Promise.all([loadProductsOnly(), loadImagesOnly()]);
+      await reloadCurrentPage();
     } catch (error) {
       alert(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -286,21 +184,15 @@ export default function AdminProductsPage() {
     }
   }
 
-  const imageMap = useMemo(() => buildImageMap(allImages), [allImages]);
-
   const publishedCount = useMemo(
     () =>
-      items.filter(
-        (item) => String(item.status || "").toLowerCase() === "published"
-      ).length,
+      items.filter((item) => normalizeLower(item.status) === "published")
+        .length,
     [items]
   );
 
   const draftCount = useMemo(
-    () =>
-      items.filter(
-        (item) => String(item.status || "").toLowerCase() === "draft"
-      ).length,
+    () => items.filter((item) => normalizeLower(item.status) === "draft").length,
     [items]
   );
 
@@ -310,22 +202,15 @@ export default function AdminProductsPage() {
     let missingAltText = 0;
     let lowImageCount = 0;
 
-    items.forEach((item) => {
-      const state = getGalleryState(item, imageMap);
+    for (const item of items) {
+      const imageCount = Number(item.image_count || 0);
+      const altCount = Number(item.alt_count || 0);
 
-      if (state.imageCount === 0) {
-        missingGallery += 1;
-      }
-      if (state.imageCount > 0 && !state.mainImageExists) {
-        missingMainImage += 1;
-      }
-      if (state.imageCount > 0 && state.altCount < state.imageCount) {
-        missingAltText += 1;
-      }
-      if (state.imageCount > 0 && state.imageCount < 3) {
-        lowImageCount += 1;
-      }
-    });
+      if (imageCount === 0) missingGallery += 1;
+      if (imageCount > 0 && !item.main_image_exists) missingMainImage += 1;
+      if (imageCount > 0 && altCount < imageCount) missingAltText += 1;
+      if (imageCount > 0 && imageCount < 3) lowImageCount += 1;
+    }
 
     return {
       missingGallery,
@@ -333,7 +218,7 @@ export default function AdminProductsPage() {
       missingAltText,
       lowImageCount,
     };
-  }, [items, imageMap]);
+  }, [items]);
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
@@ -341,8 +226,7 @@ export default function AdminProductsPage() {
         <div>
           <h1 style={titleStyle}>Products</h1>
           <p style={subtitleStyle}>
-            Review products, monitor gallery quality, and jump directly into the
-            Image Manager when a product needs media fixes.
+            Lightweight product overview using one optimized backend request.
           </p>
         </div>
 
@@ -364,51 +248,14 @@ export default function AdminProductsPage() {
 
       <div style={filterCardStyle}>
         <div style={statsRowStyle}>
-          <div style={statBoxStyle}>
-            <div style={statLabelStyle}>Total Results</div>
-            <div style={statValueStyle}>{total}</div>
-          </div>
-
-          <div style={statBoxStyle}>
-            <div style={statLabelStyle}>On This Page</div>
-            <div style={statValueStyle}>{items.length}</div>
-          </div>
-
-          <div style={statBoxStyle}>
-            <div style={statLabelStyle}>Published</div>
-            <div style={statValueStyle}>{publishedCount}</div>
-          </div>
-
-          <div style={statBoxStyle}>
-            <div style={statLabelStyle}>Draft</div>
-            <div style={statValueStyle}>{draftCount}</div>
-          </div>
-
-          <div style={warningStatBoxStyle}>
-            <div style={statLabelStyle}>No Gallery</div>
-            <div style={warningStatValueStyle}>{galleryAudit.missingGallery}</div>
-          </div>
-
-          <div style={warningStatBoxStyle}>
-            <div style={statLabelStyle}>No Main Image</div>
-            <div style={warningStatValueStyle}>
-              {galleryAudit.missingMainImage}
-            </div>
-          </div>
-
-          <div style={warningStatBoxStyle}>
-            <div style={statLabelStyle}>Missing Alt Text</div>
-            <div style={warningStatValueStyle}>
-              {galleryAudit.missingAltText}
-            </div>
-          </div>
-
-          <div style={warningStatBoxStyle}>
-            <div style={statLabelStyle}>Low Image Count</div>
-            <div style={warningStatValueStyle}>
-              {galleryAudit.lowImageCount}
-            </div>
-          </div>
+          <StatBox label="Total Results" value={String(total)} />
+          <StatBox label="On This Page" value={String(items.length)} />
+          <StatBox label="Published" value={String(publishedCount)} />
+          <StatBox label="Draft" value={String(draftCount)} />
+          <WarningStatBox label="No Gallery" value={String(galleryAudit.missingGallery)} />
+          <WarningStatBox label="No Main Image" value={String(galleryAudit.missingMainImage)} />
+          <WarningStatBox label="Missing Alt Text" value={String(galleryAudit.missingAltText)} />
+          <WarningStatBox label="Low Image Count" value={String(galleryAudit.lowImageCount)} />
         </div>
 
         <div style={filterGridStyle}>
@@ -416,7 +263,7 @@ export default function AdminProductsPage() {
             <label style={labelStyle}>Search</label>
             <input
               value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
+              onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by title, slug, collection, short description"
               style={inputStyle}
             />
@@ -426,7 +273,7 @@ export default function AdminProductsPage() {
             <label style={labelStyle}>Status</label>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(event) => setStatusFilter(event.target.value)}
               style={inputStyle}
             >
               <option value="all">all</option>
@@ -438,7 +285,7 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
-      {loading || imagesLoading ? (
+      {loading ? (
         <div style={cardStyle}>Loading...</div>
       ) : errorMessage ? (
         <div style={errorBoxStyle}>
@@ -465,20 +312,26 @@ export default function AdminProductsPage() {
                   <th style={thStyle}>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {items.map((item, index) => {
-                  const galleryState = getGalleryState(item, imageMap);
-                  const featured =
-                    String(item.featured || "").toLowerCase() === "true";
+                  const primaryImage = normalizeImageUrl(
+                    item.main_image || item.image || ""
+                  );
+
+                  const featured = isTrue(item.featured);
+                  const issues = Array.isArray(item.gallery_issues)
+                    ? item.gallery_issues
+                    : [];
 
                   return (
                     <tr key={item.id || item.slug || index}>
                       <td style={tdStyle}>
                         <div style={productCellStyle}>
                           <div style={thumbWrapStyle}>
-                            {galleryState.primaryImage ? (
+                            {primaryImage ? (
                               <img
-                                src={galleryState.primaryImage}
+                                src={primaryImage}
                                 alt={item.title || "Product"}
                                 style={thumbStyle}
                               />
@@ -492,18 +345,13 @@ export default function AdminProductsPage() {
                               <div style={{ fontWeight: 800 }}>
                                 {item.title || "-"}
                               </div>
+
                               {featured ? (
                                 <span style={featuredBadgeStyle}>Featured</span>
                               ) : null}
                             </div>
 
-                            <div
-                              style={{
-                                color: "#6f6559",
-                                fontSize: 13,
-                                lineHeight: 1.6,
-                              }}
-                            >
+                            <div style={descriptionStyle}>
                               {item.short_description ||
                                 "No short description added yet."}
                             </div>
@@ -520,35 +368,34 @@ export default function AdminProductsPage() {
 
                       <td style={tdStyle}>
                         <div style={{ display: "grid", gap: 8 }}>
-                          <div style={galleryScoreWrapStyle}>
-                            <div style={galleryScoreLabelStyle}>Readiness</div>
-                            <div style={galleryScoreValueStyle}>
-                              {galleryState.score}%
-                            </div>
+                          <div style={galleryScoreValueStyle}>
+                            {Number(item.gallery_score || 0)}%
                           </div>
 
                           <div style={galleryMetaStyle}>
                             <div>
-                              <strong>Images:</strong> {galleryState.imageCount}
+                              <strong>Images:</strong>{" "}
+                              {Number(item.image_count || 0)}
                             </div>
                             <div>
                               <strong>Main:</strong>{" "}
-                              {galleryState.mainImageExists ? "Yes" : "No"}
+                              {item.main_image_exists ? "Yes" : "No"}
                             </div>
                             <div>
-                              <strong>Alt:</strong> {galleryState.altCount}/
-                              {galleryState.imageCount}
+                              <strong>Alt:</strong>{" "}
+                              {Number(item.alt_count || 0)}/
+                              {Number(item.image_count || 0)}
                             </div>
                           </div>
                         </div>
                       </td>
 
                       <td style={tdStyle}>
-                        {galleryState.issues.length === 0 ? (
+                        {issues.length === 0 ? (
                           <span style={okBadgeStyle}>Gallery looks good</span>
                         ) : (
                           <div style={warningListStyle}>
-                            {galleryState.issues.map((issue) => (
+                            {issues.map((issue) => (
                               <span key={issue} style={warningBadgeStyle}>
                                 {issue}
                               </span>
@@ -625,9 +472,7 @@ export default function AdminProductsPage() {
 
             <button
               type="button"
-              onClick={() =>
-                setPage((prev) => Math.min(totalPages, prev + 1))
-              }
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={page >= totalPages || loading}
               style={secondarySmallButtonStyle}
             >
@@ -636,6 +481,24 @@ export default function AdminProductsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StatBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={statBoxStyle}>
+      <div style={statLabelStyle}>{label}</div>
+      <div style={statValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+function WarningStatBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={warningStatBoxStyle}>
+      <div style={statLabelStyle}>{label}</div>
+      <div style={warningStatValueStyle}>{value}</div>
     </div>
   );
 }
@@ -720,7 +583,7 @@ const statsRowStyle: React.CSSProperties = {
 };
 
 const statBoxStyle: React.CSSProperties = {
-  minWidth: 180,
+  minWidth: 160,
   background: "#f8f5ef",
   border: "1px solid #e3dbcf",
   borderRadius: 18,
@@ -728,7 +591,7 @@ const statBoxStyle: React.CSSProperties = {
 };
 
 const warningStatBoxStyle: React.CSSProperties = {
-  minWidth: 180,
+  minWidth: 160,
   background: "#fff7e8",
   border: "1px solid #ecd8ad",
   borderRadius: 18,
@@ -796,7 +659,7 @@ const tableStyle: React.CSSProperties = {
 
 const thStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "18px 18px",
+  padding: "18px",
   fontSize: 13,
   letterSpacing: "0.04em",
   textTransform: "uppercase",
@@ -806,7 +669,7 @@ const thStyle: React.CSSProperties = {
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "18px 18px",
+  padding: "18px",
   borderBottom: "1px solid #efe8dc",
   verticalAlign: "top",
   fontSize: 15,
@@ -856,6 +719,12 @@ const productTitleRowStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
+const descriptionStyle: React.CSSProperties = {
+  color: "#6f6559",
+  fontSize: 13,
+  lineHeight: 1.6,
+};
+
 const featuredBadgeStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -868,19 +737,6 @@ const featuredBadgeStyle: React.CSSProperties = {
   border: "1px solid #cfe7d8",
   fontWeight: 800,
   fontSize: 12,
-};
-
-const galleryScoreWrapStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 4,
-};
-
-const galleryScoreLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#7b7267",
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  fontWeight: 700,
 };
 
 const galleryScoreValueStyle: React.CSSProperties = {
@@ -1045,7 +901,7 @@ const emptyStateStyle: React.CSSProperties = {
   background: "#fff",
   border: "1px solid #ddd3c5",
   borderRadius: 24,
-  padding: 28,  
+  padding: 28,
   color: "#6f6559",
   fontWeight: 700,
 };
