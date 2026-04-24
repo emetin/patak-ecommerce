@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { areSameImageUrls, normalizeImageUrl, uniqueImageUrls } from "../../lib/image-url";
+import { useMemo, useState } from "react";
+import {
+  areSameImageUrls,
+  normalizeImageUrl,
+  uniqueImageUrls,
+} from "../../lib/image-url";
 
 type ProductGalleryProps = {
   title?: string;
@@ -18,43 +22,54 @@ export default function ProductGallery({
 }: ProductGalleryProps) {
   const validImages = useMemo(() => {
     return uniqueImageUrls(
-      images.map((item) => normalizeImageUrl(String(item || "").trim())).filter(Boolean)
+      images
+        .map((item) => normalizeImageUrl(String(item || "").trim()))
+        .filter(Boolean)
     );
   }, [images]);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  useEffect(() => {
-    if (!validImages.length) {
-      setActiveIndex(0);
-      return;
+  const resolvedActiveIndex = useMemo(() => {
+    if (!validImages.length) return 0;
+
+    if (controlledActiveImage) {
+      const controlledIndex = validImages.findIndex((item) =>
+        areSameImageUrls(item, controlledActiveImage)
+      );
+
+      if (controlledIndex >= 0) return controlledIndex;
     }
 
-    if (!controlledActiveImage) {
-      setActiveIndex((prev) => (prev >= validImages.length ? 0 : prev));
-      return;
-    }
+    if (activeIndex >= validImages.length) return 0;
 
-    const nextIndex = validImages.findIndex((item) =>
-      areSameImageUrls(item, controlledActiveImage)
-    );
+    return activeIndex;
+  }, [activeIndex, controlledActiveImage, validImages]);
 
-    if (nextIndex >= 0) {
-      setActiveIndex(nextIndex);
-      return;
-    }
+  const activeImage = validImages[resolvedActiveIndex] || validImages[0] || "";
 
-    setActiveIndex((prev) => (prev >= validImages.length ? 0 : prev));
-  }, [controlledActiveImage, validImages]);
-
-  useEffect(() => {
+  function updateActiveIndex(nextIndex: number) {
     if (!validImages.length) return;
-    const activeImage = validImages[activeIndex] || validImages[0];
-    if (activeImage) {
-      onActiveImageChange?.(activeImage);
-    }
-  }, [activeIndex, validImages, onActiveImageChange]);
+
+    const safeIndex =
+      nextIndex < 0
+        ? validImages.length - 1
+        : nextIndex >= validImages.length
+          ? 0
+          : nextIndex;
+
+    setActiveIndex(safeIndex);
+    onActiveImageChange?.(validImages[safeIndex]);
+  }
+
+  function goPrev() {
+    updateActiveIndex(resolvedActiveIndex - 1);
+  }
+
+  function goNext() {
+    updateActiveIndex(resolvedActiveIndex + 1);
+  }
 
   if (!validImages.length) {
     return (
@@ -76,16 +91,6 @@ export default function ProductGallery({
         No Image
       </div>
     );
-  }
-
-  const activeImage = validImages[activeIndex] || validImages[0];
-
-  function goPrev() {
-    setActiveIndex((prev) => (prev === 0 ? validImages.length - 1 : prev - 1));
-  }
-
-  function goNext() {
-    setActiveIndex((prev) => (prev === validImages.length - 1 ? 0 : prev + 1));
   }
 
   return (
@@ -134,7 +139,7 @@ export default function ProductGallery({
               letterSpacing: "0.04em",
             }}
           >
-            {activeIndex + 1} / {validImages.length}
+            {resolvedActiveIndex + 1} / {validImages.length}
           </div>
 
           {validImages.length > 1 ? (
@@ -180,22 +185,23 @@ export default function ProductGallery({
               <button
                 key={`${image}-${index}`}
                 type="button"
-                onClick={() => setActiveIndex(index)}
+                onClick={() => updateActiveIndex(index)}
                 style={{
                   padding: 0,
                   borderRadius: 18,
                   overflow: "hidden",
                   border:
-                    index === activeIndex
+                    index === resolvedActiveIndex
                       ? "2px solid #2f7d62"
                       : "1px solid #e7decf",
                   background: "#fff",
                   cursor: "pointer",
                   boxShadow:
-                    index === activeIndex
+                    index === resolvedActiveIndex
                       ? "0 10px 24px rgba(47,125,98,0.16)"
                       : "0 4px 14px rgba(23,23,23,0.04)",
-                  transform: index === activeIndex ? "translateY(-2px)" : "none",
+                  transform:
+                    index === resolvedActiveIndex ? "translateY(-2px)" : "none",
                   transition: "all 0.2s ease",
                 }}
               >
@@ -219,7 +225,7 @@ export default function ProductGallery({
         <div style={lightboxOverlayStyle} onClick={() => setLightboxOpen(false)}>
           <div
             style={lightboxContentStyle}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"

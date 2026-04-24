@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ProductImageItem = {
   id?: string;
@@ -45,10 +45,82 @@ type ProductMediaManagerProps = {
   productSlug: string;
 };
 
+type GooglePickerDocument = {
+  id?: string;
+  name?: string;
+  [key: string]: unknown;
+};
+
+type GoogleTokenResponse = {
+  access_token?: string;
+};
+
+type GoogleTokenClient = {
+  callback?: (tokenResponse: GoogleTokenResponse) => void | Promise<void>;
+  requestAccessToken: (options?: { prompt?: string }) => void;
+};
+
+type GooglePickerData = {
+  action?: string;
+  docs?: GooglePickerDocument[];
+};
+
+type GoogleOAuth2 = {
+  initTokenClient: (config: {
+    client_id: string;
+    scope: string;
+    callback: string | ((tokenResponse: GoogleTokenResponse) => void);
+  }) => GoogleTokenClient;
+};
+
+type GooglePickerView = {
+  setIncludeFolders: (value: boolean) => void;
+  setMimeTypes: (value: string) => void;
+};
+
+type GooglePickerBuilder = {
+  setDeveloperKey: (value: string) => GooglePickerBuilder;
+  setAppId: (value: string) => GooglePickerBuilder;
+  setOAuthToken: (value: string) => GooglePickerBuilder;
+  addView: (value: GooglePickerView) => GooglePickerBuilder;
+  setTitle: (value: string) => GooglePickerBuilder;
+  setCallback: (
+    callback: (data: GooglePickerData) => void | Promise<void>
+  ) => GooglePickerBuilder;
+  build: () => {
+    setVisible: (value: boolean) => void;
+  };
+};
+
+type GooglePicker = {
+  ViewId: {
+    DOCS: string;
+  };
+  Action: {
+    PICKED: string;
+  };
+  Document?: {
+    NAME?: string;
+  };
+  DocsView: new (viewId: string) => GooglePickerView;
+  PickerBuilder: new () => GooglePickerBuilder;
+};
+
+type GoogleGlobal = {
+  accounts?: {
+    oauth2?: GoogleOAuth2;
+  };
+  picker?: GooglePicker;
+};
+
+type GapiGlobal = {
+  load: (apiName: string, callback: () => void) => void;
+};
+
 declare global {
   interface Window {
-    gapi: any;
-    google: any;
+    gapi?: GapiGlobal;
+    google?: GoogleGlobal;
   }
 }
 
@@ -92,21 +164,23 @@ export default function ProductMediaManager({
 
   const [pickerReady, setPickerReady] = useState(false);
   const [gisReady, setGisReady] = useState(false);
-  const [tokenClient, setTokenClient] = useState<any>(null);
+  const [tokenClient, setTokenClient] = useState<GoogleTokenClient | null>(null);
   const [pickerLoading, setPickerLoading] = useState(false);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || "";
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
   const appId = process.env.NEXT_PUBLIC_GOOGLE_CLOUD_PROJECT_NUMBER || "";
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage("");
 
       const [imagesRes, variantsRes] = await Promise.all([
         fetch(
-          `/api/product-images/list?product_slug=${encodeURIComponent(safeSlug)}`,
+          `/api/product-images/list?product_slug=${encodeURIComponent(
+            safeSlug
+          )}`,
           { cache: "no-store" }
         ),
         fetch(`/api/variants/list?product_slug=${encodeURIComponent(safeSlug)}`, {
@@ -125,8 +199,8 @@ export default function ProductMediaManager({
         throw new Error(variantsJson.error || "Failed to load variants.");
       }
 
-      setImages(imagesJson.items || []);
-      setVariants(variantsJson.items || []);
+      setImages(Array.isArray(imagesJson.items) ? imagesJson.items : []);
+      setVariants(Array.isArray(variantsJson.items) ? variantsJson.items : []);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to load media data."
@@ -134,12 +208,12 @@ export default function ProductMediaManager({
     } finally {
       setLoading(false);
     }
-  }
+  }, [safeSlug]);
 
   useEffect(() => {
     if (!safeSlug) return;
     loadData();
-  }, [safeSlug]);
+  }, [safeSlug, loadData]);
 
   const imageOptions = useMemo(() => {
     return images.map((item) => {
@@ -147,9 +221,7 @@ export default function ProductMediaManager({
 
       return {
         id: String(item.id || ""),
-        label: isMain
-          ? `${String(item.id || "")} (Main)`
-          : String(item.id || ""),
+        label: isMain ? `${String(item.id || "")} (Main)` : String(item.id || ""),
       };
     });
   }, [images]);
@@ -163,9 +235,11 @@ export default function ProductMediaManager({
   }
 
   function handleGisLoad() {
-    if (!window.google?.accounts?.oauth2) return;
+    const oauth2 = window.google?.accounts?.oauth2;
 
-    const client = window.google.accounts.oauth2.initTokenClient({
+    if (!oauth2) return;
+
+    const client = oauth2.initTokenClient({
       client_id: clientId,
       scope: "https://www.googleapis.com/auth/drive",
       callback: "",
@@ -282,9 +356,15 @@ export default function ProductMediaManager({
     }
   }
 
-  async function handlePickedDriveFile(doc: any, accessToken: string) {
+  async function handlePickedDriveFile(
+    doc: GooglePickerDocument,
+    accessToken: string
+  ) {
     const fileId = String(doc.id || "").trim();
-    const fileName = String(doc.name || doc[window.google?.picker?.Document?.NAME] || "Drive image");
+    const pickerNameKey = window.google?.picker?.Document?.NAME;
+    const fileName = String(
+      doc.name || (pickerNameKey ? doc[pickerNameKey] : "") || "Drive image"
+    );
 
     if (!fileId) {
       throw new Error("Selected Drive file has no id.");
@@ -316,12 +396,19 @@ export default function ProductMediaManager({
       return;
     }
 
+    const googlePicker = window.google?.picker;
+
+    if (!googlePicker) {
+      setErrorMessage("Google Picker library is not available.");
+      return;
+    }
+
     try {
       setPickerLoading(true);
       setMessage("");
       setErrorMessage("");
 
-      tokenClient.callback = async (tokenResponse: any) => {
+      tokenClient.callback = async (tokenResponse: GoogleTokenResponse) => {
         try {
           const accessToken = String(tokenResponse?.access_token || "").trim();
 
@@ -329,20 +416,20 @@ export default function ProductMediaManager({
             throw new Error("No Google access token was returned.");
           }
 
-          const view = new window.google.picker.DocsView(window.google.picker.ViewId.DOCS);
+          const view = new googlePicker.DocsView(googlePicker.ViewId.DOCS);
           view.setIncludeFolders(false);
           view.setMimeTypes("image/png,image/jpeg,image/jpg,image/webp,image/gif");
 
-          const picker = new window.google.picker.PickerBuilder()
+          const picker = new googlePicker.PickerBuilder()
             .setDeveloperKey(apiKey)
             .setAppId(appId)
             .setOAuthToken(accessToken)
             .addView(view)
             .setTitle("Select an image from Google Drive")
-            .setCallback(async (data: any) => {
+            .setCallback(async (data: GooglePickerData) => {
               try {
                 if (
-                  data.action === window.google.picker.Action.PICKED &&
+                  data.action === googlePicker.Action.PICKED &&
                   data.docs &&
                   data.docs.length > 0
                 ) {
@@ -425,9 +512,7 @@ export default function ProductMediaManager({
   }
 
   async function handleDeleteImage(imageId: string) {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this image?"
-    );
+    const confirmed = window.confirm("Are you sure you want to delete this image?");
 
     if (!confirmed) return;
 
@@ -492,9 +577,7 @@ export default function ProductMediaManager({
       await loadData();
     } catch (error) {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to assign variant image."
+        error instanceof Error ? error.message : "Failed to assign variant image."
       );
     } finally {
       setSavingVariantId("");
@@ -613,6 +696,7 @@ export default function ProductMediaManager({
               <div style={{ display: "grid", gap: 14 }}>
                 {variants.map((variant) => {
                   const variantId = String(variant.id || "");
+
                   return (
                     <div key={variantId} style={variantCardStyle}>
                       <div>
@@ -688,6 +772,7 @@ export default function ProductMediaManager({
                           value={String(image.alt_text || "")}
                           onChange={(e) => {
                             const value = e.target.value;
+
                             setImages((prev) =>
                               prev.map((item) =>
                                 String(item.id || "") === imageId
@@ -708,6 +793,7 @@ export default function ProductMediaManager({
                             value={String(image.sort_order || "999")}
                             onChange={(e) => {
                               const value = e.target.value;
+
                               setImages((prev) =>
                                 prev.map((item) =>
                                   String(item.id || "") === imageId
@@ -726,6 +812,7 @@ export default function ProductMediaManager({
                             checked={isMain}
                             onChange={(e) => {
                               const checked = e.target.checked;
+
                               setImages((prev) =>
                                 prev.map((item) =>
                                   String(item.id || "") === imageId

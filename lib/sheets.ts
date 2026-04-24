@@ -27,6 +27,10 @@ if (!PRIVATE_KEY) {
   throw new Error("Missing GOOGLE_PRIVATE_KEY.");
 }
 
+function normalizeSheetName(value: string) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function getAuth() {
   return new google.auth.JWT({
     email: CLIENT_EMAIL,
@@ -85,27 +89,29 @@ async function withRetry<T>(
 }
 
 function getRowsCacheKey(sheetName: string) {
-  return `sheet:rows:${sheetName}`;
+  return `sheet:rows:${normalizeSheetName(sheetName)}`;
 }
 
 function getHeadersCacheKey(sheetName: string) {
-  return `sheet:headers:${sheetName}`;
+  return `sheet:headers:${normalizeSheetName(sheetName)}`;
 }
 
 function getObjectsCacheKey(sheetName: string) {
-  return `sheet:objects:${sheetName}`;
+  return `sheet:objects:${normalizeSheetName(sheetName)}`;
 }
 
 function getMetaCacheKey(sheetName: string) {
-  return `sheet:meta:${sheetName}`;
+  return `sheet:meta:${normalizeSheetName(sheetName)}`;
 }
 
 function clearSheetCache(sheetName: string) {
-  deleteCache(getRowsCacheKey(sheetName));
-  deleteCache(getHeadersCacheKey(sheetName));
-  deleteCache(getObjectsCacheKey(sheetName));
-  deleteCache(getMetaCacheKey(sheetName));
-  deleteCacheByPrefix(`sheet:${sheetName}:`);
+  const normalized = normalizeSheetName(sheetName);
+
+  deleteCache(getRowsCacheKey(normalized));
+  deleteCache(getHeadersCacheKey(normalized));
+  deleteCache(getObjectsCacheKey(normalized));
+  deleteCache(getMetaCacheKey(normalized));
+  deleteCacheByPrefix(`sheet:${normalized}:`);
 }
 
 export async function getSheetRows(
@@ -419,6 +425,7 @@ export async function getSheetMetaByTitle(
   }
 
   const sheets = getSheetsClient();
+  const normalizedRequestedName = normalizeSheetName(sheetName);
 
   const meta = await withRetry(async () => {
     const response = await sheets.spreadsheets.get({
@@ -426,16 +433,20 @@ export async function getSheetMetaByTitle(
     });
 
     const sheet = response.data.sheets?.find(
-      (item) => item.properties?.title === sheetName
+      (item) =>
+        normalizeSheetName(item.properties?.title || "") ===
+        normalizedRequestedName
     );
 
-    if (!sheet?.properties?.sheetId) {
+    const sheetId = sheet?.properties?.sheetId;
+
+    if (typeof sheetId !== "number") {
       throw new Error(`Sheet metadata was not found for "${sheetName}".`);
     }
 
     return {
-      sheetId: sheet.properties.sheetId,
-      title: sheet.properties.title || sheetName,
+      sheetId,
+      title: sheet?.properties?.title || sheetName,
     };
   });
 

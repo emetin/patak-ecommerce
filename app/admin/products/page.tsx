@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { CSSProperties } from "react";
 import { normalizeImageUrl } from "../../../lib/image-url";
 
 type ProductItem = {
@@ -20,6 +28,14 @@ type ProductItem = {
   main_image_exists?: boolean;
   gallery_score?: number;
   gallery_issues?: string[];
+};
+
+type ProductsOverviewResponse = {
+  ok?: boolean;
+  error?: string;
+  products?: ProductItem[];
+  total?: number;
+  totalPages?: number;
 };
 
 const PAGE_SIZE = 50;
@@ -73,35 +89,44 @@ export default function AdminProductsPage() {
     setPage(1);
   }, [statusFilter]);
 
-  async function loadOverview(signal?: AbortSignal) {
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("limit", String(PAGE_SIZE));
+  const loadOverview = useCallback(
+    async (signal?: AbortSignal): Promise<ProductsOverviewResponse> => {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(PAGE_SIZE));
 
-    if (statusFilter !== "all") {
-      params.set("status", statusFilter);
-    }
-
-    if (search.trim()) {
-      params.set("q", search.trim());
-    }
-
-    const response = await fetch(
-      `/api/admin/products-overview?${params.toString()}`,
-      {
-        cache: "no-store",
-        signal,
+      if (statusFilter !== "all") {
+        params.set("status", statusFilter);
       }
-    );
 
-    const data = await response.json();
+      if (search.trim()) {
+        params.set("q", search.trim());
+      }
 
-    if (!response.ok || !data.ok) {
-      throw new Error(data?.error || "Failed to load products.");
-    }
+      const response = await fetch(
+        `/api/admin/products-overview?${params.toString()}`,
+        {
+          cache: "no-store",
+          signal,
+        }
+      );
 
-    return data;
-  }
+      const data = (await response.json()) as ProductsOverviewResponse;
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to load products.");
+      }
+
+      return data;
+    },
+    [page, search, statusFilter]
+  );
+
+  const applyOverviewData = useCallback((data: ProductsOverviewResponse) => {
+    setItems(Array.isArray(data.products) ? data.products : []);
+    setTotal(Number(data.total || 0));
+    setTotalPages(Number(data.totalPages || 1));
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -112,10 +137,7 @@ export default function AdminProductsPage() {
         setErrorMessage("");
 
         const data = await loadOverview(controller.signal);
-
-        setItems(Array.isArray(data.products) ? data.products : []);
-        setTotal(Number(data.total || 0));
-        setTotalPages(Number(data.totalPages || 1));
+        applyOverviewData(data);
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           return;
@@ -134,55 +156,56 @@ export default function AdminProductsPage() {
     return () => {
       controller.abort();
     };
-  }, [page, search, statusFilter]);
+  }, [loadOverview, applyOverviewData]);
 
-  async function reloadCurrentPage() {
+  const reloadCurrentPage = useCallback(async () => {
     try {
       setLoading(true);
       const data = await loadOverview();
-      setItems(Array.isArray(data.products) ? data.products : []);
-      setTotal(Number(data.total || 0));
-      setTotalPages(Number(data.totalPages || 1));
+      applyOverviewData(data);
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadOverview, applyOverviewData]);
 
-  async function handleDelete(slug?: string) {
-    if (!slug) return;
+  const handleDelete = useCallback(
+    async (slug?: string) => {
+      if (!slug) return;
 
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this product?"
-    );
-
-    if (!confirmed) return;
-
-    try {
-      setDeleteLoadingSlug(slug);
-
-      const response = await fetch("/api/products/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ slug }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to delete product.");
-      }
-
-      await reloadCurrentPage();
-    } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "An unknown error occurred."
+      const confirmed = window.confirm(
+        "Are you sure you want to delete this product?"
       );
-    } finally {
-      setDeleteLoadingSlug("");
-    }
-  }
+
+      if (!confirmed) return;
+
+      try {
+        setDeleteLoadingSlug(slug);
+
+        const response = await fetch("/api/products/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ slug }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data?.error || "Failed to delete product.");
+        }
+
+        await reloadCurrentPage();
+      } catch (error) {
+        alert(
+          error instanceof Error ? error.message : "An unknown error occurred."
+        );
+      } finally {
+        setDeleteLoadingSlug("");
+      }
+    },
+    [reloadCurrentPage]
+  );
 
   const publishedCount = useMemo(
     () =>
@@ -221,7 +244,7 @@ export default function AdminProductsPage() {
   }, [items]);
 
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div style={pageWrapStyle}>
       <div style={pageHeaderStyle}>
         <div>
           <h1 style={titleStyle}>Products</h1>
@@ -234,12 +257,19 @@ export default function AdminProductsPage() {
           <Link href="/admin/products/new" style={primaryButtonStyle}>
             + New Product
           </Link>
+
+          <Link href="/admin/products/bulk-edit" style={secondaryButtonStyle}>
+            Bulk Edit
+          </Link>
+
           <a href="/api/products/export?format=csv" style={secondaryButtonStyle}>
             Export CSV
           </a>
+
           <a href="/api/products/export?format=json" style={secondaryButtonStyle}>
             Export JSON
           </a>
+
           <a href="/api/products/export?format=xml" style={secondaryButtonStyle}>
             Export XML
           </a>
@@ -252,10 +282,22 @@ export default function AdminProductsPage() {
           <StatBox label="On This Page" value={String(items.length)} />
           <StatBox label="Published" value={String(publishedCount)} />
           <StatBox label="Draft" value={String(draftCount)} />
-          <WarningStatBox label="No Gallery" value={String(galleryAudit.missingGallery)} />
-          <WarningStatBox label="No Main Image" value={String(galleryAudit.missingMainImage)} />
-          <WarningStatBox label="Missing Alt Text" value={String(galleryAudit.missingAltText)} />
-          <WarningStatBox label="Low Image Count" value={String(galleryAudit.lowImageCount)} />
+          <WarningStatBox
+            label="No Gallery"
+            value={String(galleryAudit.missingGallery)}
+          />
+          <WarningStatBox
+            label="No Main Image"
+            value={String(galleryAudit.missingMainImage)}
+          />
+          <WarningStatBox
+            label="Missing Alt Text"
+            value={String(galleryAudit.missingAltText)}
+          />
+          <WarningStatBox
+            label="Low Image Count"
+            value={String(galleryAudit.lowImageCount)}
+          />
         </div>
 
         <div style={filterGridStyle}>
@@ -314,144 +356,14 @@ export default function AdminProductsPage() {
               </thead>
 
               <tbody>
-                {items.map((item, index) => {
-                  const primaryImage = normalizeImageUrl(
-                    item.main_image || item.image || ""
-                  );
-
-                  const featured = isTrue(item.featured);
-                  const issues = Array.isArray(item.gallery_issues)
-                    ? item.gallery_issues
-                    : [];
-
-                  return (
-                    <tr key={item.id || item.slug || index}>
-                      <td style={tdStyle}>
-                        <div style={productCellStyle}>
-                          <div style={thumbWrapStyle}>
-                            {primaryImage ? (
-                              <img
-                                src={primaryImage}
-                                alt={item.title || "Product"}
-                                style={thumbStyle}
-                              />
-                            ) : (
-                              <div style={thumbEmptyStyle}>No Image</div>
-                            )}
-                          </div>
-
-                          <div style={{ display: "grid", gap: 6 }}>
-                            <div style={productTitleRowStyle}>
-                              <div style={{ fontWeight: 800 }}>
-                                {item.title || "-"}
-                              </div>
-
-                              {featured ? (
-                                <span style={featuredBadgeStyle}>Featured</span>
-                              ) : null}
-                            </div>
-
-                            <div style={descriptionStyle}>
-                              {item.short_description ||
-                                "No short description added yet."}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td style={tdStyle}>{item.slug || "-"}</td>
-                      <td style={tdStyle}>{item.collection_slug || "-"}</td>
-
-                      <td style={tdStyle}>
-                        <StatusBadge value={item.status || "-"} />
-                      </td>
-
-                      <td style={tdStyle}>
-                        <div style={{ display: "grid", gap: 8 }}>
-                          <div style={galleryScoreValueStyle}>
-                            {Number(item.gallery_score || 0)}%
-                          </div>
-
-                          <div style={galleryMetaStyle}>
-                            <div>
-                              <strong>Images:</strong>{" "}
-                              {Number(item.image_count || 0)}
-                            </div>
-                            <div>
-                              <strong>Main:</strong>{" "}
-                              {item.main_image_exists ? "Yes" : "No"}
-                            </div>
-                            <div>
-                              <strong>Alt:</strong>{" "}
-                              {Number(item.alt_count || 0)}/
-                              {Number(item.image_count || 0)}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td style={tdStyle}>
-                        {issues.length === 0 ? (
-                          <span style={okBadgeStyle}>Gallery looks good</span>
-                        ) : (
-                          <div style={warningListStyle}>
-                            {issues.map((issue) => (
-                              <span key={issue} style={warningBadgeStyle}>
-                                {issue}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-
-                      <td style={tdStyle}>{item.updated_at || "-"}</td>
-
-                      <td style={tdStyle}>
-                        <div style={actionColumnStyle}>
-                          {item.slug ? (
-                            <Link
-                              href={`/admin/products/${item.slug}`}
-                              style={secondarySmallButtonStyle}
-                            >
-                              Edit
-                            </Link>
-                          ) : null}
-
-                          {item.slug ? (
-                            <Link
-                              href={`/admin/products/${item.slug}/images`}
-                              style={primarySmallButtonStyle}
-                            >
-                              Images
-                            </Link>
-                          ) : null}
-
-                          {item.slug ? (
-                            <Link
-                              href={`/products/${item.slug}`}
-                              style={secondarySmallButtonStyle}
-                            >
-                              View
-                            </Link>
-                          ) : null}
-
-                          {item.slug ? (
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(item.slug)}
-                              style={dangerSmallButtonStyle}
-                              disabled={deleteLoadingSlug === item.slug}
-                            >
-                              {deleteLoadingSlug === item.slug
-                                ? "Deleting..."
-                                : "Delete"}
-                            </button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {items.map((item, index) => (
+                  <ProductRow
+                    key={item.id || item.slug || index}
+                    item={item}
+                    deleteLoadingSlug={deleteLoadingSlug}
+                    onDelete={handleDelete}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
@@ -485,6 +397,138 @@ export default function AdminProductsPage() {
   );
 }
 
+const ProductRow = memo(function ProductRow({
+  item,
+  deleteLoadingSlug,
+  onDelete,
+}: {
+  item: ProductItem;
+  deleteLoadingSlug: string;
+  onDelete: (slug?: string) => void;
+}) {
+  const primaryImage = normalizeImageUrl(item.main_image || item.image || "");
+  const featured = isTrue(item.featured);
+  const issues = Array.isArray(item.gallery_issues) ? item.gallery_issues : [];
+
+  return (
+    <tr>
+      <td style={tdStyle}>
+        <div style={productCellStyle}>
+          <div style={thumbWrapStyle}>
+            {primaryImage ? (
+              <img
+                src={primaryImage}
+                alt={item.title || "Product"}
+                style={thumbStyle}
+                loading="lazy"
+              />
+            ) : (
+              <div style={thumbEmptyStyle}>No Image</div>
+            )}
+          </div>
+
+          <div style={productInfoStyle}>
+            <div style={productTitleRowStyle}>
+              <div style={productTitleStyle}>{item.title || "-"}</div>
+
+              {featured ? (
+                <span style={featuredBadgeStyle}>Featured</span>
+              ) : null}
+            </div>
+
+            <div style={descriptionStyle}>
+              {item.short_description || "No short description added yet."}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      <td style={tdStyle}>{item.slug || "-"}</td>
+      <td style={tdStyle}>{item.collection_slug || "-"}</td>
+
+      <td style={tdStyle}>
+        <StatusBadge value={item.status || "-"} />
+      </td>
+
+      <td style={tdStyle}>
+        <div style={galleryInfoStyle}>
+          <div style={galleryScoreValueStyle}>
+            {Number(item.gallery_score || 0)}%
+          </div>
+
+          <div style={galleryMetaStyle}>
+            <div>
+              <strong>Images:</strong> {Number(item.image_count || 0)}
+            </div>
+            <div>
+              <strong>Main:</strong> {item.main_image_exists ? "Yes" : "No"}
+            </div>
+            <div>
+              <strong>Alt:</strong> {Number(item.alt_count || 0)}/
+              {Number(item.image_count || 0)}
+            </div>
+          </div>
+        </div>
+      </td>
+
+      <td style={tdStyle}>
+        {issues.length === 0 ? (
+          <span style={okBadgeStyle}>Gallery looks good</span>
+        ) : (
+          <div style={warningListStyle}>
+            {issues.map((issue) => (
+              <span key={issue} style={warningBadgeStyle}>
+                {issue}
+              </span>
+            ))}
+          </div>
+        )}
+      </td>
+
+      <td style={tdStyle}>{item.updated_at || "-"}</td>
+
+      <td style={tdStyle}>
+        <div style={actionColumnStyle}>
+          {item.slug ? (
+            <Link
+              href={`/admin/products/${item.slug}`}
+              style={secondarySmallButtonStyle}
+            >
+              Edit
+            </Link>
+          ) : null}
+
+          {item.slug ? (
+            <Link
+              href={`/admin/products/${item.slug}/images`}
+              style={primarySmallButtonStyle}
+            >
+              Images
+            </Link>
+          ) : null}
+
+          {item.slug ? (
+            <Link href={`/products/${item.slug}`} style={secondarySmallButtonStyle}>
+              View
+            </Link>
+          ) : null}
+
+          {item.slug ? (
+            <button
+              type="button"
+              onClick={() => onDelete(item.slug)}
+              style={dangerSmallButtonStyle}
+              disabled={deleteLoadingSlug === item.slug}
+            >
+              {deleteLoadingSlug === item.slug ? "Deleting..." : "Delete"}
+            </button>
+          ) : null}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
 function StatBox({ label, value }: { label: string; value: string }) {
   return (
     <div style={statBoxStyle}>
@@ -506,32 +550,22 @@ function WarningStatBox({ label, value }: { label: string; value: string }) {
 function StatusBadge({ value }: { value: string }) {
   const normalized = value.toLowerCase();
 
-  const style: React.CSSProperties =
+  const style: CSSProperties =
     normalized === "published"
-      ? {
-          ...badgeStyle,
-          background: "#edf8f1",
-          color: "#1d6a43",
-          border: "1px solid #cfe7d8",
-        }
+      ? publishedBadgeStyle
       : normalized === "draft"
-        ? {
-            ...badgeStyle,
-            background: "#fff7e8",
-            color: "#8a6418",
-            border: "1px solid #ecd8ad",
-          }
-        : {
-            ...badgeStyle,
-            background: "#f3f3f3",
-            color: "#5e5e5e",
-            border: "1px solid #dddddd",
-          };
+        ? draftBadgeStyle
+        : neutralBadgeStyle;
 
   return <span style={style}>{value}</span>;
 }
 
-const pageHeaderStyle: React.CSSProperties = {
+const pageWrapStyle: CSSProperties = {
+  display: "grid",
+  gap: 24,
+};
+
+const pageHeaderStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
@@ -539,14 +573,14 @@ const pageHeaderStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
-const titleStyle: React.CSSProperties = {
+const titleStyle: CSSProperties = {
   fontSize: 42,
   lineHeight: 1.1,
   margin: 0,
   fontWeight: 800,
 };
 
-const subtitleStyle: React.CSSProperties = {
+const subtitleStyle: CSSProperties = {
   marginTop: 10,
   marginBottom: 0,
   color: "#6f6559",
@@ -554,20 +588,20 @@ const subtitleStyle: React.CSSProperties = {
   maxWidth: 760,
 };
 
-const headerActionsStyle: React.CSSProperties = {
+const headerActionsStyle: CSSProperties = {
   display: "flex",
   gap: 10,
   flexWrap: "wrap",
 };
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   background: "#fff",
   border: "1px solid #ddd3c5",
   borderRadius: 24,
   padding: 24,
 };
 
-const filterCardStyle: React.CSSProperties = {
+const filterCardStyle: CSSProperties = {
   background: "#fff",
   border: "1px solid #ddd3c5",
   borderRadius: 24,
@@ -575,14 +609,14 @@ const filterCardStyle: React.CSSProperties = {
   boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
 };
 
-const statsRowStyle: React.CSSProperties = {
+const statsRowStyle: CSSProperties = {
   display: "flex",
   gap: 14,
   flexWrap: "wrap",
   marginBottom: 20,
 };
 
-const statBoxStyle: React.CSSProperties = {
+const statBoxStyle: CSSProperties = {
   minWidth: 160,
   background: "#f8f5ef",
   border: "1px solid #e3dbcf",
@@ -590,7 +624,7 @@ const statBoxStyle: React.CSSProperties = {
   padding: 16,
 };
 
-const warningStatBoxStyle: React.CSSProperties = {
+const warningStatBoxStyle: CSSProperties = {
   minWidth: 160,
   background: "#fff7e8",
   border: "1px solid #ecd8ad",
@@ -598,38 +632,38 @@ const warningStatBoxStyle: React.CSSProperties = {
   padding: 16,
 };
 
-const statLabelStyle: React.CSSProperties = {
+const statLabelStyle: CSSProperties = {
   fontSize: 13,
   color: "#7c7267",
   marginBottom: 8,
   fontWeight: 700,
 };
 
-const statValueStyle: React.CSSProperties = {
+const statValueStyle: CSSProperties = {
   fontSize: 28,
   fontWeight: 800,
 };
 
-const warningStatValueStyle: React.CSSProperties = {
+const warningStatValueStyle: CSSProperties = {
   fontSize: 28,
   fontWeight: 800,
   color: "#8a6418",
 };
 
-const filterGridStyle: React.CSSProperties = {
+const filterGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "2fr 1fr",
   gap: 16,
 };
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: 8,
   fontWeight: 800,
   fontSize: 15,
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   minHeight: 52,
   padding: "14px 16px",
@@ -640,7 +674,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
-const tableCardStyle: React.CSSProperties = {
+const tableCardStyle: CSSProperties = {
   background: "#fff",
   border: "1px solid #ddd3c5",
   borderRadius: 24,
@@ -648,16 +682,16 @@ const tableCardStyle: React.CSSProperties = {
   boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
 };
 
-const tableScrollStyle: React.CSSProperties = {
+const tableScrollStyle: CSSProperties = {
   overflowX: "auto",
 };
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
 };
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: "left",
   padding: "18px",
   fontSize: 13,
@@ -668,25 +702,34 @@ const thStyle: React.CSSProperties = {
   borderBottom: "1px solid #e5dccf",
 };
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: "18px",
   borderBottom: "1px solid #efe8dc",
   verticalAlign: "top",
   fontSize: 15,
 };
 
-const productCellStyle: React.CSSProperties = {
+const productCellStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "82px 1fr",
   gap: 14,
   alignItems: "start",
 };
 
-const thumbWrapStyle: React.CSSProperties = {
+const productInfoStyle: CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const productTitleStyle: CSSProperties = {
+  fontWeight: 800,
+};
+
+const thumbWrapStyle: CSSProperties = {
   width: 82,
 };
 
-const thumbStyle: React.CSSProperties = {
+const thumbStyle: CSSProperties = {
   width: "100%",
   aspectRatio: "1 / 1",
   objectFit: "cover",
@@ -696,7 +739,7 @@ const thumbStyle: React.CSSProperties = {
   display: "block",
 };
 
-const thumbEmptyStyle: React.CSSProperties = {
+const thumbEmptyStyle: CSSProperties = {
   width: "100%",
   aspectRatio: "1 / 1",
   borderRadius: 14,
@@ -712,20 +755,20 @@ const thumbEmptyStyle: React.CSSProperties = {
   padding: 8,
 };
 
-const productTitleRowStyle: React.CSSProperties = {
+const productTitleRowStyle: CSSProperties = {
   display: "flex",
   gap: 8,
   alignItems: "center",
   flexWrap: "wrap",
 };
 
-const descriptionStyle: React.CSSProperties = {
+const descriptionStyle: CSSProperties = {
   color: "#6f6559",
   fontSize: 13,
   lineHeight: 1.6,
 };
 
-const featuredBadgeStyle: React.CSSProperties = {
+const featuredBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -739,13 +782,18 @@ const featuredBadgeStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
-const galleryScoreValueStyle: React.CSSProperties = {
+const galleryInfoStyle: CSSProperties = {
+  display: "grid",
+  gap: 8,
+};
+
+const galleryScoreValueStyle: CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
   color: "#171717",
 };
 
-const galleryMetaStyle: React.CSSProperties = {
+const galleryMetaStyle: CSSProperties = {
   display: "grid",
   gap: 6,
   fontSize: 13,
@@ -753,7 +801,7 @@ const galleryMetaStyle: React.CSSProperties = {
   lineHeight: 1.5,
 };
 
-const okBadgeStyle: React.CSSProperties = {
+const okBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -767,13 +815,13 @@ const okBadgeStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
-const warningListStyle: React.CSSProperties = {
+const warningListStyle: CSSProperties = {
   display: "flex",
   gap: 8,
   flexWrap: "wrap",
 };
 
-const warningBadgeStyle: React.CSSProperties = {
+const warningBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -787,7 +835,7 @@ const warningBadgeStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
-const badgeStyle: React.CSSProperties = {
+const badgeBaseStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -798,13 +846,34 @@ const badgeStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-const actionColumnStyle: React.CSSProperties = {
+const publishedBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#edf8f1",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
+};
+
+const draftBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#fff7e8",
+  color: "#8a6418",
+  border: "1px solid #ecd8ad",
+};
+
+const neutralBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#f3f3f3",
+  color: "#5e5e5e",
+  border: "1px solid #dddddd",
+};
+
+const actionColumnStyle: CSSProperties = {
   display: "flex",
   gap: 8,
   flexWrap: "wrap",
 };
 
-const primaryButtonStyle: React.CSSProperties = {
+const primaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -819,7 +888,7 @@ const primaryButtonStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
-const secondaryButtonStyle: React.CSSProperties = {
+const secondaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -834,7 +903,7 @@ const secondaryButtonStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
-const primarySmallButtonStyle: React.CSSProperties = {
+const primarySmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -850,7 +919,7 @@ const primarySmallButtonStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const secondarySmallButtonStyle: React.CSSProperties = {
+const secondarySmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -866,7 +935,7 @@ const secondarySmallButtonStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const dangerSmallButtonStyle: React.CSSProperties = {
+const dangerSmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -882,7 +951,7 @@ const dangerSmallButtonStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const paginationWrapStyle: React.CSSProperties = {
+const paginationWrapStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
@@ -892,12 +961,12 @@ const paginationWrapStyle: React.CSSProperties = {
   flexWrap: "wrap",
 };
 
-const paginationInfoStyle: React.CSSProperties = {
+const paginationInfoStyle: CSSProperties = {
   fontWeight: 800,
   color: "#5f564b",
 };
 
-const emptyStateStyle: React.CSSProperties = {
+const emptyStateStyle: CSSProperties = {
   background: "#fff",
   border: "1px solid #ddd3c5",
   borderRadius: 24,
@@ -906,7 +975,7 @@ const emptyStateStyle: React.CSSProperties = {
   fontWeight: 700,
 };
 
-const errorBoxStyle: React.CSSProperties = {
+const errorBoxStyle: CSSProperties = {
   padding: 18,
   borderRadius: 16,
   background: "#fff1f1",

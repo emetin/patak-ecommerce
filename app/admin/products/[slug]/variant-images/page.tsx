@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { normalizeImageUrl } from "../../../../../lib/image-url";
+
+type ProductImageItem = {
+  id?: string;
+  product_slug?: string;
+  image_url?: string;
+  sort_order?: string;
+  alt_text?: string;
+  is_main?: string;
+};
 
 type VariantItem = {
   id?: string;
@@ -14,96 +23,78 @@ type VariantItem = {
   option3_name?: string;
   option3_value?: string;
   sku?: string;
-  variant_image?: string;
+  barcode?: string;
   image_id?: string;
+  variant_image?: string;
   status?: string;
-};
-
-type ProductImageItem = {
-  id?: string;
-  product_slug?: string;
-  image_url?: string;
-  alt_text?: string;
-  sort_order?: string;
-  is_main?: string;
 };
 
 function normalizeText(value: unknown) {
   return String(value || "").trim();
 }
 
-function isTrue(value?: string) {
-  return String(value || "").trim().toLowerCase() === "true";
-}
-
-function toSafeOrder(value?: string) {
-  const num = Number(String(value || "").trim());
-  return Number.isFinite(num) ? num : 999999;
-}
-
 function buildVariantLabel(item: VariantItem) {
   const values = [item.option1_value, item.option2_value, item.option3_value]
     .map((value) => normalizeText(value))
-    .filter(Boolean);
+    .filter((value) => value && value.toLowerCase() !== "default");
 
-  return values.length ? values.join(" / ") : "Default";
+  return values.length ? values.join(" / ") : item.sku || "Default Variant";
 }
 
-function sortImages(images: ProductImageItem[]) {
-  return [...images].sort((a, b) => {
-    const aMain = isTrue(a.is_main);
-    const bMain = isTrue(b.is_main);
-
-    if (aMain !== bMain) {
-      return aMain ? -1 : 1;
-    }
-
-    return toSafeOrder(a.sort_order) - toSafeOrder(b.sort_order);
-  });
-}
-
-export default function VariantImagesPage({
+export default function AdminVariantImagesPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug: rawSlug } = use(params);
-  const slug = decodeURIComponent(rawSlug);
+  const slug = decodeURIComponent(rawSlug).trim().toLowerCase();
 
-  const [variants, setVariants] = useState<VariantItem[]>([]);
   const [images, setImages] = useState<ProductImageItem[]>([]);
+  const [variants, setVariants] = useState<VariantItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState("");
-  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [savingVariantId, setSavingVariantId] = useState("");
 
-  async function loadData() {
+  const imageMap = useMemo(() => {
+    const map = new Map<string, ProductImageItem>();
+
+    for (const image of images) {
+      const id = normalizeText(image.id);
+      if (id) {
+        map.set(id, image);
+      }
+    }
+
+    return map;
+  }, [images]);
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage("");
 
-      const [variantResponse, imageResponse] = await Promise.all([
-        fetch(`/api/variants/list?product_slug=${encodeURIComponent(slug)}`, {
+      const [imagesResponse, variantsResponse] = await Promise.all([
+        fetch(`/api/product-images/list?product_slug=${encodeURIComponent(slug)}`, {
           cache: "no-store",
         }),
-        fetch(`/api/product-images/list?product_slug=${encodeURIComponent(slug)}`, {
+        fetch(`/api/variants/list?product_slug=${encodeURIComponent(slug)}`, {
           cache: "no-store",
         }),
       ]);
 
-      const variantData = await variantResponse.json();
-      const imageData = await imageResponse.json();
+      const imagesData = await imagesResponse.json();
+      const variantsData = await variantsResponse.json();
 
-      if (!variantResponse.ok || !variantData.ok) {
-        throw new Error(variantData?.error || "Failed to load variants.");
+      if (!imagesResponse.ok || !imagesData.ok) {
+        throw new Error(imagesData?.error || "Failed to load images.");
       }
 
-      if (!imageResponse.ok || !imageData.ok) {
-        throw new Error(imageData?.error || "Failed to load product images.");
+      if (!variantsResponse.ok || !variantsData.ok) {
+        throw new Error(variantsData?.error || "Failed to load variants.");
       }
 
-      setVariants(Array.isArray(variantData.items) ? variantData.items : []);
-      setImages(sortImages(Array.isArray(imageData.items) ? imageData.items : []));
+      setImages(Array.isArray(imagesData.items) ? imagesData.items : []);
+      setVariants(Array.isArray(variantsData.items) ? variantsData.items : []);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -111,52 +102,20 @@ export default function VariantImagesPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [slug]);
 
   useEffect(() => {
     loadData();
-  }, [slug]);
-
-  const imageOptions = useMemo(() => sortImages(images), [images]);
+  }, [loadData]);
 
   async function handleAssignImage(variant: VariantItem, imageId: string) {
     const variantId = normalizeText(variant.id);
+    if (!variantId) return;
 
-    if (!variantId) {
-      setErrorMessage("Variant id is missing.");
-      return;
-    }
-
-    const selectedImage =
-      imageOptions.find(
-        (item) => normalizeText(item.id) === normalizeText(imageId)
-      ) || null;
-
-    if (!selectedImage) {
-      setErrorMessage("Selected image could not be found.");
-      return;
-    }
-
-    const nextImageId = normalizeText(selectedImage.id);
-    const nextImageUrl = normalizeText(selectedImage.image_url);
+    const selectedImage = imageMap.get(imageId);
 
     try {
-      setSavingId(variantId);
-      setMessage("");
-      setErrorMessage("");
-
-      // Optimistic UI update
-      setVariants((prev) =>
-        prev.map((item) =>
-          normalizeText(item.id) === variantId
-            ? {
-                ...item,
-                image_id: nextImageId,
-                variant_image: nextImageUrl,
-              }
-            : item
-        )
-      );
+      setSavingVariantId(variantId);
 
       const response = await fetch("/api/variants/update", {
         method: "POST",
@@ -165,87 +124,26 @@ export default function VariantImagesPage({
         },
         body: JSON.stringify({
           id: variantId,
-          image_id: nextImageId,
-          variant_image: nextImageUrl,
+          image_id: imageId,
+          variant_image: selectedImage?.image_url || "",
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to assign variant image.");
+        throw new Error(data?.error || "Failed to update variant image.");
       }
 
-      setMessage("Variant image updated successfully.");
-
-      // Re-sync from server after successful save
       await loadData();
     } catch (error) {
-      // Roll back by reloading real data
-      await loadData();
-
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to assign variant image."
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to update variant image."
       );
     } finally {
-      setSavingId("");
-    }
-  }
-
-  async function handleClearImage(variant: VariantItem) {
-    const variantId = normalizeText(variant.id);
-
-    if (!variantId) {
-      setErrorMessage("Variant id is missing.");
-      return;
-    }
-
-    try {
-      setSavingId(variantId);
-      setMessage("");
-      setErrorMessage("");
-
-      // Optimistic clear
-      setVariants((prev) =>
-        prev.map((item) =>
-          normalizeText(item.id) === variantId
-            ? {
-                ...item,
-                image_id: "",
-                variant_image: "",
-              }
-            : item
-        )
-      );
-
-      const response = await fetch("/api/variants/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: variantId,
-          image_id: "",
-          variant_image: "",
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to clear variant image.");
-      }
-
-      setMessage("Variant image cleared successfully.");
-      await loadData();
-    } catch (error) {
-      await loadData();
-
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to clear variant image."
-      );
-    } finally {
-      setSavingId("");
+      setSavingVariantId("");
     }
   }
 
@@ -256,9 +154,9 @@ export default function VariantImagesPage({
           <Link href={`/admin/products/${slug}`} style={backLinkStyle}>
             ← Back to Product
           </Link>
-          <h1 style={titleStyle}>Variant Image Binding</h1>
+          <h1 style={titleStyle}>Variant Images</h1>
           <p style={subtitleStyle}>
-            Connect gallery images to product variants.
+            Connect product gallery images with product variants.
           </p>
         </div>
       </div>
@@ -269,82 +167,57 @@ export default function VariantImagesPage({
         <div style={errorBoxStyle}>{errorMessage}</div>
       ) : variants.length === 0 ? (
         <div style={emptyStateStyle}>No variants found for this product.</div>
-      ) : images.length === 0 ? (
-        <div style={emptyStateStyle}>
-          No gallery images found. Add product images first.
-        </div>
       ) : (
-        <div style={listStyle}>
-          {variants.map((variant) => {
-            const currentVariantId = normalizeText(variant.id);
-            const currentImageId = normalizeText(variant.image_id);
-            const currentImageUrl = normalizeText(variant.variant_image);
+        <div style={cardStyle}>
+          <div style={listStyle}>
+            {variants.map((variant, index) => {
+              const selectedImage = imageMap.get(normalizeText(variant.image_id));
+              const variantId = normalizeText(variant.id) || String(index);
 
-            return (
-              <div key={variant.id} style={variantCardStyle}>
-                <div style={variantHeaderStyle}>
+              return (
+                <div key={variantId} style={variantCardStyle}>
                   <div>
-                    <div style={variantTitleStyle}>{buildVariantLabel(variant)}</div>
-                    <div style={variantMetaStyle}>SKU: {variant.sku || "-"}</div>
+                    <div style={variantTitleStyle}>
+                      {buildVariantLabel(variant)}
+                    </div>
+                    <div style={variantMetaStyle}>
+                      SKU: {variant.sku || "-"} | Status: {variant.status || "-"}
+                    </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 10, justifyItems: "end" }}>
-                    {currentImageUrl ? (
+                  <div style={imagePreviewWrapStyle}>
+                    {selectedImage?.image_url ? (
                       <img
-                        src={normalizeImageUrl(currentImageUrl)}
-                        alt={buildVariantLabel(variant)}
-                        style={selectedImageStyle}
+                        src={normalizeImageUrl(selectedImage.image_url)}
+                        alt={selectedImage.alt_text || "Variant image"}
+                        style={imagePreviewStyle}
                       />
                     ) : (
-                      <div style={selectedImageEmptyStyle}>No Image</div>
+                      <div style={emptyImageStyle}>No Image</div>
                     )}
-
-                    <button
-                      type="button"
-                      onClick={() => handleClearImage(variant)}
-                      style={clearButtonStyle}
-                      disabled={savingId === currentVariantId}
-                    >
-                      {savingId === currentVariantId ? "Saving..." : "Clear"}
-                    </button>
                   </div>
-                </div>
 
-                <div style={imagePickerGridStyle}>
-                  {imageOptions.map((image, index) => {
-                    const imageId = normalizeText(image.id);
-                    const active = imageId === currentImageId;
-
-                    return (
-                      <button
-                        key={image.id || `${image.image_url}-${index}`}
-                        type="button"
-                        onClick={() => handleAssignImage(variant, imageId)}
-                        style={{
-                          ...imageOptionButtonStyle,
-                          ...(active ? activeImageOptionButtonStyle : null),
-                        }}
-                        disabled={savingId === currentVariantId}
-                      >
-                        <img
-                          src={normalizeImageUrl(image.image_url || "")}
-                          alt={image.alt_text || `Image ${image.sort_order || "-"}`}
-                          style={imageOptionImageStyle}
-                        />
-                        <div style={imageOptionMetaStyle}>
-                          {image.alt_text || `Image ${image.sort_order || "-"}`}
-                        </div>
-                      </button>
-                    );
-                  })}
+                  <select
+                    value={variant.image_id || ""}
+                    onChange={(event) =>
+                      handleAssignImage(variant, event.target.value)
+                    }
+                    disabled={savingVariantId === variant.id}
+                    style={selectStyle}
+                  >
+                    <option value="">No image</option>
+                    {images.map((image) => (
+                      <option key={image.id} value={image.id || ""}>
+                        {image.alt_text || image.id || image.image_url || "Image"}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
-
-      {message ? <div style={successBoxStyle}>{message}</div> : null}
     </div>
   );
 }
@@ -383,132 +256,83 @@ const cardStyle: React.CSSProperties = {
   border: "1px solid #ddd3c5",
   borderRadius: 24,
   padding: 24,
+  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+};
+
+const errorBoxStyle: React.CSSProperties = {
+  padding: 18,
+  borderRadius: 16,
+  background: "#fff1f1",
+  border: "1px solid #f0c9c9",
+  color: "#8d2f2f",
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 24,
+  padding: 28,
+  color: "#6f6559",
+  fontWeight: 700,
 };
 
 const listStyle: React.CSSProperties = {
   display: "grid",
-  gap: 20,
+  gap: 16,
 };
 
 const variantCardStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 20,
-  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
-};
-
-const variantHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
+  display: "grid",
+  gridTemplateColumns: "1fr 90px 280px",
   gap: 16,
   alignItems: "center",
-  marginBottom: 18,
-  flexWrap: "wrap",
+  border: "1px solid #e8dfd2",
+  borderRadius: 18,
+  padding: 16,
 };
 
 const variantTitleStyle: React.CSSProperties = {
-  fontSize: 22,
   fontWeight: 800,
+  fontSize: 17,
 };
 
 const variantMetaStyle: React.CSSProperties = {
-  marginTop: 8,
+  marginTop: 6,
   color: "#6f6559",
-  fontSize: 14,
+  fontSize: 13,
 };
 
-const selectedImageStyle: React.CSSProperties = {
-  width: 96,
-  height: 96,
+const imagePreviewWrapStyle: React.CSSProperties = {
+  width: 90,
+};
+
+const imagePreviewStyle: React.CSSProperties = {
+  width: 90,
+  height: 90,
   objectFit: "cover",
   borderRadius: 14,
   border: "1px solid #e8dfd2",
-  background: "#f5f5f5",
 };
 
-const selectedImageEmptyStyle: React.CSSProperties = {
-  width: 96,
-  height: 96,
+const emptyImageStyle: React.CSSProperties = {
+  width: 90,
+  height: 90,
   borderRadius: 14,
   border: "1px dashed #d8cdbd",
-  background: "#faf8f4",
-  color: "#8c8174",
-  fontWeight: 700,
-  fontSize: 12,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  textAlign: "center",
+  color: "#8c8174",
+  fontSize: 12,
+  fontWeight: 700,
 };
 
-const imagePickerGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-  gap: 14,
-};
-
-const imageOptionButtonStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 8,
-  padding: 10,
-  borderRadius: 16,
-  border: "1px solid #e8dfd2",
-  background: "#fcfbf8",
-  cursor: "pointer",
-};
-
-const activeImageOptionButtonStyle: React.CSSProperties = {
-  border: "2px solid #2f7d62",
-  background: "#f4fbf7",
-};
-
-const imageOptionImageStyle: React.CSSProperties = {
+const selectStyle: React.CSSProperties = {
   width: "100%",
-  aspectRatio: "1 / 1",
-  objectFit: "cover",
-  borderRadius: 12,
-  background: "#f5f5f5",
-};
-
-const imageOptionMetaStyle: React.CSSProperties = {
-  fontSize: 13,
-  lineHeight: 1.5,
-  color: "#5f564c",
-  fontWeight: 700,
-  wordBreak: "break-word",
-};
-
-const clearButtonStyle: React.CSSProperties = {
-  minHeight: 38,
+  minHeight: 48,
+  borderRadius: 14,
+  border: "1px solid #d9cfbf",
+  background: "#fcfbf8",
   padding: "0 14px",
-  borderRadius: 999,
-  border: "1px solid #e2d6c7",
-  background: "#fff",
-  color: "#5f564c",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const successBoxStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 14,
-  borderRadius: 16,
-  background: "#eef8f0",
-  border: "1px solid #cfe5d4",
-};
-
-const errorBoxStyle: React.CSSProperties = {
-  marginTop: 18,
-  padding: 14,
-  borderRadius: 16,
-  background: "#fff1f1",
-  border: "1px solid #efc9c9",
-  color: "#7a2222",
-};
-
-const emptyStateStyle: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 16,
-  background: "#f8f5ef",
+  fontSize: 14,
 };

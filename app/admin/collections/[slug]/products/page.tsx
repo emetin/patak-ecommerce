@@ -1,7 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
+import { normalizeImageUrl } from "../../../../../lib/image-url";
+
+type ProductItem = {
+  id?: string;
+  title?: string;
+  slug?: string;
+  image?: string;
+  collection_slug?: string;
+  status?: string;
+};
 
 type CollectionProductItem = {
   id?: string;
@@ -17,23 +27,28 @@ type CollectionProductItem = {
 export default function AdminCollectionProductsPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const slug = decodeURIComponent(params.slug);
+  const { slug: rawSlug } = use(params);
+  const slug = decodeURIComponent(rawSlug).trim().toLowerCase();
 
-  const [items, setItems] = useState<CollectionProductItem[]>([]);
+  const [links, setLinks] = useState<CollectionProductItem[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [productSlug, setProductSlug] = useState("");
-  const [sortOrder, setSortOrder] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedProductSlugs, setSelectedProductSlugs] = useState<string[]>([]);
+
+  const [sortOrderStart, setSortOrderStart] = useState("1");
   const [featured, setFeatured] = useState("false");
   const [status, setStatus] = useState("published");
 
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
-
   const [deleteLoadingId, setDeleteLoadingId] = useState("");
 
   async function loadLinks() {
@@ -52,7 +67,7 @@ export default function AdminCollectionProductsPage({
         throw new Error(data?.error || "Failed to load collection products.");
       }
 
-      setItems(data.items || []);
+      setLinks(Array.isArray(data.items) ? data.items : []);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -62,43 +77,163 @@ export default function AdminCollectionProductsPage({
     }
   }
 
+  async function loadProducts() {
+    try {
+      setProductsLoading(true);
+
+      const response = await fetch("/api/products/list?limit=200", {
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data?.error || "Failed to load products.");
+      }
+
+      setProducts(Array.isArray(data.items) ? data.items : []);
+    } catch {
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadLinks();
+    loadProducts();
   }, [slug]);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  const linkedSlugSet = useMemo(() => {
+    return new Set(
+      links
+        .map((item) => String(item.product_slug || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }, [links]);
+
+  const availableProducts = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const productSlug = String(product.slug || "").trim().toLowerCase();
+      const title = String(product.title || "").trim().toLowerCase();
+
+      if (!productSlug) return false;
+      if (linkedSlugSet.has(productSlug)) return false;
+
+      if (!normalizedSearch) return true;
+
+      return title.includes(normalizedSearch) || productSlug.includes(normalizedSearch);
+    });
+  }, [products, linkedSlugSet, search]);
+
+  const linkedProducts = useMemo(() => {
+    return links.map((link) => {
+      const product =
+        products.find(
+          (item) =>
+            String(item.slug || "").trim().toLowerCase() ===
+            String(link.product_slug || "").trim().toLowerCase()
+        ) || null;
+
+      return { link, product };
+    });
+  }, [links, products]);
+
+  const selectedSlugSet = useMemo(() => {
+    return new Set(selectedProductSlugs);
+  }, [selectedProductSlugs]);
+
+  const selectedProducts = useMemo(() => {
+    return availableProducts.filter((product) =>
+      selectedSlugSet.has(String(product.slug || ""))
+    );
+  }, [availableProducts, selectedSlugSet]);
+
+  function toggleProduct(slugValue?: string) {
+    const safeSlug = String(slugValue || "").trim();
+
+    if (!safeSlug) return;
+
+    setSelectedProductSlugs((prev) => {
+      if (prev.includes(safeSlug)) {
+        return prev.filter((item) => item !== safeSlug);
+      }
+
+      return [...prev, safeSlug];
+    });
+  }
+
+  function selectAllVisible() {
+    const visibleSlugs = availableProducts
+      .map((product) => String(product.slug || "").trim())
+      .filter(Boolean);
+
+    setSelectedProductSlugs((prev) => {
+      const next = new Set(prev);
+
+      for (const item of visibleSlugs) {
+        next.add(item);
+      }
+
+      return Array.from(next);
+    });
+  }
+
+  function clearSelection() {
+    setSelectedProductSlugs([]);
+  }
+
+  async function handleBulkSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (selectedProductSlugs.length === 0) {
+      setSaveError("Please select at least one product.");
+      return;
+    }
 
     setSaving(true);
     setSaveMessage("");
     setSaveError("");
 
     try {
-      const response = await fetch("/api/collection-products/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          collection_slug: slug,
-          product_slug: productSlug,
-          sort_order: sortOrder,
-          featured,
-          status,
-        }),
-      });
+      const baseSort = Number(sortOrderStart || "1");
+      const safeBaseSort = Number.isFinite(baseSort) ? baseSort : 1;
 
-      const data = await response.json();
+      let addedCount = 0;
 
-      if (!response.ok || !data.ok) {
-        throw new Error(data?.error || "Failed to link product.");
+      for (let index = 0; index < selectedProductSlugs.length; index += 1) {
+        const productSlug = selectedProductSlugs[index];
+
+        const response = await fetch("/api/collection-products/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            collection_slug: slug,
+            product_slug: productSlug,
+            sort_order: String(safeBaseSort + index),
+            featured,
+            status,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+          throw new Error(
+            data?.error || `Failed to link product: ${productSlug}`
+          );
+        }
+
+        addedCount += 1;
       }
 
-      setSaveMessage("Product linked to collection successfully.");
-      setProductSlug("");
-      setSortOrder("");
-      setFeatured("false");
-      setStatus("published");
+      setSaveMessage(`${addedCount} product(s) linked to collection successfully.`);
+      setSelectedProductSlugs([]);
+      setSearch("");
 
       await loadLinks();
     } catch (error) {
@@ -138,9 +273,7 @@ export default function AdminCollectionProductsPage({
 
       await loadLinks();
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "An unknown error occurred."
-      );
+      alert(error instanceof Error ? error.message : "An unknown error occurred.");
     } finally {
       setDeleteLoadingId("");
     }
@@ -153,40 +286,54 @@ export default function AdminCollectionProductsPage({
           <Link href={`/admin/collections/${slug}`} style={backLinkStyle}>
             ← Back to Collection
           </Link>
+
           <h1 style={titleStyle}>Collection Products</h1>
+
           <p style={subtitleStyle}>
-            Manage product assignments for this collection.
+            Select multiple products and assign them to this collection in one step.
           </p>
+        </div>
+
+        <div style={headerActionsStyle}>
+          <Link href="/admin/collections" style={secondaryButtonStyle}>
+            All Collections
+          </Link>
+
+          <Link href={`/collections/${slug}`} style={primaryButtonStyle}>
+            View Collection
+          </Link>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "0.95fr 1.05fr",
-          gap: 24,
-        }}
-      >
-        <form onSubmit={handleSubmit} style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Add Product Link</h2>
+      <div style={summaryGridStyle}>
+        <SummaryCard label="Collection" value={slug} />
+        <SummaryCard label="Linked Products" value={String(links.length)} />
+        <SummaryCard
+          label="Selected Products"
+          value={String(selectedProductSlugs.length)}
+        />
+      </div>
+
+      <div style={mainGridStyle}>
+        <form onSubmit={handleBulkSubmit} style={cardStyle}>
+          <h2 style={sectionTitleStyle}>Bulk Add Products</h2>
 
           <div style={formGridStyle}>
             <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Product Slug</label>
+              <label style={labelStyle}>Search Product</label>
               <input
-                value={productSlug}
-                onChange={(e) => setProductSlug(e.target.value)}
-                placeholder="luxury-hotel-towel-set"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by product title or slug"
                 style={inputStyle}
-                required
               />
             </div>
 
             <div>
-              <label style={labelStyle}>Sort Order</label>
+              <label style={labelStyle}>Start Sort Order</label>
               <input
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
+                value={sortOrderStart}
+                onChange={(e) => setSortOrderStart(e.target.value)}
                 placeholder="1"
                 style={inputStyle}
               />
@@ -218,50 +365,162 @@ export default function AdminCollectionProductsPage({
             </div>
           </div>
 
-          <div style={buttonRowStyle}>
-            <button type="submit" style={primaryButtonStyle} disabled={saving}>
-              {saving ? "Saving..." : "Add Product"}
+          <div style={bulkActionRowStyle}>
+            <button
+              type="button"
+              onClick={selectAllVisible}
+              style={secondarySmallButtonStyle}
+              disabled={availableProducts.length === 0}
+            >
+              Select All Visible
+            </button>
+
+            <button
+              type="button"
+              onClick={clearSelection}
+              style={secondarySmallButtonStyle}
+              disabled={selectedProductSlugs.length === 0}
+            >
+              Clear Selection
+            </button>
+
+            <button
+              type="submit"
+              style={primaryButtonStyle}
+              disabled={saving || selectedProductSlugs.length === 0}
+            >
+              {saving
+                ? "Adding..."
+                : `Add Selected Products (${selectedProductSlugs.length})`}
             </button>
           </div>
+
+          {selectedProducts.length > 0 ? (
+            <div style={selectedInfoBoxStyle}>
+              <strong>Selected:</strong>{" "}
+              {selectedProducts.map((item) => item.title || item.slug).join(", ")}
+            </div>
+          ) : null}
+
+          {productsLoading ? (
+            <div style={emptyStateStyle}>Loading products...</div>
+          ) : availableProducts.length > 0 ? (
+            <div style={productResultListStyle}>
+              {availableProducts.map((product) => {
+                const safeSlug = String(product.slug || "").trim();
+                const isSelected = selectedSlugSet.has(safeSlug);
+
+                return (
+                  <button
+                    key={safeSlug}
+                    type="button"
+                    onClick={() => toggleProduct(safeSlug)}
+                    style={{
+                      ...productResultItemStyle,
+                      ...(isSelected ? productResultItemActiveStyle : {}),
+                    }}
+                  >
+                    <div style={checkboxStyle}>
+                      {isSelected ? "✓" : ""}
+                    </div>
+
+                    <div style={productResultImageWrapStyle}>
+                      {product.image ? (
+                        <img
+                          src={normalizeImageUrl(product.image)}
+                          alt={product.title || "Product"}
+                          style={productResultImageStyle}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div style={productResultEmptyImageStyle}>No Image</div>
+                      )}
+                    </div>
+
+                    <div style={{ textAlign: "left", minWidth: 0 }}>
+                      <div style={productResultTitleStyle}>
+                        {product.title || product.slug}
+                      </div>
+                      <div style={productResultSlugStyle}>{product.slug}</div>
+                      <div style={productResultSlugStyle}>
+                        Current collection: {product.collection_slug || "-"}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>
+              No available products found for this search.
+            </div>
+          )}
 
           {saveMessage ? <div style={successBoxStyle}>{saveMessage}</div> : null}
           {saveError ? <div style={errorBoxStyle}>{saveError}</div> : null}
         </form>
 
         <div style={cardStyle}>
-          <h2 style={sectionTitleStyle}>Existing Links</h2>
+          <h2 style={sectionTitleStyle}>Assigned Products</h2>
 
           {loading ? (
-            <div>Loading...</div>
+            <div style={emptyStateStyle}>Loading...</div>
           ) : errorMessage ? (
             <div style={errorBoxStyle}>{errorMessage}</div>
-          ) : items.length === 0 ? (
-            <div style={emptyStateStyle}>No collection product links yet.</div>
+          ) : linkedProducts.length === 0 ? (
+            <div style={emptyStateStyle}>No products assigned yet.</div>
           ) : (
             <div style={listStyle}>
-              {items.map((item, index) => (
-                <div key={item.id || index} style={listCardStyle}>
-                  <div>
-                    <strong>Product:</strong> {item.product_slug || "-"}
-                  </div>
-                  <div>
-                    <strong>Sort:</strong> {item.sort_order || "-"}
-                  </div>
-                  <div>
-                    <strong>Featured:</strong> {item.featured || "-"}
-                  </div>
-                  <div>
-                    <strong>Status:</strong> {item.status || "-"}
+              {linkedProducts.map(({ link, product }, index) => (
+                <div key={link.id || index} style={listCardStyle}>
+                  <div style={linkedProductRowStyle}>
+                    <div style={linkedImageWrapStyle}>
+                      {product?.image ? (
+                        <img
+                          src={normalizeImageUrl(product.image)}
+                          alt={product.title || "Product"}
+                          style={linkedImageStyle}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div style={linkedEmptyImageStyle}>No Image</div>
+                      )}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={linkedTitleStyle}>
+                        {product?.title || link.product_slug || "-"}
+                      </div>
+
+                      <div style={mutedTextStyle}>
+                        Slug: {link.product_slug || "-"}
+                      </div>
+
+                      <div style={linkedMetaStyle}>
+                        <span>Sort: {link.sort_order || "-"}</span>
+                        <span>Featured: {link.featured || "-"}</span>
+                        <span>Status: {link.status || "-"}</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div style={{ marginTop: 10 }}>
+                  <div style={linkedActionsStyle}>
+                    {link.product_slug ? (
+                      <Link
+                        href={`/admin/products/${link.product_slug}`}
+                        style={secondarySmallButtonStyle}
+                      >
+                        Edit Product
+                      </Link>
+                    ) : null}
+
                     <button
                       type="button"
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => handleDelete(link.id)}
                       style={dangerSmallButtonStyle}
-                      disabled={deleteLoadingId === item.id}
+                      disabled={deleteLoadingId === link.id}
                     >
-                      {deleteLoadingId === item.id ? "Deleting..." : "Delete"}
+                      {deleteLoadingId === link.id ? "Deleting..." : "Remove"}
                     </button>
                   </div>
                 </div>
@@ -274,11 +533,26 @@ export default function AdminCollectionProductsPage({
   );
 }
 
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={summaryCardStyle}>
+      <div style={summaryLabelStyle}>{label}</div>
+      <div style={summaryValueStyle}>{value}</div>
+    </div>
+  );
+}
+
 const pageHeaderStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "flex-start",
   gap: 20,
+  flexWrap: "wrap",
+};
+
+const headerActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
   flexWrap: "wrap",
 };
 
@@ -301,6 +575,39 @@ const subtitleStyle: React.CSSProperties = {
   margin: 0,
   color: "#6f6559",
   fontSize: 16,
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 16,
+};
+
+const summaryCardStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 20,
+  padding: 18,
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: "#7c7267",
+  fontWeight: 800,
+  marginBottom: 8,
+};
+
+const summaryValueStyle: React.CSSProperties = {
+  fontSize: 22,
+  fontWeight: 900,
+  wordBreak: "break-word",
+};
+
+const mainGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "0.95fr 1.05fr",
+  gap: 24,
+  alignItems: "start",
 };
 
 const cardStyle: React.CSSProperties = {
@@ -341,11 +648,103 @@ const inputStyle: React.CSSProperties = {
   fontSize: 15,
 };
 
-const buttonRowStyle: React.CSSProperties = {
+const bulkActionRowStyle: React.CSSProperties = {
   display: "flex",
-  gap: 12,
-  marginTop: 24,
+  gap: 10,
   flexWrap: "wrap",
+  marginTop: 22,
+  marginBottom: 14,
+};
+
+const selectedInfoBoxStyle: React.CSSProperties = {
+  padding: 14,
+  borderRadius: 16,
+  background: "#eef8f0",
+  border: "1px solid #cfe5d4",
+  marginBottom: 14,
+  color: "#1d6a43",
+  lineHeight: 1.6,
+};
+
+const productResultListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  marginTop: 12,
+  maxHeight: 480,
+  overflowY: "auto",
+};
+
+const productResultItemStyle: React.CSSProperties = {
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: "32px 58px 1fr",
+  gap: 12,
+  alignItems: "center",
+  padding: 10,
+  borderRadius: 16,
+  border: "1px solid #e5dccf",
+  background: "#fff",
+  cursor: "pointer",
+};
+
+const productResultItemActiveStyle: React.CSSProperties = {
+  border: "2px solid #2f7d62",
+  background: "#eef8f0",
+};
+
+const checkboxStyle: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  borderRadius: 8,
+  border: "1px solid #2f7d62",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#2f7d62",
+  fontWeight: 900,
+  background: "#fff",
+};
+
+const productResultImageWrapStyle: React.CSSProperties = {
+  width: 58,
+  height: 58,
+  borderRadius: 12,
+  overflow: "hidden",
+  background: "#f8f5ef",
+  border: "1px solid #e5dccf",
+};
+
+const productResultImageStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const productResultEmptyImageStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 10,
+  color: "#8c8174",
+};
+
+const productResultTitleStyle: React.CSSProperties = {
+  fontWeight: 900,
+  color: "#171717",
+};
+
+const productResultSlugStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  color: "#6f6559",
+};
+
+const mutedTextStyle: React.CSSProperties = {
+  color: "#6f6559",
+  fontSize: 13,
+  marginTop: 5,
 };
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -360,6 +759,38 @@ const primaryButtonStyle: React.CSSProperties = {
   color: "#fff",
   fontWeight: 800,
   cursor: "pointer",
+  textDecoration: "none",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 800,
+  cursor: "pointer",
+  textDecoration: "none",
+};
+
+const secondarySmallButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  color: "#171717",
+  fontWeight: 700,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 14,
 };
 
 const dangerSmallButtonStyle: React.CSSProperties = {
@@ -395,6 +826,7 @@ const errorBoxStyle: React.CSSProperties = {
 };
 
 const emptyStateStyle: React.CSSProperties = {
+  marginTop: 12,
   padding: 18,
   borderRadius: 16,
   background: "#f8f5ef",
@@ -407,8 +839,61 @@ const listStyle: React.CSSProperties = {
 
 const listCardStyle: React.CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 14,
   border: "1px solid #e8dfd2",
   borderRadius: 18,
   padding: 14,
+};
+
+const linkedProductRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "82px 1fr",
+  gap: 14,
+  alignItems: "start",
+};
+
+const linkedImageWrapStyle: React.CSSProperties = {
+  width: 82,
+  height: 82,
+  borderRadius: 14,
+  overflow: "hidden",
+  border: "1px solid #e5dccf",
+  background: "#f8f5ef",
+};
+
+const linkedImageStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const linkedEmptyImageStyle: React.CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#8c8174",
+  fontSize: 12,
+  textAlign: "center",
+};
+
+const linkedTitleStyle: React.CSSProperties = {
+  fontWeight: 900,
+  fontSize: 16,
+};
+
+const linkedMetaStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginTop: 10,
+  color: "#5f564c",
+  fontSize: 13,
+};
+
+const linkedActionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
 };

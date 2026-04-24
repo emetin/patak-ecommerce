@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { ADMIN_COOKIE_NAME, isAuthenticatedAdmin } from "./lib/admin-auth";
+import { ADMIN_COOKIE_NAME } from "./lib/admin-auth";
+
+function isAuthDisabled() {
+  return process.env.ADMIN_AUTH_DISABLED === "true";
+}
 
 function isProtectedApiRoute(pathname: string) {
   return (
-    pathname.startsWith("/api/products") ||
-    pathname.startsWith("/api/blog") ||
-    pathname.startsWith("/api/collections")
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/api/products/") ||
+    pathname.startsWith("/api/variants/") ||
+    pathname.startsWith("/api/product-images/") ||
+    pathname.startsWith("/api/blog/") ||
+    pathname.startsWith("/api/collections/")
   );
 }
 
@@ -19,7 +26,11 @@ function isAllowedAdminAuthRoute(pathname: string) {
   );
 }
 
-export async function proxy(request: NextRequest) {
+function hasAdminCookie(request: NextRequest) {
+  return Boolean(request.cookies.get(ADMIN_COOKIE_NAME)?.value);
+}
+
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAdminRoute = pathname.startsWith("/admin");
@@ -31,25 +42,32 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isAdminAuthRoute && isAllowedAdminAuthRoute(pathname)) {
-    return NextResponse.next();
-  }
-
-  const authCookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
-  const isLoggedIn = await isAuthenticatedAdmin(authCookie);
-
-  if (isPortalRoute) {
-    if (isLoggedIn) {
+  if (isAuthDisabled()) {
+    if (isPortalRoute) {
       return NextResponse.redirect(new URL("/admin/products", request.url));
     }
 
     return NextResponse.next();
   }
 
-  if (!isLoggedIn) {
+  if (isAdminAuthRoute && isAllowedAdminAuthRoute(pathname)) {
+    return NextResponse.next();
+  }
+
+  const loggedIn = hasAdminCookie(request);
+
+  if (isPortalRoute) {
+    if (loggedIn) {
+      return NextResponse.redirect(new URL("/admin/products", request.url));
+    }
+
+    return NextResponse.next();
+  }
+
+  if (!loggedIn) {
     if (protectedApiRoute) {
       return NextResponse.json(
-        { ok: false, error: "Yetkisiz erişim." },
+        { ok: false, error: "Unauthorized access." },
         { status: 401 }
       );
     }
@@ -65,7 +83,10 @@ export const config = {
     "/admin/:path*",
     "/portal-ptx-admin",
     "/api/admin-auth/:path*",
+    "/api/admin/:path*",
     "/api/products/:path*",
+    "/api/variants/:path*",
+    "/api/product-images/:path*",
     "/api/blog/:path*",
     "/api/collections/:path*",
   ],

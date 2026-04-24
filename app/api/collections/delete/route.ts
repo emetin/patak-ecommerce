@@ -12,10 +12,6 @@ function normalizeSlug(value: unknown) {
   return String(value || "").trim().toLowerCase();
 }
 
-function normalizeText(value: unknown) {
-  return String(value || "").trim();
-}
-
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -47,6 +43,8 @@ export async function POST(req: Request) {
       (product) => normalizeSlug(product.collection_slug) === slug
     );
 
+    const updatedAt = new Date().toISOString();
+
     for (const product of affectedProducts) {
       const productSlug = normalizeSlug(product.slug);
 
@@ -57,7 +55,7 @@ export async function POST(req: Request) {
       const updatedProduct: ProductRecord = {
         ...product,
         collection_slug: "",
-        updated_at: new Date().toISOString(),
+        updated_at: updatedAt,
       };
 
       const rowValues = headers.map((header) => updatedProduct[header] || "");

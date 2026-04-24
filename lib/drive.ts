@@ -1,8 +1,10 @@
 import { google } from "googleapis";
+import { Readable } from "stream";
 
 const CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-const PRODUCT_IMAGE_FOLDER_ID = process.env.GOOGLE_DRIVE_PRODUCT_IMAGE_FOLDER_ID;
+const RAW_PRODUCT_IMAGE_FOLDER_ID =
+  process.env.GOOGLE_DRIVE_PRODUCT_IMAGE_FOLDER_ID;
 
 if (!CLIENT_EMAIL) {
   throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL.");
@@ -12,17 +14,17 @@ if (!PRIVATE_KEY) {
   throw new Error("Missing GOOGLE_PRIVATE_KEY.");
 }
 
-if (!PRODUCT_IMAGE_FOLDER_ID) {
+if (!RAW_PRODUCT_IMAGE_FOLDER_ID) {
   throw new Error("Missing GOOGLE_DRIVE_PRODUCT_IMAGE_FOLDER_ID.");
 }
+
+const PRODUCT_IMAGE_FOLDER_ID: string = RAW_PRODUCT_IMAGE_FOLDER_ID;
 
 function getDriveAuth() {
   return new google.auth.JWT({
     email: CLIENT_EMAIL,
     key: PRIVATE_KEY,
-    scopes: [
-      "https://www.googleapis.com/auth/drive",
-    ],
+    scopes: ["https://www.googleapis.com/auth/drive"],
   });
 }
 
@@ -42,6 +44,13 @@ function sanitizeFileName(fileName: string) {
     .replace(/-+/g, "-");
 }
 
+function bufferToReadable(buffer: Buffer) {
+  const stream = new Readable();
+  stream.push(buffer);
+  stream.push(null);
+  return stream;
+}
+
 export async function uploadProductImageToDrive(file: File) {
   const drive = getDriveClient();
 
@@ -55,11 +64,11 @@ export async function uploadProductImageToDrive(file: File) {
   const createdFile = await drive.files.create({
     requestBody: {
       name: finalFileName,
-      parents: [PRODUCT_IMAGE_FOLDER_ID!],
+      parents: [PRODUCT_IMAGE_FOLDER_ID],
     },
     media: {
-      mimeType: file.type,
-      body: buffer as any,
+      mimeType: file.type || "application/octet-stream",
+      body: bufferToReadable(buffer),
     },
     fields: "id,name,webViewLink,webContentLink",
   });

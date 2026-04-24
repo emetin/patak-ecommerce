@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeImageUrl } from "../../../../../lib/image-url";
 
 type ProductImageItem = {
@@ -24,10 +24,6 @@ type UploadQueueItem = {
 };
 
 const MAX_BULK_UPLOAD = 10;
-
-function normalizeText(value: unknown) {
-  return String(value || "").trim();
-}
 
 function isTrue(value?: string) {
   return String(value || "").trim().toLowerCase() === "true";
@@ -64,7 +60,7 @@ export default function AdminProductImagesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug: rawSlug } = use(params);
-  const slug = decodeURIComponent(rawSlug);
+  const slug = decodeURIComponent(rawSlug).trim().toLowerCase();
 
   const [items, setItems] = useState<ProductImageItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +84,7 @@ export default function AdminProductImagesPage({
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
   const dragIndexRef = useRef<number | null>(null);
 
-  async function loadImages() {
+  const loadImages = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage("");
@@ -104,7 +100,7 @@ export default function AdminProductImagesPage({
         throw new Error(data?.error || "Failed to load product images.");
       }
 
-      setItems(sortImages(data.items || []));
+      setItems(sortImages(Array.isArray(data.items) ? data.items : []));
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -112,11 +108,11 @@ export default function AdminProductImagesPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [slug]);
 
   useEffect(() => {
     loadImages();
-  }, [slug]);
+  }, [loadImages]);
 
   const hasPendingReorder = useMemo(() => {
     return items.some(
@@ -139,7 +135,7 @@ export default function AdminProductImagesPage({
     setImageUrl(String(item.image_url || ""));
     setSortOrder(String(item.sort_order || ""));
     setAltText(String(item.alt_text || ""));
-    setIsMain(String(item.is_main || "").trim().toLowerCase() === "true");
+    setIsMain(isTrue(item.is_main));
     setSaveError("");
     setSaveMessage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -165,7 +161,7 @@ export default function AdminProductImagesPage({
         throw new Error(data?.error || "Upload failed.");
       }
 
-      setImageUrl(data.url || "");
+      setImageUrl(String(data.url || ""));
       setSaveMessage("Image uploaded successfully. Save it to continue.");
     } catch (error) {
       setSaveError(
@@ -222,6 +218,7 @@ export default function AdminProductImagesPage({
       if (target?.preview) {
         URL.revokeObjectURL(target.preview);
       }
+
       return prev.filter((item) => item.localId !== localId);
     });
   }
@@ -295,8 +292,8 @@ export default function AdminProductImagesPage({
     }
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
     setSaving(true);
     setSaveMessage("");
@@ -389,9 +386,7 @@ export default function AdminProductImagesPage({
 
       await loadImages();
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "An unknown error occurred."
-      );
+      alert(error instanceof Error ? error.message : "An unknown error occurred.");
     } finally {
       setDeleteLoadingId("");
     }
@@ -505,19 +500,13 @@ export default function AdminProductImagesPage({
           </Link>
           <h1 style={titleStyle}>Product Images</h1>
           <p style={subtitleStyle}>
-            Manage gallery images, choose the main image, bulk upload files,
-            and reorder the gallery with drag & drop or quick controls.
+            Manage gallery images, choose the main image, bulk upload files, and
+            reorder the gallery.
           </p>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "0.95fr 1.05fr",
-          gap: 24,
-        }}
-      >
+      <div style={topGridStyle}>
         <form onSubmit={handleSubmit} style={cardStyle}>
           <div style={formHeaderRowStyle}>
             <h2 style={sectionTitleStyle}>
@@ -525,11 +514,7 @@ export default function AdminProductImagesPage({
             </h2>
 
             {editingId ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                style={secondaryButtonStyle}
-              >
+              <button type="button" onClick={resetForm} style={secondaryButtonStyle}>
                 Cancel Edit
               </button>
             ) : null}
@@ -537,7 +522,7 @@ export default function AdminProductImagesPage({
 
           <div style={noticeBoxStyle}>
             The image marked as <strong>Main Image</strong> becomes the product’s
-            primary display image across listing and detail pages.
+            primary display image.
           </div>
 
           <div style={formGridStyle}>
@@ -546,8 +531,8 @@ export default function AdminProductImagesPage({
               <input
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
                   if (file) {
                     handleFileUpload(file);
                   }
@@ -563,7 +548,7 @@ export default function AdminProductImagesPage({
               <label style={labelStyle}>Image URL</label>
               <input
                 value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
+                onChange={(event) => setImageUrl(event.target.value)}
                 placeholder="https://..."
                 style={inputStyle}
                 required
@@ -574,7 +559,7 @@ export default function AdminProductImagesPage({
               <label style={labelStyle}>Sort Order</label>
               <input
                 value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
+                onChange={(event) => setSortOrder(event.target.value)}
                 placeholder="1"
                 style={inputStyle}
               />
@@ -584,7 +569,7 @@ export default function AdminProductImagesPage({
               <label style={labelStyle}>Alt Text</label>
               <input
                 value={altText}
-                onChange={(e) => setAltText(e.target.value)}
+                onChange={(event) => setAltText(event.target.value)}
                 placeholder="Luxury towel detail"
                 style={inputStyle}
               />
@@ -595,7 +580,7 @@ export default function AdminProductImagesPage({
                 <input
                   type="checkbox"
                   checked={isMain}
-                  onChange={(e) => setIsMain(e.target.checked)}
+                  onChange={(event) => setIsMain(event.target.checked)}
                 />
                 <span>Set as main image</span>
               </label>
@@ -634,32 +619,24 @@ export default function AdminProductImagesPage({
         <div style={cardStyle}>
           <h2 style={sectionTitleStyle}>Bulk Upload</h2>
           <div style={noticeBoxStyle}>
-            Select up to 10 images, add alt text, and upload all in one step.
+            Select up to {MAX_BULK_UPLOAD} images, add alt text, and upload all
+            in one step.
           </div>
 
-          <div>
-            <label style={labelStyle}>
-              Upload Multiple Images (max {MAX_BULK_UPLOAD})
-            </label>
+          <label style={labelStyle}>
+            Upload Multiple Images
             <input
               type="file"
               accept="image/*"
               multiple
-              onChange={(e) => handleQueueFiles(e.target.files)}
-              style={inputStyle}
+              onChange={(event) => handleQueueFiles(event.target.files)}
+              style={{ ...inputStyle, marginTop: 8 }}
             />
-          </div>
+          </label>
 
           {queue.length > 0 ? (
             <>
-              <div
-                style={{
-                  marginTop: 12,
-                  fontSize: 13,
-                  color: "#6f6559",
-                  fontWeight: 700,
-                }}
-              >
+              <div style={queueMetaStyle}>
                 {queue.length} / {MAX_BULK_UPLOAD} images ready
               </div>
 
@@ -679,9 +656,9 @@ export default function AdminProductImagesPage({
 
                       <input
                         value={item.alt_text}
-                        onChange={(e) =>
+                        onChange={(event) =>
                           updateQueueItem(item.localId, {
-                            alt_text: e.target.value,
+                            alt_text: event.target.value,
                           })
                         }
                         placeholder="Alt text"
@@ -692,9 +669,9 @@ export default function AdminProductImagesPage({
                         <input
                           type="checkbox"
                           checked={item.is_main}
-                          onChange={(e) =>
+                          onChange={(event) =>
                             updateQueueItem(item.localId, {
-                              is_main: e.target.checked,
+                              is_main: event.target.checked,
                             })
                           }
                         />
@@ -735,7 +712,7 @@ export default function AdminProductImagesPage({
           <div>
             <h2 style={sectionTitleStyle}>Existing Images</h2>
             <p style={subtitleStyle}>
-              Drag images to reorder them or use the small up/down buttons.
+              Drag images to reorder them or use the up and down buttons.
             </p>
           </div>
 
@@ -758,8 +735,7 @@ export default function AdminProductImagesPage({
         ) : (
           <div style={listStyle}>
             {items.map((item, index) => {
-              const itemIsMain =
-                String(item.is_main || "").trim().toLowerCase() === "true";
+              const itemIsMain = isTrue(item.is_main);
 
               return (
                 <div
@@ -767,7 +743,7 @@ export default function AdminProductImagesPage({
                   style={listCardStyle}
                   draggable
                   onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => e.preventDefault()}
+                  onDragOver={(event) => event.preventDefault()}
                   onDrop={() => handleDrop(index)}
                 >
                   <img
@@ -816,14 +792,7 @@ export default function AdminProductImagesPage({
                       </button>
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: 10,
-                        display: "flex",
-                        gap: 10,
-                        flexWrap: "wrap",
-                      }}
-                    >
+                    <div style={actionRowStyle}>
                       {!itemIsMain ? (
                         <button
                           type="button"
@@ -865,7 +834,8 @@ export default function AdminProductImagesPage({
       <div style={cardStyle}>
         <h2 style={sectionTitleStyle}>Variant Image Binding</h2>
         <div style={noticeBoxStyle}>
-          Open the variant image screen to connect gallery images with product variants.
+          Open the variant image screen to connect gallery images with product
+          variants.
         </div>
 
         <div style={buttonRowStyle}>
@@ -908,6 +878,12 @@ const subtitleStyle: React.CSSProperties = {
   margin: 0,
   color: "#6f6559",
   fontSize: 16,
+};
+
+const topGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "0.95fr 1.05fr",
+  gap: 24,
 };
 
 const cardStyle: React.CSSProperties = {
@@ -1011,6 +987,13 @@ const previewImageStyle: React.CSSProperties = {
   background: "#f5f5f5",
 };
 
+const queueMetaStyle: React.CSSProperties = {
+  marginTop: 12,
+  fontSize: 13,
+  color: "#6f6559",
+  fontWeight: 700,
+};
+
 const queueGridStyle: React.CSSProperties = {
   display: "grid",
   gap: 14,
@@ -1077,14 +1060,15 @@ const secondaryButtonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 42,
-  padding: "0 16px",
-  borderRadius: 12,
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 14,
   border: "1px solid #d9cfbf",
   background: "#fff",
   color: "#171717",
   fontWeight: 800,
   cursor: "pointer",
+  textDecoration: "none",
 };
 
 const primarySmallButtonStyle: React.CSSProperties = {
@@ -1099,6 +1083,7 @@ const primarySmallButtonStyle: React.CSSProperties = {
   color: "#fff",
   fontWeight: 700,
   cursor: "pointer",
+  textDecoration: "none",
   fontSize: 14,
 };
 
@@ -1114,22 +1099,7 @@ const editSmallButtonStyle: React.CSSProperties = {
   color: "#171717",
   fontWeight: 700,
   cursor: "pointer",
-  fontSize: 14,
-};
-
-const iconSmallButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 38,
-  minWidth: 38,
-  height: 38,
-  borderRadius: 12,
-  border: "1px solid #d9cfbf",
-  background: "#fff",
-  color: "#171717",
-  fontWeight: 800,
-  cursor: "pointer",
+  textDecoration: "none",
   fontSize: 14,
 };
 
@@ -1145,30 +1115,37 @@ const dangerSmallButtonStyle: React.CSSProperties = {
   color: "#8f2d2d",
   fontWeight: 700,
   cursor: "pointer",
+  textDecoration: "none",
   fontSize: 14,
 };
 
-const successBoxStyle: React.CSSProperties = {
+const emptyStateStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 18,
+  padding: 18,
+  color: "#6f6559",
+  fontWeight: 700,
   marginTop: 18,
-  padding: 14,
-  borderRadius: 16,
-  background: "#eef8f0",
-  border: "1px solid #cfe5d4",
 };
 
 const errorBoxStyle: React.CSSProperties = {
   marginTop: 18,
-  padding: 14,
-  borderRadius: 16,
-  background: "#fff1f1",
-  border: "1px solid #efc9c9",
-  color: "#7a2222",
-};
-
-const emptyStateStyle: React.CSSProperties = {
   padding: 18,
   borderRadius: 16,
-  background: "#f8f5ef",
+  background: "#fff1f1",
+  border: "1px solid #f0c9c9",
+  color: "#8d2f2f",
+};
+
+const successBoxStyle: React.CSSProperties = {
+  marginTop: 18,
+  padding: 18,
+  borderRadius: 16,
+  background: "#edf8f1",
+  border: "1px solid #cfe7d8",
+  color: "#1d6a43",
+  fontWeight: 700,
 };
 
 const listStyle: React.CSSProperties = {
@@ -1178,36 +1155,37 @@ const listStyle: React.CSSProperties = {
 
 const listCardStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "140px 1fr",
-  gap: 16,
+  gridTemplateColumns: "150px 1fr",
+  gap: 18,
   border: "1px solid #e8dfd2",
   borderRadius: 18,
   padding: 14,
+  background: "#fff",
 };
 
 const imageStyle: React.CSSProperties = {
   width: "100%",
   aspectRatio: "1 / 1",
   objectFit: "cover",
-  borderRadius: 12,
+  borderRadius: 14,
+  border: "1px solid #e8dfd2",
   background: "#f5f5f5",
 };
 
 const metaRowStyle: React.CSSProperties = {
+  color: "#5f564c",
   fontSize: 14,
-  color: "#2a2a2a",
 };
 
 const mainBadgeStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  justifyContent: "center",
   minHeight: 28,
   padding: "0 10px",
   borderRadius: 999,
-  background: "#eef8f0",
-  color: "#1f6a45",
-  border: "1px solid #cfe5d4",
+  background: "#edf8f1",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
   fontWeight: 800,
   fontSize: 12,
 };
@@ -1215,11 +1193,10 @@ const mainBadgeStyle: React.CSSProperties = {
 const subtleBadgeStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  justifyContent: "center",
   minHeight: 28,
   padding: "0 10px",
   borderRadius: 999,
-  background: "#f5f3ef",
+  background: "#f8f5ef",
   color: "#6f6559",
   border: "1px solid #e3dbcf",
   fontWeight: 800,
@@ -1227,14 +1204,33 @@ const subtleBadgeStyle: React.CSSProperties = {
 };
 
 const urlStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#6f6559",
+  fontSize: 12,
+  color: "#7d7266",
   wordBreak: "break-all",
+  background: "#f8f5ef",
+  padding: 10,
+  borderRadius: 12,
 };
 
 const miniReorderWrapStyle: React.CSSProperties = {
   display: "flex",
   gap: 8,
-  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+const iconSmallButtonStyle: React.CSSProperties = {
+  minWidth: 38,
+  minHeight: 34,
+  borderRadius: 10,
+  border: "1px solid #d9cfbf",
+  background: "#fff",
+  cursor: "pointer",
+  fontWeight: 800,
+};
+
+const actionRowStyle: React.CSSProperties = {
+  marginTop: 10,
+  display: "flex",
+  gap: 10,
   flexWrap: "wrap",
 };

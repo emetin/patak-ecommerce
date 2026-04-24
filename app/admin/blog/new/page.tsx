@@ -20,20 +20,43 @@ function makeSlug(text: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function toDatetimeLocalValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 export default function NewBlogPage() {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [excerpt, setExcerpt] = useState("");
   const [content, setContent] = useState("");
   const [image, setImage] = useState("");
+  const [author, setAuthor] = useState("Patak Textile");
   const [status, setStatus] = useState("draft");
   const [featured, setFeatured] = useState("false");
+  const [publishedAt, setPublishedAt] = useState("");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [resultMessage, setResultMessage] = useState("");
   const [resultError, setResultError] = useState("");
 
   const suggestedSlug = useMemo(() => makeSlug(title), [title]);
+
+  function setPublishNow() {
+    setStatus("published");
+    setPublishedAt(toDatetimeLocalValue(new Date()));
+  }
+
+  function setScheduleTomorrow() {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+
+    setStatus("scheduled");
+    setPublishedAt(toDatetimeLocalValue(tomorrow));
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,8 +77,12 @@ export default function NewBlogPage() {
           excerpt,
           content,
           image,
+          author,
           status,
           featured,
+          published_at: publishedAt,
+          seo_title: seoTitle,
+          seo_description: seoDescription,
         }),
       });
 
@@ -72,8 +99,12 @@ export default function NewBlogPage() {
       setExcerpt("");
       setContent("");
       setImage("");
+      setAuthor("Patak Textile");
       setStatus("draft");
       setFeatured("false");
+      setPublishedAt("");
+      setSeoTitle("");
+      setSeoDescription("");
     } catch (error) {
       setResultError(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -92,20 +123,21 @@ export default function NewBlogPage() {
           </Link>
           <h1 style={titleStyle}>New Blog Post</h1>
           <p style={subtitleStyle}>
-            Create a single article or upload a CSV/JSON file for bulk import.
+            Create blog content with author, SEO fields, and scheduled publishing.
           </p>
         </div>
 
         <div style={headerActionsStyle}>
-          <a href="/api/blog/export?format=csv" style={secondaryButtonStyle}>
-            Export CSV
-          </a>
-          <a href="/api/blog/export?format=json" style={secondaryButtonStyle}>
-            Export JSON
-          </a>
-          <a href="/api/blog/export?format=xml" style={secondaryButtonStyle}>
-            Export XML
-          </a>
+          <button type="button" onClick={setPublishNow} style={secondaryButtonStyle}>
+            Publish Now
+          </button>
+          <button
+            type="button"
+            onClick={setScheduleTomorrow}
+            style={secondaryButtonStyle}
+          >
+            Schedule Tomorrow 09:00
+          </button>
         </div>
       </div>
 
@@ -148,6 +180,16 @@ export default function NewBlogPage() {
             </div>
 
             <div>
+              <label style={labelStyle}>Author</label>
+              <input
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="Patak Textile"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
               <label style={labelStyle}>Status</label>
               <select
                 value={status}
@@ -155,6 +197,7 @@ export default function NewBlogPage() {
                 style={inputStyle}
               >
                 <option value="draft">draft</option>
+                <option value="scheduled">scheduled</option>
                 <option value="published">published</option>
                 <option value="archived">archived</option>
               </select>
@@ -172,7 +215,21 @@ export default function NewBlogPage() {
               </select>
             </div>
 
-            <div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>Publish Date & Time</label>
+              <input
+                type="datetime-local"
+                value={publishedAt}
+                onChange={(e) => setPublishedAt(e.target.value)}
+                style={inputStyle}
+              />
+              <div style={helperTextStyle}>
+                Required for scheduled posts. Public blog will show the post only
+                after this time.
+              </div>
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
               <label style={labelStyle}>Image URL</label>
               <input
                 value={image}
@@ -201,6 +258,26 @@ export default function NewBlogPage() {
                 style={{ ...inputStyle, minHeight: 280, resize: "vertical" }}
               />
             </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>SEO Title</label>
+              <input
+                value={seoTitle}
+                onChange={(e) => setSeoTitle(e.target.value)}
+                placeholder="SEO title"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>SEO Description</label>
+              <textarea
+                value={seoDescription}
+                onChange={(e) => setSeoDescription(e.target.value)}
+                placeholder="SEO description"
+                style={{ ...inputStyle, minHeight: 100, resize: "vertical" }}
+              />
+            </div>
           </div>
 
           <div style={buttonRowStyle}>
@@ -219,8 +296,8 @@ export default function NewBlogPage() {
 
         <ImportPanel
           endpoint="/api/blog/import"
-          description="Upload a CSV or JSON file, or paste content manually. This panel is suitable for blog content adapted to the Patak structure."
-          csvHeader="id,title,slug,excerpt,content,image,status,featured,created_at,updated_at"
+          description="Upload a CSV or JSON file, or paste content manually."
+          csvHeader="id,title,slug,excerpt,content,image,author,status,featured,published_at,seo_title,seo_description,created_at,updated_at"
         />
       </div>
     </div>

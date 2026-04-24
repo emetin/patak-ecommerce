@@ -3,36 +3,70 @@ import { getSheetData } from "../../../../lib/sheets";
 
 type BlogItem = Record<string, string>;
 
-const ALLOWED_STATUS = ["published", "draft", "archived"];
+const ALLOWED_STATUS = ["published", "draft", "scheduled", "archived"];
+
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
+}
+
+function normalizeLower(value: unknown) {
+  return normalizeText(value).toLowerCase();
+}
+
+function isPubliclyVisible(item: BlogItem) {
+  const status = normalizeLower(item.status);
+
+  if (status !== "published") {
+    return false;
+  }
+
+  const publishedAt = normalizeText(item.published_at);
+
+  if (!publishedAt) {
+    return true;
+  }
+
+  const publishDate = new Date(publishedAt);
+
+  if (Number.isNaN(publishDate.getTime())) {
+    return false;
+  }
+
+  return publishDate.getTime() <= Date.now();
+}
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
 
-    const statusParam = String(searchParams.get("status") || "")
-      .trim()
-      .toLowerCase();
+    const statusParam = normalizeLower(searchParams.get("status"));
+    const publicOnly = normalizeLower(searchParams.get("public")) === "true";
 
-    const posts = (await getSheetData("blog")) as BlogItem[];
+    const posts = (await getSheetData("blog", {
+      ttlSeconds: 300,
+    })) as BlogItem[];
 
-    let items = posts.filter((item) => item && item.slug);
+    let items = posts.filter((item) => item && normalizeText(item.slug));
 
-    if (statusParam) {
+    if (publicOnly) {
+      items = items.filter(isPubliclyVisible);
+    } else if (statusParam) {
       if (!ALLOWED_STATUS.includes(statusParam)) {
         return NextResponse.json(
-          {
-            ok: false,
-            error: "Invalid status filter.",
-          },
+          { ok: false, error: "Invalid status filter." },
           { status: 400 }
         );
       }
 
-      items = items.filter(
-        (item) =>
-          String(item.status || "").trim().toLowerCase() === statusParam
-      );
+      items = items.filter((item) => normalizeLower(item.status) === statusParam);
     }
+
+    items = [...items].sort((a, b) => {
+      const aDate = normalizeText(a.published_at || a.updated_at || a.created_at);
+      const bDate = normalizeText(b.published_at || b.updated_at || b.created_at);
+
+      return bDate.localeCompare(aDate);
+    });
 
     return NextResponse.json(
       {

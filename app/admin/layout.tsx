@@ -4,198 +4,218 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
+const SIDEBAR_WIDTH = 270;
+
+const menuItems = [
+  { href: "/admin", label: "Dashboard" },
+  { href: "/admin/products", label: "Products" },
+  { href: "/admin/collections", label: "Collections" },
+  { href: "/admin/blog", label: "Blog" },
+];
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#f6f3ee",
-        color: "#171717",
-      }}
-    >
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          background: "rgba(246, 243, 238, 0.96)",
-          backdropFilter: "blur(10px)",
-          borderBottom: "1px solid #e3dbcf",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1180,
-            margin: "0 auto",
-            padding: "18px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 20,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 14,
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                color: "#8a7f72",
-                marginBottom: 6,
-                fontWeight: 700,
-              }}
-            >
-              Patak Textile
-            </div>
+    <>
+      <style jsx global>{`
+        .site-topbar,
+        .site-header,
+        .site-footer {
+          display: none !important;
+        }
 
-            <div
-              style={{
-                fontSize: 32,
-                fontWeight: 800,
-                lineHeight: 1,
-              }}
-            >
-              Patak Admin
-            </div>
+        .site-main {
+          padding: 0 !important;
+          margin: 0 !important;
+        }
 
-            <div
-              style={{
-                marginTop: 8,
-                fontSize: 13,
-                color: "#6f6559",
-              }}
-            >
-              Internal content management panel
-            </div>
+        .site-shell {
+          min-height: 100vh;
+          background: #f5f2ec;
+        }
+
+        html,
+        body {
+          overflow-x: hidden;
+          background: #f5f2ec;
+        }
+
+        @media (max-width: 900px) {
+          .ptx-admin-sidebar {
+            position: relative !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+
+          .ptx-admin-main {
+            margin-left: 0 !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
+
+      <aside className="ptx-admin-sidebar" style={sidebarStyle}>
+        <div>
+          <div style={brandBoxStyle}>
+            <div style={brandEyebrowStyle}>Patak Textile</div>
+            <div style={brandTitleStyle}>Admin CMS</div>
+            <div style={brandSubStyle}>Corporate content panel</div>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <Link href="/" style={viewSiteButtonStyle}>
-              View Public Site
-            </Link>
+          <nav style={navStyle}>
+            {menuItems.map((item) => {
+              const active =
+                item.href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`);
 
-            <form method="POST" action="/api/admin-auth/logout" style={{ margin: 0 }}>
-              <button type="submit" style={logoutButtonStyle}>
-                Logout
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <div
-          style={{
-            maxWidth: 1180,
-            margin: "0 auto",
-            padding: "0 24px 18px",
-          }}
-        >
-          <nav
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 12,
-            }}
-          >
-            <AdminNavLink href="/admin" currentPath={pathname}>
-              Dashboard
-            </AdminNavLink>
-            <AdminNavLink href="/admin/products" currentPath={pathname}>
-              Products
-            </AdminNavLink>
-            <AdminNavLink href="/admin/collections" currentPath={pathname}>
-              Collections
-            </AdminNavLink>
-            <AdminNavLink href="/admin/blog" currentPath={pathname}>
-              Blog
-            </AdminNavLink>
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  style={{
+                    ...navItemStyle,
+                    ...(active ? navItemActiveStyle : {}),
+                  }}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
-      </header>
 
-      <main
-        style={{
-          maxWidth: 1180,
-          margin: "0 auto",
-          padding: "28px 24px 48px",
-        }}
-      >
-        {children}
+        <div style={sidebarBottomStyle}>
+          <Link href="/" style={secondaryButtonStyle}>
+            View Website
+          </Link>
+
+          <form method="POST" action="/api/admin-auth/logout" style={{ margin: 0 }}>
+            <button type="submit" style={logoutButtonStyle}>
+              Logout
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <main className="ptx-admin-main" style={mainStyle}>
+        <div style={contentStyle}>{children}</div>
       </main>
-    </div>
+    </>
   );
 }
 
-function AdminNavLink({
-  href,
-  currentPath,
-  children,
-}: {
-  href: string;
-  currentPath: string;
-  children: ReactNode;
-}) {
-  const isActive =
-    href === "/admin"
-      ? currentPath === "/admin"
-      : currentPath === href || currentPath.startsWith(`${href}/`);
+const sidebarStyle: React.CSSProperties = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  width: SIDEBAR_WIDTH,
+  height: "100vh",
+  padding: 24,
+  background: "#111827",
+  color: "#ffffff",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "space-between",
+  borderRight: "1px solid rgba(255,255,255,0.08)",
+  zIndex: 100,
+  overflowY: "auto",
+};
 
-  return (
-    <Link
-      href={href}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 46,
-        padding: "0 18px",
-        borderRadius: 999,
-        textDecoration: "none",
-        background: isActive ? "#2f7d62" : "#fff",
-        color: isActive ? "#fff" : "#171717",
-        fontWeight: 700,
-        border: isActive ? "1px solid #2f7d62" : "1px solid #ddd3c5",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
+const mainStyle: React.CSSProperties = {
+  marginLeft: SIDEBAR_WIDTH,
+  width: `calc(100% - ${SIDEBAR_WIDTH}px)`,
+  minHeight: "100vh",
+  background: "#f5f2ec",
+};
 
-const viewSiteButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
+const contentStyle: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 1560,
+  margin: "0 auto",
+  padding: "32px 36px 56px",
+};
+
+const brandBoxStyle: React.CSSProperties = {
+  paddingBottom: 24,
+  borderBottom: "1px solid rgba(255,255,255,0.12)",
+};
+
+const brandEyebrowStyle: React.CSSProperties = {
+  fontSize: 12,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.52)",
+  fontWeight: 800,
+  marginBottom: 8,
+};
+
+const brandTitleStyle: React.CSSProperties = {
+  fontSize: 28,
+  fontWeight: 800,
+  lineHeight: 1.1,
+};
+
+const brandSubStyle: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 13,
+  color: "rgba(255,255,255,0.56)",
+};
+
+const navStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  marginTop: 28,
+};
+
+const navItemStyle: React.CSSProperties = {
+  minHeight: 48,
+  display: "flex",
+  alignItems: "center",
+  padding: "0 16px",
+  borderRadius: 14,
+  color: "rgba(255,255,255,0.76)",
+  textDecoration: "none",
+  fontSize: 15,
+  fontWeight: 700,
+  border: "1px solid transparent",
+};
+
+const navItemActiveStyle: React.CSSProperties = {
+  background: "#2f7d62",
+  color: "#ffffff",
+  border: "1px solid rgba(255,255,255,0.14)",
+};
+
+const sidebarBottomStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+  paddingTop: 24,
+  borderTop: "1px solid rgba(255,255,255,0.12)",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  minHeight: 44,
+  display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 46,
-  padding: "0 18px",
-  borderRadius: 999,
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.08)",
+  color: "#ffffff",
   textDecoration: "none",
-  background: "#2f7d62",
-  color: "#fff",
-  fontWeight: 700,
-  border: "1px solid #2f7d62",
+  fontWeight: 800,
+  border: "1px solid rgba(255,255,255,0.12)",
 };
 
 const logoutButtonStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 46,
-  padding: "0 18px",
-  borderRadius: 999,
-  background: "#fff",
-  color: "#171717",
-  fontWeight: 700,
-  border: "1px solid #ddd3c5",
+  width: "100%",
+  minHeight: 44,
+  borderRadius: 12,
+  background: "#ffffff",
+  color: "#111827",
+  border: "none",
+  fontWeight: 800,
   cursor: "pointer",
 };

@@ -8,13 +8,17 @@ type BlogRecord = {
   excerpt?: string;
   content?: string;
   image?: string;
+  author?: string;
   status?: string;
   featured?: string;
+  published_at?: string;
+  seo_title?: string;
+  seo_description?: string;
   created_at?: string;
   updated_at?: string;
 };
 
-const ALLOWED_STATUS = ["published", "draft", "archived"];
+const ALLOWED_STATUS = ["published", "draft", "scheduled", "archived"];
 const ALLOWED_FEATURED = ["true", "false"];
 
 function makeSlug(text: string) {
@@ -45,6 +49,22 @@ function normalizeBooleanString(value: unknown, fallback = "false") {
   return String(value || fallback).trim().toLowerCase();
 }
 
+function normalizeDateTime(value: unknown) {
+  const raw = normalizeText(value);
+
+  if (!raw) {
+    return "";
+  }
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString();
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -54,15 +74,16 @@ export async function POST(req: Request) {
     const excerpt = normalizeText(body?.excerpt);
     const content = normalizeText(body?.content);
     const image = normalizeText(body?.image);
+    const author = normalizeText(body?.author);
     const status = normalizeStatus(body?.status);
     const featured = normalizeBooleanString(body?.featured, "false");
+    const publishedAt = normalizeDateTime(body?.published_at);
+    const seoTitle = normalizeText(body?.seo_title);
+    const seoDescription = normalizeText(body?.seo_description);
 
     if (!title) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Title is required.",
-        },
+        { ok: false, error: "Title is required." },
         { status: 400 }
       );
     }
@@ -71,10 +92,7 @@ export async function POST(req: Request) {
 
     if (!finalSlug) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "A valid slug could not be generated.",
-        },
+        { ok: false, error: "A valid slug could not be generated." },
         { status: 400 }
       );
     }
@@ -83,7 +101,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Status must be one of: "published", "draft", or "archived".',
+          error:
+            'Status must be one of: "published", "scheduled", "draft", or "archived".',
         },
         { status: 400 }
       );
@@ -91,15 +110,22 @@ export async function POST(req: Request) {
 
     if (!ALLOWED_FEATURED.includes(featured)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: 'Featured must be either "true" or "false".',
-        },
+        { ok: false, error: 'Featured must be either "true" or "false".' },
         { status: 400 }
       );
     }
 
-    const existingPosts = (await getSheetData("blog")) as BlogRecord[];
+    if (status === "scheduled" && !publishedAt) {
+      return NextResponse.json(
+        { ok: false, error: "Published date is required for scheduled posts." },
+        { status: 400 }
+      );
+    }
+
+    const existingPosts = (await getSheetData("blog", {
+      forceFresh: true,
+      ttlSeconds: 30,
+    })) as BlogRecord[];
 
     const normalizedTitle = title.toLowerCase();
     const normalizedSlug = finalSlug.toLowerCase();
@@ -110,10 +136,7 @@ export async function POST(req: Request) {
 
     if (slugExists) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "This slug is already in use.",
-        },
+        { ok: false, error: "This slug is already in use." },
         { status: 400 }
       );
     }
@@ -124,10 +147,7 @@ export async function POST(req: Request) {
 
     if (titleExists) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "A blog post with this title already exists.",
-        },
+        { ok: false, error: "A blog post with this title already exists." },
         { status: 400 }
       );
     }
@@ -142,8 +162,12 @@ export async function POST(req: Request) {
       excerpt,
       content,
       image,
+      author,
       status,
       featured,
+      publishedAt,
+      seoTitle,
+      seoDescription,
       now,
       now,
     ]);
@@ -159,8 +183,12 @@ export async function POST(req: Request) {
           excerpt,
           content,
           image,
+          author,
           status,
           featured,
+          published_at: publishedAt,
+          seo_title: seoTitle,
+          seo_description: seoDescription,
           created_at: now,
           updated_at: now,
         },

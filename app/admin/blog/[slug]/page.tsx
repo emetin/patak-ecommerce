@@ -11,8 +11,12 @@ type BlogItem = {
   excerpt?: string;
   content?: string;
   image?: string;
+  author?: string;
   status?: string;
   featured?: string;
+  published_at?: string;
+  seo_title?: string;
+  seo_description?: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -37,6 +41,34 @@ function normalizeText(value: unknown) {
   return String(value || "").trim();
 }
 
+function toDatetimeLocalValue(value?: string) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function getNowDatetimeLocal() {
+  const date = new Date();
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function getTomorrowMorningDatetimeLocal() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(9, 0, 0, 0);
+
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 export default function AdminBlogEditPage({
   params,
 }: {
@@ -54,8 +86,12 @@ export default function AdminBlogEditPage({
   const [excerpt, setExcerpt] = useState("");
   const [content, setContent] = useState("");
   const [image, setImage] = useState("");
+  const [author, setAuthor] = useState("Patak Textile");
   const [status, setStatus] = useState("draft");
   const [featured, setFeatured] = useState("false");
+  const [publishedAt, setPublishedAt] = useState("");
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoDescription, setSeoDescription] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -99,8 +135,12 @@ export default function AdminBlogEditPage({
         setExcerpt(item.excerpt || "");
         setContent(item.content || "");
         setImage(item.image || "");
+        setAuthor(item.author || "Patak Textile");
         setStatus(String(item.status || "draft").toLowerCase());
         setFeatured(String(item.featured || "false").toLowerCase());
+        setPublishedAt(toDatetimeLocalValue(item.published_at));
+        setSeoTitle(item.seo_title || "");
+        setSeoDescription(item.seo_description || "");
       } catch (error) {
         setLoadError(
           error instanceof Error ? error.message : "An unknown error occurred."
@@ -112,6 +152,16 @@ export default function AdminBlogEditPage({
 
     loadItem();
   }, [originalSlug]);
+
+  function publishNow() {
+    setStatus("published");
+    setPublishedAt(getNowDatetimeLocal());
+  }
+
+  function scheduleTomorrow() {
+    setStatus("scheduled");
+    setPublishedAt(getTomorrowMorningDatetimeLocal());
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -133,8 +183,12 @@ export default function AdminBlogEditPage({
           excerpt: normalizeText(excerpt),
           content: normalizeText(content),
           image: normalizeText(image),
+          author: normalizeText(author),
           status: normalizeText(status).toLowerCase(),
           featured: normalizeText(featured).toLowerCase(),
+          published_at: normalizeText(publishedAt),
+          seo_title: normalizeText(seoTitle),
+          seo_description: normalizeText(seoDescription),
         }),
       });
 
@@ -167,9 +221,7 @@ export default function AdminBlogEditPage({
       "Are you sure you want to delete this blog post?"
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       setDeleting(true);
@@ -206,9 +258,7 @@ export default function AdminBlogEditPage({
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     setImageUploadError("");
     setImageUploading(true);
@@ -292,11 +342,24 @@ export default function AdminBlogEditPage({
           <h1 style={titleStyle}>Edit Blog Post</h1>
 
           <p style={subtitleStyle}>
-            Update blog content, image, publication status, and featured state.
+            Update content, author, SEO fields, status, and scheduled publish
+            date.
           </p>
         </div>
 
         <div style={headerActionsStyle}>
+          <button type="button" onClick={publishNow} style={secondaryButtonStyle}>
+            Publish Now
+          </button>
+
+          <button
+            type="button"
+            onClick={scheduleTomorrow}
+            style={secondaryButtonStyle}
+          >
+            Schedule Tomorrow 09:00
+          </button>
+
           <Link href={`/blog/${slug}`} style={secondaryButtonStyle}>
             View
           </Link>
@@ -338,6 +401,16 @@ export default function AdminBlogEditPage({
           </div>
 
           <div>
+            <label style={labelStyle}>Author</label>
+            <input
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              style={inputStyle}
+              placeholder="Patak Textile"
+            />
+          </div>
+
+          <div>
             <label style={labelStyle}>Status</label>
             <select
               value={status}
@@ -345,6 +418,7 @@ export default function AdminBlogEditPage({
               style={inputStyle}
             >
               <option value="draft">draft</option>
+              <option value="scheduled">scheduled</option>
               <option value="published">published</option>
               <option value="archived">archived</option>
             </select>
@@ -360,6 +434,21 @@ export default function AdminBlogEditPage({
               <option value="false">false</option>
               <option value="true">true</option>
             </select>
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Publish Date & Time</label>
+            <input
+              type="datetime-local"
+              value={publishedAt}
+              onChange={(e) => setPublishedAt(e.target.value)}
+              style={inputStyle}
+            />
+
+            <div style={helperTextStyle}>
+              Required for scheduled posts. Public blog will show the post only
+              after this time.
+            </div>
           </div>
 
           <div style={{ gridColumn: "1 / -1" }}>
@@ -438,6 +527,26 @@ export default function AdminBlogEditPage({
               style={{ ...inputStyle, minHeight: 260, resize: "vertical" }}
             />
           </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>SEO Title</label>
+            <input
+              value={seoTitle}
+              onChange={(e) => setSeoTitle(e.target.value)}
+              style={inputStyle}
+              placeholder="SEO title"
+            />
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>SEO Description</label>
+            <textarea
+              value={seoDescription}
+              onChange={(e) => setSeoDescription(e.target.value)}
+              style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+              placeholder="SEO description"
+            />
+          </div>
         </div>
 
         <div style={buttonRowStyle}>
@@ -446,10 +555,7 @@ export default function AdminBlogEditPage({
           </button>
         </div>
 
-        {resultMessage ? (
-          <div style={successBoxStyle}>{resultMessage}</div>
-        ) : null}
-
+        {resultMessage ? <div style={successBoxStyle}>{resultMessage}</div> : null}
         {resultError ? <div style={errorBoxStyle}>{resultError}</div> : null}
       </form>
     </div>

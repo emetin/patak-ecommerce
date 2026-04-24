@@ -8,7 +8,7 @@ import {
 type BlogRow = Record<string, string>;
 
 const SHEET_NAME = "blog";
-const ALLOWED_STATUS = ["published", "draft", "archived"];
+const ALLOWED_STATUS = ["published", "draft", "scheduled", "archived"];
 const ALLOWED_FEATURED = ["true", "false"];
 
 function makeSlug(text: string) {
@@ -43,6 +43,22 @@ function normalizeBooleanString(value: unknown, fallback = "false") {
   return String(value || fallback).trim().toLowerCase();
 }
 
+function normalizeDateTime(value: unknown) {
+  const raw = normalizeText(value);
+
+  if (!raw) {
+    return "";
+  }
+
+  const date = new Date(raw);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString();
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -53,8 +69,12 @@ export async function POST(req: Request) {
     const excerpt = normalizeText(body?.excerpt);
     const content = normalizeText(body?.content);
     const image = normalizeText(body?.image);
+    const author = normalizeText(body?.author);
     const status = normalizeStatus(body?.status);
     const featured = normalizeBooleanString(body?.featured, "false");
+    const publishedAt = normalizeDateTime(body?.published_at);
+    const seoTitle = normalizeText(body?.seo_title);
+    const seoDescription = normalizeText(body?.seo_description);
 
     if (!originalSlug) {
       return NextResponse.json(
@@ -80,6 +100,13 @@ export async function POST(req: Request) {
     if (!ALLOWED_FEATURED.includes(featured)) {
       return NextResponse.json(
         { ok: false, error: "Invalid featured value." },
+        { status: 400 }
+      );
+    }
+
+    if (status === "scheduled" && !publishedAt) {
+      return NextResponse.json(
+        { ok: false, error: "Published date is required for scheduled posts." },
         { status: 400 }
       );
     }
@@ -134,8 +161,12 @@ export async function POST(req: Request) {
       excerpt,
       content,
       image,
+      author,
       status,
       featured,
+      published_at: publishedAt,
+      seo_title: seoTitle,
+      seo_description: seoDescription,
       created_at: currentItem.created_at || now,
       updated_at: now,
     };
@@ -154,9 +185,7 @@ export async function POST(req: Request) {
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to update blog post.",
+          error instanceof Error ? error.message : "Failed to update blog post.",
       },
       { status: 500 }
     );

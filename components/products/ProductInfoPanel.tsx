@@ -78,10 +78,6 @@ export default function ProductInfoPanel({
   const activeVariants = useMemo(() => getActiveVariants(variants), [variants]);
   const [selectedVariantId, setSelectedVariantId] = useState("");
 
-  useEffect(() => {
-    setSelectedVariantId(activeVariants[0]?.id || "");
-  }, [activeVariants]);
-
   const selectedVariant = useMemo(() => {
     if (!activeVariants.length) return null;
 
