@@ -40,6 +40,12 @@ type ProductImageItem = {
   updated_at?: string;
 };
 
+type ProductsPageProps = {
+  searchParams?: Promise<{
+    search?: string;
+  }>;
+};
+
 export const metadata: Metadata = buildPageMetadata({
   title: "Products",
   description:
@@ -54,6 +60,36 @@ function toSafeOrder(value?: string) {
 
 function isTrue(value?: string) {
   return String(value || "").trim().toLowerCase() === "true";
+}
+
+function normalizeSearchText(value?: string) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function productTitleMatchesSearch(product: ProductItem, searchQuery: string) {
+  const title = normalizeSearchText(product.title);
+
+  if (!title || !searchQuery) {
+    return false;
+  }
+
+  const queryWords = searchQuery
+    .split(/[\s\-_/]+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  const titleWords = title
+    .split(/[\s\-_/]+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  if (queryWords.length === 0) {
+    return false;
+  }
+
+  return queryWords.every((queryWord) => titleWords.includes(queryWord));
 }
 
 function getPrimaryProductImage(
@@ -82,7 +118,12 @@ function getPrimaryProductImage(
   );
 }
 
-export default async function ProductsPage() {
+export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  const resolvedSearchParams = await searchParams;
+
+  const rawSearchQuery = String(resolvedSearchParams?.search || "").trim();
+  const searchQuery = normalizeSearchText(rawSearchQuery);
+
   let products: ProductItem[] = [];
   let allProductImages: ProductImageItem[] = [];
   let errorMessage = "";
@@ -111,6 +152,12 @@ export default async function ProductsPage() {
 
         return String(a.title || "").localeCompare(String(b.title || ""));
       });
+
+    if (searchQuery) {
+      products = products.filter((product) =>
+        productTitleMatchesSearch(product, searchQuery)
+      );
+    }
   } catch (error) {
     errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred.";
@@ -171,7 +218,9 @@ export default async function ProductsPage() {
                 lineHeight: 1.8,
               }}
             >
-              Explore the product catalog with a cleaner and more focused presentation.
+              {searchQuery
+                ? `Showing product name results for "${rawSearchQuery}".`
+                : "Explore the product catalog with a cleaner and more focused presentation."}
             </p>
           </div>
         </Container>
@@ -199,7 +248,9 @@ export default async function ProductsPage() {
                 fontWeight: 700,
               }}
             >
-              {products.length} published products
+              {searchQuery
+                ? `${products.length} results found`
+                : `${products.length} published products`}
             </div>
           </div>
         </Container>
@@ -217,8 +268,18 @@ export default async function ProductsPage() {
         <Section>
           <Container>
             <div className="empty-state">
-              No published products found yet. Items with status set to
-              <strong> published</strong> in the products sheet will appear here.
+              {searchQuery ? (
+                <>
+                  No products found with <strong>{rawSearchQuery}</strong> in the
+                  product name.
+                </>
+              ) : (
+                <>
+                  No published products found yet. Items with status set to
+                  <strong> published</strong> in the products sheet will appear
+                  here.
+                </>
+              )}
             </div>
           </Container>
         </Section>
@@ -226,9 +287,13 @@ export default async function ProductsPage() {
         <Section>
           <Container>
             <SectionHeading
-              kicker="Catalog"
-              title="All products"
-              text="Browse all available textile products in a cleaner catalog layout."
+              kicker={searchQuery ? "Search Results" : "Catalog"}
+              title={searchQuery ? "Matching products" : "All products"}
+              text={
+                searchQuery
+                  ? "Browse products matching your search by product name."
+                  : "Browse all available textile products in a cleaner catalog layout."
+              }
             />
 
             <div className="cards-grid cards-grid--3">

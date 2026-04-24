@@ -3,6 +3,7 @@ import Link from "next/link";
 export default function Footer() {
   return (
     <footer
+      className="footer-root"
       style={{
         marginTop: 80,
         background: "#111715",
@@ -11,6 +12,7 @@ export default function Footer() {
       }}
     >
       <div
+        className="footer-container"
         style={{
           maxWidth: 1320,
           margin: "0 auto",
@@ -18,6 +20,7 @@ export default function Footer() {
         }}
       >
         <div
+          className="footer-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1.25fr 0.75fr 0.75fr 1fr",
@@ -25,7 +28,7 @@ export default function Footer() {
             marginBottom: 36,
           }}
         >
-          <div>
+          <div className="footer-brand">
             <div
               style={{
                 display: "inline-flex",
@@ -48,6 +51,7 @@ export default function Footer() {
                   fontWeight: 900,
                   fontSize: 16,
                   letterSpacing: "0.04em",
+                  flexShrink: 0,
                 }}
               >
                 PT
@@ -87,12 +91,13 @@ export default function Footer() {
                 maxWidth: 420,
               }}
             >
-              A more confident digital structure for presenting textile categories,
-              collections and brand trust in a professional, future-ready format.
+              A more confident digital structure for presenting textile
+              categories, collections and brand trust in a professional,
+              future-ready format.
             </p>
           </div>
 
-          <div>
+          <div className="footer-column">
             <div style={footerTitleStyle}>Navigation</div>
             <div style={footerListStyle}>
               <Link href="/" style={footerLinkStyle}>
@@ -113,7 +118,7 @@ export default function Footer() {
             </div>
           </div>
 
-          <div>
+          <div className="footer-column">
             <div style={footerTitleStyle}>Catalog</div>
             <div style={footerListStyle}>
               <Link href="/collections" style={footerLinkStyle}>
@@ -128,11 +133,19 @@ export default function Footer() {
             </div>
           </div>
 
-          <div>
+          <div className="footer-contact">
             <div style={footerTitleStyle}>Contact</div>
-            <div style={{ color: "rgba(255,255,255,0.74)", lineHeight: 1.9, fontSize: 15 }}>
+            <div
+              style={{
+                color: "rgba(255,255,255,0.74)",
+                lineHeight: 1.9,
+                fontSize: 15,
+              }}
+            >
               <div>Use this area for corporate contact details.</div>
-              <div>General inquiries, collection reviews and textile discussions.</div>
+              <div>
+                General inquiries, collection reviews and textile discussions.
+              </div>
               <div style={{ marginTop: 14 }}>
                 <Link href="/contact-us" style={footerButtonStyle}>
                   Contact Our Team
@@ -143,6 +156,7 @@ export default function Footer() {
         </div>
 
         <div
+          className="footer-bottom"
           style={{
             minHeight: 64,
             display: "flex",
@@ -158,10 +172,53 @@ export default function Footer() {
         >
           <div>© 2026 Patak Textile. All rights reserved.</div>
           <div>
-            Corporate textile catalog presentation designed for long-term brand growth.
+            Corporate textile catalog presentation designed for long-term brand
+            growth.
           </div>
         </div>
       </div>
+
+      <style>{`
+  @media (max-width: 1100px) {
+    .footer-grid {
+      grid-template-columns: 1.2fr 1fr !important;
+      gap: 34px 28px !important;
+    }
+
+    .footer-brand {
+      grid-column: span 2;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .footer-root {
+      margin-top: 56px !important;
+    }
+
+    .footer-container {
+      padding: 42px 16px 22px !important;
+    }
+
+    .footer-grid {
+      grid-template-columns: 1fr !important;
+      gap: 30px !important;
+      margin-bottom: 30px !important;
+    }
+
+    .footer-brand {
+      grid-column: auto;
+    }
+
+    .footer-bottom {
+      min-height: auto !important;
+      align-items: flex-start !important;
+      flex-direction: column !important;
+      gap: 10px !important;
+      font-size: 13px !important;
+      line-height: 1.7 !important;
+    }
+  }
+`}</style>
     </footer>
   );
 }
