@@ -3,8 +3,12 @@ import { Readable } from "stream";
 
 const CLIENT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-const RAW_PRODUCT_IMAGE_FOLDER_ID =
+
+const PRODUCT_IMAGE_FOLDER_ID =
   process.env.GOOGLE_DRIVE_PRODUCT_IMAGE_FOLDER_ID;
+
+const CAREER_RESUME_FOLDER_ID =
+  process.env.GOOGLE_DRIVE_CAREER_RESUME_FOLDER_ID;
 
 if (!CLIENT_EMAIL) {
   throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL.");
@@ -13,12 +17,6 @@ if (!CLIENT_EMAIL) {
 if (!PRIVATE_KEY) {
   throw new Error("Missing GOOGLE_PRIVATE_KEY.");
 }
-
-if (!RAW_PRODUCT_IMAGE_FOLDER_ID) {
-  throw new Error("Missing GOOGLE_DRIVE_PRODUCT_IMAGE_FOLDER_ID.");
-}
-
-const PRODUCT_IMAGE_FOLDER_ID: string = RAW_PRODUCT_IMAGE_FOLDER_ID;
 
 function getDriveAuth() {
   return new google.auth.JWT({
@@ -51,26 +49,33 @@ function bufferToReadable(buffer: Buffer) {
   return stream;
 }
 
-export async function uploadProductImageToDrive(file: File) {
+async function uploadFileToDrive({
+  file,
+  folderId,
+  prefix,
+}: {
+  file: File;
+  folderId: string;
+  prefix: string;
+}) {
   const drive = getDriveClient();
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const timestamp = Date.now();
-  const safeFileName = sanitizeFileName(file.name || "image");
-  const finalFileName = `${timestamp}-${safeFileName}`;
+  const safeFileName = sanitizeFileName(file.name || "file");
+  const finalFileName = `${prefix}-${Date.now()}-${safeFileName}`;
 
   const createdFile = await drive.files.create({
     requestBody: {
       name: finalFileName,
-      parents: [PRODUCT_IMAGE_FOLDER_ID],
+      parents: [folderId],
     },
     media: {
       mimeType: file.type || "application/octet-stream",
       body: bufferToReadable(buffer),
     },
-    fields: "id,name,webViewLink,webContentLink",
+    fields: "id,name,webViewLink",
   });
 
   const fileId = createdFile.data.id;
@@ -87,11 +92,39 @@ export async function uploadProductImageToDrive(file: File) {
     },
   });
 
-  const publicUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
-
   return {
     fileId,
     fileName: finalFileName,
-    url: publicUrl,
+    url: `https://drive.google.com/file/d/${fileId}/view`,
   };
+}
+
+export async function uploadProductImageToDrive(file: File) {
+  if (!PRODUCT_IMAGE_FOLDER_ID) {
+    throw new Error("Missing GOOGLE_DRIVE_PRODUCT_IMAGE_FOLDER_ID.");
+  }
+
+  const uploaded = await uploadFileToDrive({
+    file,
+    folderId: PRODUCT_IMAGE_FOLDER_ID,
+    prefix: "product-image",
+  });
+
+  return {
+    fileId: uploaded.fileId,
+    fileName: uploaded.fileName,
+    url: `https://drive.google.com/uc?export=view&id=${uploaded.fileId}`,
+  };
+}
+
+export async function uploadCareerResumeToDrive(file: File) {
+  if (!CAREER_RESUME_FOLDER_ID) {
+    throw new Error("Missing GOOGLE_DRIVE_CAREER_RESUME_FOLDER_ID.");
+  }
+
+  return uploadFileToDrive({
+    file,
+    folderId: CAREER_RESUME_FOLDER_ID,
+    prefix: "career-resume",
+  });
 }

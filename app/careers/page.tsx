@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import PageHero from "../../components/sections/PageHero";
 import Section from "../../components/ui/Section";
 import Container from "../../components/ui/Container";
 import ButtonLink from "../../components/ui/ButtonLink";
 import { buildPageMetadata } from "../../lib/seo";
+import { careerPositions } from "../../lib/career-positions";
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Careers",
@@ -12,51 +12,6 @@ export const metadata: Metadata = buildPageMetadata({
     "Explore career opportunities at Patak Textile, discover open positions in Türkiye and learn more about our professional culture.",
   path: "/careers",
 });
-
-const openPositions = [
-  {
-    title: "Accounting Assistant",
-    location: "Patak Textile - Denizli, TR",
-    type: "Full-time",
-    department: "Accounting",
-    href: "/careers/accounting-assistant",
-  },
-  {
-    title: "Digital Marketing Specialist",
-    location: "Patak Textile - Denizli, TR",
-    type: "Full-time",
-    department: "Marketing",
-    href: "/careers/digital-marketing-specialist",
-  },
-  {
-    title: "Web Master / Web Developer",
-    location: "Patak Textile - Denizli, TR",
-    type: "Full-time",
-    department: "Technology",
-    href: "/careers/web-master-web-developer",
-  },
-  {
-    title: "Human Resources Specialist",
-    location: "Patak Textile - Denizli, TR",
-    type: "Full-time",
-    department: "Human Resources",
-    href: "/careers/human-resources-specialist",
-  },
-  {
-    title: "Logistics Specialist",
-    location: "Patak Textile - Denizli, TR",
-    type: "Full-time",
-    department: "Operations",
-    href: "/careers/logistics-specialist",
-  },
-  {
-    title: "Customer Support Specialist",
-    location: "Remote / Türkiye",
-    type: "Remote",
-    department: "Customer Support",
-    href: "/careers/customer-support-specialist-remote",
-  },
-];
 
 const whyJoinItems = [
   {
@@ -77,18 +32,49 @@ const whyJoinItems = [
   },
 ];
 
-const offices = [
+const benefits = [
   {
-    title: "Denizli Office",
-    text: "Selcukbey Mah. Evora Houses, C1 Block 9/A Floor:17 No:156, 20010 Merkezefendi / Denizli / TÜRKİYE",
+    title: "Meal Card / Lunch Allowance",
+    text: "Support for daily nutritional needs and workplace comfort.",
   },
   {
-    title: "Production & Operations",
-    text: "Our textile operations are shaped around quality control, reliable supply and professional production standards.",
+    title: "Shuttle Service",
+    text: "A more comfortable commute for eligible team members.",
   },
   {
-    title: "Global Communication",
-    text: "We work with a global mindset while keeping our operational strength rooted in Türkiye.",
+    title: "Supplementary Health Insurance",
+    text: "Healthcare support designed to strengthen employee well-being.",
+  },
+  {
+    title: "Professional Development",
+    text: "Training and learning opportunities to support long-term growth.",
+  },
+  {
+    title: "Paid Leave",
+    text: "Structured leave planning for a healthier work-life balance.",
+  },
+  {
+    title: "Team Culture",
+    text: "A collaborative environment where responsibility and ideas matter.",
+  },
+];
+
+const recruitmentSteps = [
+  {
+    title: "Application Review",
+    text: "Our team reviews your application, experience and role alignment.",
+  },
+  {
+    title: "Initial Contact",
+    text: "If your profile matches the position, we contact you for the next step.",
+  },
+  {
+    title: "Interview Process",
+    text: "Selected candidates meet with our team to discuss experience and expectations.",
+  },
+  {
+    title: "Final Evaluation",
+    text: "The process is completed with final assessment and role-specific communication.",
   },
 ];
 
@@ -96,7 +82,7 @@ const faqItems = [
   {
     question: "How can I apply for a position?",
     answer:
-      "You can review the open positions and click the role that matches your profile. Each position page will include a dedicated application form.",
+      "You can review the open positions and click the role that matches your profile. Each position page includes a dedicated application form.",
   },
   {
     question: "Can I apply for multiple roles?",
@@ -113,26 +99,19 @@ const faqItems = [
     answer:
       "The process usually includes application review, initial communication, interview scheduling and final evaluation.",
   },
-  {
-    question: "Can I submit my resume if there is no suitable position?",
-    answer:
-      "Yes. You can contact our team and share your resume for future opportunities.",
-  },
 ];
 
 export default function CareersPage() {
   return (
     <>
-      
-
       <Section>
         <Container>
           <div className="split-layout">
             <div className="split-card">
               <div style={kickerStyle}>Careers at Patak Textile</div>
-              <h2 style={sectionTitleStyle}>
-                A professional culture built around quality and continuity
-              </h2>
+              <h1 style={heroTitleStyle}>
+                Build your career inside a trusted textile structure
+              </h1>
               <p style={textStyle}>
                 Patak Textile brings together textile know-how, operational
                 discipline and a strong service mindset. We are looking for team
@@ -145,6 +124,13 @@ export default function CareersPage() {
                 help us strengthen our brand and support our global business
                 vision.
               </p>
+
+              <div style={heroActionsStyle}>
+                <ButtonLink href="#open-positions">View Open Positions</ButtonLink>
+                <ButtonLink href="#general-application" variant="secondary">
+                  Submit General Resume
+                </ButtonLink>
+              </div>
             </div>
 
             <div className="split-media">
@@ -159,19 +145,35 @@ export default function CareersPage() {
 
       <Section tone="soft">
         <Container>
-          <div className="cta-panel">
-            <h2>Ready to schedule your interview?</h2>
-            <p>
-              If your profile matches our expectations, our team may invite you
-              to an interview. You can also contact us to learn more about the
-              current recruitment process.
+          <div style={sectionHeaderStyle}>
+            <div style={kickerStyle}>Open Positions</div>
+            <h2 style={sectionTitleStyle}>Current opportunities in Türkiye</h2>
+            <p style={sectionTextStyle}>
+              Explore our open roles and continue to the related job page to
+              review responsibilities, requirements and the application form.
             </p>
-            <div className="cta-panel__actions">
-              <ButtonLink href="/contact-us">Contact Our Team</ButtonLink>
-              <ButtonLink href="#open-positions" variant="secondary">
-                View Open Positions
-              </ButtonLink>
-            </div>
+          </div>
+
+          <div id="open-positions" className="cards-grid cards-grid--3">
+            {careerPositions.map((position) => (
+              <Link
+                key={position.slug}
+                href={`/careers/${position.slug}`}
+                style={positionCardStyle}
+              >
+                <div>
+                  <div style={positionMetaStyle}>{position.department}</div>
+                  <h3 style={positionTitleStyle}>{position.title}</h3>
+                  <p style={positionLocationStyle}>{position.location}</p>
+                  <p style={positionSummaryStyle}>{position.summary}</p>
+                </div>
+
+                <div style={positionFooterStyle}>
+                  <span style={positionTypeStyle}>{position.type}</span>
+                  <span style={viewRoleStyle}>View role</span>
+                </div>
+              </Link>
+            ))}
           </div>
         </Container>
       </Section>
@@ -181,12 +183,12 @@ export default function CareersPage() {
           <div style={sectionHeaderStyle}>
             <div style={kickerStyle}>Why Join Patak Textile?</div>
             <h2 style={sectionTitleStyle}>
-              Grow inside a trusted textile structure
+              Grow inside a reliable and quality-focused team
             </h2>
             <p style={sectionTextStyle}>
               We believe strong teams build strong businesses. Our culture values
-              clear communication, responsibility, learning and quality-focused
-              work.
+              clear communication, responsibility, learning and professional
+              consistency.
             </p>
           </div>
 
@@ -203,33 +205,21 @@ export default function CareersPage() {
 
       <Section tone="soft">
         <Container>
-          <div id="open-positions" style={sectionHeaderStyle}>
-            <div style={kickerStyle}>Open Positions</div>
-            <h2 style={sectionTitleStyle}>Current opportunities in Türkiye</h2>
+          <div style={sectionHeaderStyle}>
+            <div style={kickerStyle}>Perks & Benefits</div>
+            <h2 style={sectionTitleStyle}>Designed to support your work life</h2>
             <p style={sectionTextStyle}>
-              Explore our open roles and continue to the related job page to
-              review responsibilities, requirements and the application form.
+              We support our team with practical benefits, professional
+              development and a collaborative work culture.
             </p>
           </div>
 
           <div className="cards-grid cards-grid--3">
-            {openPositions.map((position) => (
-              <Link
-                key={position.title}
-                href={position.href}
-                style={positionCardStyle}
-              >
-                <div>
-                  <div style={positionMetaStyle}>{position.department}</div>
-                  <h3 style={positionTitleStyle}>{position.title}</h3>
-                  <p style={positionLocationStyle}>{position.location}</p>
-                </div>
-
-                <div style={positionFooterStyle}>
-                  <span style={positionTypeStyle}>{position.type}</span>
-                  <span style={viewRoleStyle}>View role</span>
-                </div>
-              </Link>
+            {benefits.map((item) => (
+              <article key={item.title} style={benefitCardStyle}>
+                <h3 style={cardTitleStyle}>{item.title}</h3>
+                <p style={cardTextStyle}>{item.text}</p>
+              </article>
             ))}
           </div>
         </Container>
@@ -238,19 +228,20 @@ export default function CareersPage() {
       <Section>
         <Container>
           <div style={sectionHeaderStyle}>
-            <div style={kickerStyle}>Our Office Locations</div>
-            <h2 style={sectionTitleStyle}>A strong base for global growth</h2>
+            <div style={kickerStyle}>Recruitment Process</div>
+            <h2 style={sectionTitleStyle}>A clear and professional process</h2>
             <p style={sectionTextStyle}>
-              Patak Textile operates with a professional structure based in
-              Denizli and a global business perspective.
+              Our recruitment process is designed to understand both your
+              experience and your long-term fit with our company culture.
             </p>
           </div>
 
-          <div className="cards-grid cards-grid--3">
-            {offices.map((office) => (
-              <article key={office.title} style={officeCardStyle}>
-                <h3 style={cardTitleStyle}>{office.title}</h3>
-                <p style={cardTextStyle}>{office.text}</p>
+          <div className="cards-grid cards-grid--4">
+            {recruitmentSteps.map((step, index) => (
+              <article key={step.title} style={processCardStyle}>
+                <div style={stepNumberStyle}>{String(index + 1).padStart(2, "0")}</div>
+                <h3 style={cardTitleStyle}>{step.title}</h3>
+                <p style={cardTextStyle}>{step.text}</p>
               </article>
             ))}
           </div>
@@ -259,11 +250,29 @@ export default function CareersPage() {
 
       <Section tone="soft">
         <Container>
+          <div id="general-application" style={ctaPanelStyle}>
+            <div>
+              <div style={kickerStyle}>General Application</div>
+              <h2 style={ctaTitleStyle}>Could not find the right role?</h2>
+              <p style={ctaTextStyle}>
+                You can still share your resume with our team for future career
+                opportunities. We will keep your profile in mind when a suitable
+                position becomes available.
+              </p>
+            </div>
+
+            <ButtonLink href="/careers/accounting-assistant#application-form">
+              Submit General Resume
+            </ButtonLink>
+          </div>
+        </Container>
+      </Section>
+
+      <Section>
+        <Container>
           <div style={sectionHeaderStyle}>
             <div style={kickerStyle}>Career Questions - FAQ</div>
-            <h2 style={sectionTitleStyle}>
-              Frequently asked career questions
-            </h2>
+            <h2 style={sectionTitleStyle}>Frequently asked career questions</h2>
             <p style={sectionTextStyle}>
               Find answers about applications, remote roles, interviews and the
               recruitment process.
@@ -286,11 +295,26 @@ export default function CareersPage() {
 
 const kickerStyle: React.CSSProperties = {
   fontSize: 12,
-  fontWeight: 800,
+  fontWeight: 900,
   letterSpacing: "0.08em",
   textTransform: "uppercase",
   color: "#2f7d62",
   marginBottom: 10,
+};
+
+const heroTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(2.4rem, 4vw, 4.8rem)",
+  lineHeight: 0.98,
+  fontWeight: 900,
+  color: "#171717",
+};
+
+const heroActionsStyle: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 12,
+  marginTop: 24,
 };
 
 const sectionHeaderStyle: React.CSSProperties = {
@@ -302,7 +326,7 @@ const sectionTitleStyle: React.CSSProperties = {
   margin: 0,
   fontSize: "clamp(2rem, 3vw, 3rem)",
   lineHeight: 1.08,
-  fontWeight: 800,
+  fontWeight: 900,
   color: "#171717",
 };
 
@@ -314,7 +338,7 @@ const sectionTextStyle: React.CSSProperties = {
 };
 
 const textStyle: React.CSSProperties = {
-  margin: "0 0 14px",
+  margin: "16px 0 0",
   color: "#5a5349",
   fontSize: 16,
   lineHeight: 1.9,
@@ -328,11 +352,41 @@ const valueCardStyle: React.CSSProperties = {
   boxShadow: "0 12px 30px rgba(23,23,23,0.04)",
 };
 
+const benefitCardStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #e6ddd0",
+  borderRadius: 24,
+  padding: 26,
+  boxShadow: "0 12px 30px rgba(23,23,23,0.04)",
+};
+
+const processCardStyle: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #e6ddd0",
+  borderRadius: 24,
+  padding: 24,
+  boxShadow: "0 12px 30px rgba(23,23,23,0.04)",
+};
+
+const stepNumberStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 42,
+  height: 42,
+  borderRadius: 999,
+  background: "#edf5f1",
+  color: "#245845",
+  fontSize: 13,
+  fontWeight: 900,
+  marginBottom: 18,
+};
+
 const cardTitleStyle: React.CSSProperties = {
   margin: "0 0 10px",
   fontSize: 22,
   lineHeight: 1.2,
-  fontWeight: 800,
+  fontWeight: 900,
   color: "#171717",
 };
 
@@ -344,7 +398,7 @@ const cardTextStyle: React.CSSProperties = {
 };
 
 const positionCardStyle: React.CSSProperties = {
-  minHeight: 245,
+  minHeight: 285,
   display: "flex",
   flexDirection: "column",
   justifyContent: "space-between",
@@ -378,7 +432,7 @@ const positionTitleStyle: React.CSSProperties = {
   margin: "0 0 12px",
   fontSize: 24,
   lineHeight: 1.16,
-  fontWeight: 800,
+  fontWeight: 900,
   color: "#171717",
 };
 
@@ -387,6 +441,13 @@ const positionLocationStyle: React.CSSProperties = {
   color: "#5a5349",
   fontSize: 15,
   lineHeight: 1.7,
+};
+
+const positionSummaryStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  color: "#5a5349",
+  fontSize: 14,
+  lineHeight: 1.75,
 };
 
 const positionFooterStyle: React.CSSProperties = {
@@ -411,11 +472,32 @@ const viewRoleStyle: React.CSSProperties = {
   fontWeight: 900,
 };
 
-const officeCardStyle: React.CSSProperties = {
-  background: "#faf7f1",
+const ctaPanelStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 24,
+  background: "#ffffff",
   border: "1px solid #e6ddd0",
-  borderRadius: 24,
-  padding: 24,
+  borderRadius: 30,
+  padding: 32,
+  boxShadow: "0 18px 45px rgba(23,23,23,0.06)",
+};
+
+const ctaTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(2rem, 3vw, 3rem)",
+  lineHeight: 1.08,
+  color: "#171717",
+  fontWeight: 900,
+};
+
+const ctaTextStyle: React.CSSProperties = {
+  margin: "12px 0 0",
+  maxWidth: 720,
+  color: "#5a5349",
+  fontSize: 16,
+  lineHeight: 1.85,
 };
 
 const faqWrapperStyle: React.CSSProperties = {
@@ -436,7 +518,7 @@ const faqQuestionStyle: React.CSSProperties = {
   padding: "18px 0",
   color: "#171717",
   fontSize: 17,
-  fontWeight: 800,
+  fontWeight: 900,
   listStyle: "none",
 };
 

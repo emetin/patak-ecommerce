@@ -1697,3 +1697,74 @@ body {
     font-size: 13px !important;
   }
 }
+
+/* Careers responsive */
+
+.career-hero-grid,
+.career-content-grid,
+.career-general-grid {
+  display: grid;
+}
+
+.career-hero-grid {
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
+  gap: 28px;
+}
+
+.career-content-grid {
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.career-general-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.95fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.career-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.career-cta-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .career-hero-grid,
+  .career-content-grid,
+  .career-general-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .career-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .career-cta-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .career-hero-grid,
+  .career-content-grid,
+  .career-general-grid {
+    gap: 20px;
+  }
+
+  .career-cta-panel {
+    padding: 20px !important;
+  }
+
+  #application-form {
+    width: 100%;
+  }
+}
