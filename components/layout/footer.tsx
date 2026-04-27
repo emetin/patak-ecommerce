@@ -1,4 +1,5 @@
 import Link from "next/link";
+import FooterNewsletterForm from "./FooterNewsletterForm";
 
 export default function Footer() {
   return (
@@ -139,7 +140,7 @@ export default function Footer() {
               <Link href="/our-ceo" style={footerLinkStyle}>
                 Our CEO
               </Link>
-              <Link href="/kvkk" style={footerLinkStyle}>
+              <Link href="/policies/kvkk" style={footerLinkStyle}>
                 KVKK
               </Link>
             </div>
@@ -159,24 +160,7 @@ export default function Footer() {
               Be the first to know about new collections and exclusive offers.
             </p>
 
-            <form style={newsletterFormStyle}>
-              <div style={newsletterInputWrapStyle}>
-                <input
-                  type="email"
-                  placeholder="Enter your email"
-                  aria-label="Email"
-                  style={newsletterInputStyle}
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="footer-newsletter-button"
-                style={newsletterButtonStyle}
-              >
-                Subscribe
-              </button>
-            </form>
+           <FooterNewsletterForm />
 
             <div style={socialWrapperStyle}>
               <a
@@ -208,39 +192,46 @@ export default function Footer() {
         </div>
 
         <div style={policyBarStyle}>
-          <Link
-            href="/privacy-policy"
-            className="footer-policy-link"
-            style={policyLinkStyle}
-          >
-            Privacy Policy
-          </Link>
-          <Link
-            href="/terms-and-conditions"
-            className="footer-policy-link"
-            style={policyLinkStyle}
-          >
-            Terms & Conditions
-          </Link>
-          <Link
-            href="/cookie-policy"
-            className="footer-policy-link"
-            style={policyLinkStyle}
-          >
-            Cookie Policy
-          </Link>
-          <Link href="/kvkk" className="footer-policy-link" style={policyLinkStyle}>
-            KVKK
-          </Link>
-          <Link
-            href="/return-policy"
-            className="footer-policy-link"
-            style={policyLinkStyle}
-          >
-            Return Policy
-          </Link>
-        </div>
+  <Link
+    href="/policies/privacy-policy"
+    className="footer-policy-link"
+    style={policyLinkStyle}
+  >
+    Privacy Policy
+  </Link>
 
+  <Link
+    href="/policies/terms-and-conditions"
+    className="footer-policy-link"
+    style={policyLinkStyle}
+  >
+    Terms & Conditions
+  </Link>
+
+  <Link
+    href="/policies/cookie-policy"
+    className="footer-policy-link"
+    style={policyLinkStyle}
+  >
+    Cookie Policy
+  </Link>
+
+  <Link
+    href="/policies/kvkk"
+    className="footer-policy-link"
+    style={policyLinkStyle}
+  >
+    KVKK
+  </Link>
+
+  <Link
+    href="/policies/return-policy"
+    className="footer-policy-link"
+    style={policyLinkStyle}
+  >
+    Return Policy
+  </Link>
+</div>
         <div
           className="footer-bottom"
           style={{
