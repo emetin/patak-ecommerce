@@ -8,8 +8,9 @@ const navigation = [
   { label: "Home", href: "/" },
   { label: "About Us", href: "/about-us" },
   { label: "Collections", href: "/collections" },
-  { label: "Products", href: "/products" },
   { label: "Contact Us", href: "/contact-us" },
+  { label: "FAQ", href: "/faq" },
+
 ];
 
 type SearchProduct = {
