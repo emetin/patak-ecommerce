@@ -7,6 +7,7 @@ type MediaItem = {
   file_name: string;
   file_id: string;
   image_url: string;
+  preview_url?: string;
   mime_type: string;
   size_bytes: string;
   folder: string;
@@ -55,11 +56,7 @@ function formatDate(value: string) {
 function extractDriveFileId(url: string) {
   if (!url) return "";
 
-  const patterns = [
-    /\/file\/d\/([^/]+)/,
-    /id=([^&]+)/,
-    /\/d\/([^/]+)/,
-  ];
+  const patterns = [/\/file\/d\/([^/]+)/, /id=([^&]+)/, /\/d\/([^/]+)/];
 
   for (const pattern of patterns) {
     const match = url.match(pattern);
@@ -102,10 +99,27 @@ function createQueueId(file: File) {
     .slice(2)}`;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runInBatches<T>(
+  items: T[],
+  limit: number,
+  handler: (item: T) => Promise<void>
+) {
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = items.slice(i, i + limit);
+    await Promise.all(batch.map((item) => handler(item)));
+  }
+}
+
 export default function AdminMediaPage() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -126,7 +140,7 @@ export default function AdminMediaPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const response = await fetch("/api/media/list", {
+      const response = await fetch(`/api/media/list?t=${Date.now()}`, {
         cache: "no-store",
       });
 
@@ -137,6 +151,7 @@ export default function AdminMediaPage() {
       }
 
       setItems(Array.isArray(data.items) ? data.items : []);
+      setSelectedIds([]);
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "An unknown error occurred."
@@ -169,6 +184,111 @@ export default function AdminMediaPage() {
         .includes(q)
     );
   }, [items, search]);
+
+  const allVisibleSelected =
+    filteredItems.length > 0 &&
+    filteredItems.every((item) => selectedIds.includes(item.id));
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((itemId) => itemId !== id)
+        : [...prev, id]
+    );
+  }
+
+  function toggleSelectAllVisible() {
+    const visibleIds = filteredItems.map((item) => item.id);
+
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      return;
+    }
+
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+  }
+
+  async function deleteMediaItemWithRetry(item: MediaItem, attempt = 1) {
+    try {
+      const response = await fetch("/api/media/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: item.id,
+          file_id: item.file_id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || "Delete failed.");
+      }
+
+      return true;
+    } catch {
+      if (attempt < 3) {
+        await sleep(700 * attempt);
+        return deleteMediaItemWithRetry(item, attempt + 1);
+      }
+
+      return false;
+    }
+  }
+
+  async function handleBulkDelete() {
+  if (selectedIds.length === 0) return;
+
+  const confirmed = window.confirm(
+    `Are you sure you want to delete ${selectedIds.length} selected image(s)?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setBulkDeleting(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const selectedItems = items.filter((item) => selectedIds.includes(item.id));
+
+    let deletedCount = 0;
+    let failedCount = 0;
+
+    await runInBatches(selectedItems, 3, async (item) => {
+      const deleted = await deleteMediaItemWithRetry(item);
+
+      if (deleted) {
+        deletedCount += 1;
+      } else {
+        failedCount += 1;
+      }
+    });
+
+    setSelectedIds([]);
+
+    await sleep(1000);
+    await loadMedia();
+
+    if (deletedCount > 0) {
+      setSuccessMessage(`${deletedCount} image(s) deleted successfully.`);
+    }
+
+    if (failedCount > 0) {
+      setErrorMessage(
+        `${failedCount} image(s) could not be deleted. Please try again.`
+      );
+    }
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error ? error.message : "Bulk delete failed."
+    );
+  } finally {
+    setBulkDeleting(false);
+  }
+}
 
   async function uploadSingleFile(
     queueId: string,
@@ -249,7 +369,7 @@ export default function AdminMediaPage() {
           )
         );
 
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await sleep(1200);
 
         return uploadSingleFile(
           queueId,
@@ -275,72 +395,72 @@ export default function AdminMediaPage() {
   }
 
   async function startUploadQueue(selectedFiles: File[]) {
-    if (selectedFiles.length === 0) return;
+  if (selectedFiles.length === 0) return;
 
-    setErrorMessage("");
-    setSuccessMessage("");
-    setIsQueueVisible(true);
+  setErrorMessage("");
+  setSuccessMessage("");
+  setIsQueueVisible(true);
 
-    const selectedFolder = folder.trim() || "general";
-    const selectedAltText = altText.trim();
+  const selectedFolder = folder.trim() || "general";
+  const selectedAltText = altText.trim();
 
-    const newQueueItems: UploadQueueItem[] = selectedFiles.map((file) => ({
-      id: createQueueId(file),
-      file,
-      progress: 0,
-      status: "queued",
-    }));
+  const newQueueItems: UploadQueueItem[] = selectedFiles.map((file) => ({
+    id: createQueueId(file),
+    file,
+    progress: 0,
+    status: "queued",
+  }));
 
-    setQueue((prev) => [...newQueueItems, ...prev]);
+  setQueue((prev) => [...newQueueItems, ...prev]);
 
-    let totalUploaded = 0;
-    let totalFailed = 0;
+  let totalUploaded = 0;
+  let totalFailed = 0;
 
-    for (const queueItem of newQueueItems) {
-      try {
-        setQueue((prev) =>
-          prev.map((item) =>
-            item.id === queueItem.id
-              ? { ...item, status: "uploading", progress: 3 }
-              : item
-          )
-        );
+  await runInBatches(newQueueItems, 2, async (queueItem) => {
+    try {
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.id === queueItem.id
+            ? { ...item, status: "uploading", progress: 3 }
+            : item
+        )
+      );
 
-        const uploadedItems = await uploadSingleFile(
-          queueItem.id,
-          queueItem.file,
-          selectedFolder,
-          selectedAltText
-        );
+      const uploadedItems = await uploadSingleFile(
+        queueItem.id,
+        queueItem.file,
+        selectedFolder,
+        selectedAltText
+      );
 
-        if (uploadedItems.length > 0) {
-          totalUploaded += uploadedItems.length;
-        }
-      } catch {
-        totalFailed += 1;
+      if (uploadedItems.length > 0) {
+        totalUploaded += uploadedItems.length;
       }
+    } catch {
+      totalFailed += 1;
     }
+  });
 
-    if (totalUploaded > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      await loadMedia();
+  await sleep(1200);
+  await loadMedia();
 
-      setSuccessMessage(`${totalUploaded} image(s) uploaded successfully.`);
-      setAltText("");
-    }
-
-    if (totalFailed > 0) {
-      setErrorMessage(`${totalFailed} image(s) could not be uploaded.`);
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
-    setTimeout(() => {
-      setQueue((prev) => prev.filter((item) => item.status !== "done"));
-    }, 3500);
+  if (totalUploaded > 0) {
+    setSuccessMessage(`${totalUploaded} image(s) uploaded successfully.`);
+    setAltText("");
   }
+
+  if (totalFailed > 0) {
+    setErrorMessage(`${totalFailed} image(s) could not be uploaded.`);
+  }
+
+  if (fileInputRef.current) {
+    fileInputRef.current.value = "";
+  }
+
+  setTimeout(() => {
+    setQueue((prev) => prev.filter((item) => item.status !== "done"));
+  }, 3500);
+}
 
   async function handleCopy(url: string) {
     try {
@@ -363,24 +483,15 @@ export default function AdminMediaPage() {
       setErrorMessage("");
       setSuccessMessage("");
 
-      const response = await fetch("/api/media/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: item.id,
-          file_id: item.file_id,
-        }),
-      });
+      const deleted = await deleteMediaItemWithRetry(item);
 
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data.error || "Delete failed.");
+      if (!deleted) {
+        throw new Error("Delete failed.");
       }
 
-      setItems((prev) => prev.filter((media) => media.id !== item.id));
+      await sleep(700);
+      await loadMedia();
+
       setSuccessMessage("Image deleted successfully.");
     } catch (error) {
       setErrorMessage(
@@ -467,6 +578,19 @@ export default function AdminMediaPage() {
 
       <div style={tableCardStyle}>
         <div style={toolbarStyle}>
+          {selectedIds.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              style={dangerButtonStyle}
+            >
+              {bulkDeleting
+                ? "Deleting..."
+                : `Delete Selected (${selectedIds.length})`}
+            </button>
+          ) : null}
+
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -488,6 +612,13 @@ export default function AdminMediaPage() {
             <table style={tableStyle}>
               <thead>
                 <tr>
+                  <th style={checkboxThStyle}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAllVisible}
+                    />
+                  </th>
                   <th style={thStyle}>File name</th>
                   <th style={thStyle}>Alt text</th>
                   <th style={thStyle}>Date added</th>
@@ -503,16 +634,42 @@ export default function AdminMediaPage() {
 
                   return (
                     <tr key={item.id} style={trStyle}>
+                      <td style={checkboxTdStyle}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => toggleSelected(item.id)}
+                        />
+                      </td>
+
                       <td style={tdStyle}>
                         <div style={fileCellStyle}>
                           <div style={thumbWrapStyle}>
                             {previewUrl ? (
-                             <img
+                              <img
                                 src={previewUrl}
-                                alt={item.alt_text || item.file_name || "Media image"}
+                                alt={
+                                  item.alt_text ||
+                                  item.file_name ||
+                                  "Media image"
+                                }
                                 style={thumbStyle}
                                 loading="lazy"
-                                />
+                                referrerPolicy="no-referrer"
+                                onError={(event) => {
+                                  const target = event.currentTarget;
+                                  const fileId =
+                                    item.file_id ||
+                                    extractDriveFileId(item.image_url);
+
+                                  if (fileId && target.src !== item.image_url) {
+                                    target.src = `https://drive.google.com/uc?export=view&id=${fileId}`;
+                                    return;
+                                  }
+
+                                  target.style.display = "none";
+                                }}
+                              />
                             ) : (
                               <div style={thumbEmptyStyle}>
                                 {getFileExtension(item)}
@@ -569,7 +726,7 @@ export default function AdminMediaPage() {
                           <button
                             type="button"
                             onClick={() => handleDelete(item)}
-                            disabled={deletingId === item.id}
+                            disabled={deletingId === item.id || bulkDeleting}
                             style={dangerButtonStyle}
                           >
                             {deletingId === item.id ? "Deleting..." : "Delete"}
@@ -605,7 +762,7 @@ export default function AdminMediaPage() {
           </div>
 
           <div style={uploadQueueListStyle}>
-            {queue.slice(0, 6).map((item) => (
+            {queue.map((item) => (
               <div key={item.id} style={queueItemStyle}>
                 <div style={queueItemTopStyle}>
                   <span style={queueFileNameStyle}>{item.file.name}</span>
@@ -787,6 +944,12 @@ const thStyle: React.CSSProperties = {
   fontWeight: 800,
 };
 
+const checkboxThStyle: React.CSSProperties = {
+  ...thStyle,
+  width: 48,
+  textAlign: "center",
+};
+
 const trStyle: React.CSSProperties = {
   borderBottom: "1px solid #eee6da",
 };
@@ -795,6 +958,12 @@ const tdStyle: React.CSSProperties = {
   padding: "10px 16px",
   verticalAlign: "middle",
   fontSize: 14,
+};
+
+const checkboxTdStyle: React.CSSProperties = {
+  ...tdStyle,
+  width: 48,
+  textAlign: "center",
 };
 
 const fileCellStyle: React.CSSProperties = {
@@ -1010,6 +1179,9 @@ const queueCloseButtonStyle: React.CSSProperties = {
 const uploadQueueListStyle: React.CSSProperties = {
   display: "grid",
   gap: 10,
+  maxHeight: 320,
+  overflowY: "auto",
+  paddingRight: 4,
 };
 
 const queueItemStyle: React.CSSProperties = {

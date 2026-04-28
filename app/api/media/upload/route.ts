@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { appendSheetRow } from "../../../../lib/sheets";
+import { appendSheetRow, getSheetData } from "../../../../lib/sheets";
 
 const SHEET_NAME = "media";
 
@@ -10,6 +10,33 @@ async function fileToBase64(file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   return buffer.toString("base64");
+}
+
+async function generateUniqueFileName(originalName: string) {
+  const existingFiles = await getSheetData(SHEET_NAME);
+
+  const dotIndex = originalName.lastIndexOf(".");
+  const baseName =
+    dotIndex >= 0 ? originalName.slice(0, dotIndex) : originalName;
+  const extension = dotIndex >= 0 ? originalName.slice(dotIndex) : "";
+
+  const existingNames = new Set(
+    Array.isArray(existingFiles)
+      ? existingFiles.map((item: any) =>
+          String(item.file_name || "").toLowerCase()
+        )
+      : []
+  );
+
+  let finalName = originalName;
+  let counter = 1;
+
+  while (existingNames.has(finalName.toLowerCase())) {
+    finalName = `${baseName}(${counter})${extension}`;
+    counter++;
+  }
+
+  return finalName;
 }
 
 export async function POST(req: Request) {
@@ -30,13 +57,8 @@ export async function POST(req: Request) {
 
     if (!file || !(file instanceof File)) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "Image file is required.",
-        },
-        {
-          status: 400,
-        }
+        { ok: false, error: "Image file is required." },
+        { status: 400 }
       );
     }
 
@@ -52,15 +74,13 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            "Unsupported file type. Please upload JPG, PNG, WEBP, or GIF.",
+          error: "Unsupported file type. Please upload JPG, PNG, WEBP, or GIF.",
         },
-        {
-          status: 400,
-        }
+        { status: 400 }
       );
     }
 
+    const uniqueFileName = await generateUniqueFileName(file.name);
     const fileBase64 = await fileToBase64(file);
 
     const scriptResponse = await fetch(APPS_SCRIPT_MEDIA_URL, {
@@ -72,7 +92,7 @@ export async function POST(req: Request) {
         action: "upload",
         secret: APPS_SCRIPT_MEDIA_SECRET,
         fileBase64,
-        fileName: file.name,
+        fileName: uniqueFileName,
         mimeType: file.type,
       }),
     });
@@ -90,11 +110,18 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const id = `media_${Date.now()}`;
 
+    const fileId = String(scriptData.fileId || "");
+    const imageUrl = String(scriptData.url || "");
+    const previewUrl = fileId
+      ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w300`
+      : imageUrl;
+
     const item = {
       id,
-      file_name: String(scriptData.fileName || file.name),
-      file_id: String(scriptData.fileId || ""),
-      image_url: String(scriptData.url || ""),
+      file_name: uniqueFileName,
+      file_id: fileId,
+      image_url: imageUrl,
+      preview_url: previewUrl,
       mime_type: file.type,
       size_bytes: String(file.size || 0),
       folder: folder || "general",
@@ -107,6 +134,7 @@ export async function POST(req: Request) {
       item.file_name,
       item.file_id,
       item.image_url,
+      item.preview_url,
       item.mime_type,
       item.size_bytes,
       item.folder,
@@ -124,13 +152,9 @@ export async function POST(req: Request) {
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to upload media.",
+          error instanceof Error ? error.message : "Failed to upload media.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
