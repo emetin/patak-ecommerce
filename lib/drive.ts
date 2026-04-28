@@ -10,6 +10,8 @@ const PRODUCT_IMAGE_FOLDER_ID =
 const CAREER_RESUME_FOLDER_ID =
   process.env.GOOGLE_DRIVE_CAREER_RESUME_FOLDER_ID;
 
+const MEDIA_FOLDER_ID = process.env.GOOGLE_DRIVE_MEDIA_FOLDER_ID;
+
 if (!CLIENT_EMAIL) {
   throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL.");
 }
@@ -127,4 +129,36 @@ export async function uploadCareerResumeToDrive(file: File) {
     folderId: CAREER_RESUME_FOLDER_ID,
     prefix: "career-resume",
   });
+}
+
+export async function uploadMediaImageToDrive(file: File) {
+  if (!MEDIA_FOLDER_ID) {
+    throw new Error("Missing GOOGLE_DRIVE_MEDIA_FOLDER_ID.");
+  }
+
+  const uploaded = await uploadFileToDrive({
+    file,
+    folderId: MEDIA_FOLDER_ID,
+    prefix: "media",
+  });
+
+  return {
+    fileId: uploaded.fileId,
+    fileName: uploaded.fileName,
+    url: `https://drive.google.com/uc?export=view&id=${uploaded.fileId}`,
+  };
+}
+
+export async function deleteDriveFile(fileId: string) {
+  if (!fileId) {
+    throw new Error("Google Drive file ID is required.");
+  }
+
+  const drive = getDriveClient();
+
+  await drive.files.delete({
+    fileId,
+  });
+
+  return { ok: true };
 }

@@ -13,6 +13,7 @@ const menuItems = [
   { href: "/admin/collections", label: "Collections" },
   { href: "/admin/blog", label: "Blog" },
   { href: "/admin/forms", label: "Forms" },
+  { href: "/admin/media", label: "Media Library" },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

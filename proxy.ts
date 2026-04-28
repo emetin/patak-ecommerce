@@ -13,6 +13,7 @@ function isProtectedApiRoute(pathname: string) {
     pathname.startsWith("/api/products/") ||
     pathname.startsWith("/api/variants/") ||
     pathname.startsWith("/api/product-images/") ||
+    pathname.startsWith("/api/media/") ||
     pathname.startsWith("/api/blog/") ||
     pathname.startsWith("/api/collections/")
   );
@@ -87,6 +88,7 @@ export const config = {
     "/api/products/:path*",
     "/api/variants/:path*",
     "/api/product-images/:path*",
+    "/api/media/:path*",
     "/api/blog/:path*",
     "/api/collections/:path*",
   ],
