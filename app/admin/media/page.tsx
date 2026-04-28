@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type MediaItem = {
   id: string;
@@ -18,6 +18,14 @@ type MediaResponse = {
   ok?: boolean;
   items?: MediaItem[];
   item?: MediaItem;
+  error?: string;
+};
+
+type UploadQueueItem = {
+  id: string;
+  file: File;
+  progress: number;
+  status: "queued" | "uploading" | "done" | "error";
   error?: string;
 };
 
@@ -44,9 +52,31 @@ function formatDate(value: string) {
   });
 }
 
+function extractDriveFileId(url: string) {
+  if (!url) return "";
+
+  const patterns = [
+    /\/file\/d\/([^/]+)/,
+    /id=([^&]+)/,
+    /\/d\/([^/]+)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return "";
+}
+
 function getPreviewUrl(item: MediaItem) {
-  if (item.file_id) {
-    return `https://drive.google.com/thumbnail?id=${item.file_id}&sz=w160`;
+  const fileId = item.file_id || extractDriveFileId(item.image_url);
+
+  if (fileId) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w300`;
   }
 
   return item.image_url || "";
@@ -66,18 +96,30 @@ function getFileExtension(item: MediaItem) {
   return "-";
 }
 
+function createQueueId(file: File) {
+  return `${file.name}-${file.size}-${file.lastModified}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
 export default function AdminMediaPage() {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const [files, setFiles] = useState<File[]>([]);
   const [folder, setFolder] = useState("general");
   const [altText, setAltText] = useState("");
   const [search, setSearch] = useState("");
+  const [queue, setQueue] = useState<UploadQueueItem[]>([]);
+  const [isQueueVisible, setIsQueueVisible] = useState(true);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const hasActiveUploads = queue.some(
+    (item) => item.status === "queued" || item.status === "uploading"
+  );
 
   async function loadMedia() {
     try {
@@ -128,58 +170,176 @@ export default function AdminMediaPage() {
     );
   }, [items, search]);
 
-  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (files.length === 0) {
-      setErrorMessage("Please select at least one image.");
-      return;
-    }
-
+  async function uploadSingleFile(
+    queueId: string,
+    file: File,
+    selectedFolder: string,
+    selectedAltText: string,
+    attempt = 1
+  ): Promise<MediaItem[]> {
     try {
-      setUploading(true);
-      setErrorMessage("");
-      setSuccessMessage("");
+      return await new Promise<MediaItem[]>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
 
-      const formData = new FormData();
+        formData.append("file", file);
+        formData.append("folder", selectedFolder);
+        formData.append("alt_text", selectedAltText);
 
-      files.forEach((selectedFile) => {
-        formData.append("files", selectedFile);
+        xhr.open("POST", "/api/media/upload");
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+
+          const progress = Math.round((event.loaded / event.total) * 100);
+
+          setQueue((prev) =>
+            prev.map((item) =>
+              item.id === queueId ? { ...item, progress } : item
+            )
+          );
+        };
+
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText || "{}") as MediaResponse;
+
+            if (xhr.status < 200 || xhr.status >= 300 || !data.ok) {
+              throw new Error(data.error || "Upload failed.");
+            }
+
+            const uploadedItems = Array.isArray(data.items)
+              ? data.items
+              : data.item
+                ? [data.item]
+                : [];
+
+            setQueue((prev) =>
+              prev.map((item) =>
+                item.id === queueId
+                  ? { ...item, progress: 100, status: "done" }
+                  : item
+              )
+            );
+
+            resolve(uploadedItems);
+          } catch (error) {
+            reject(error);
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error("Network error during upload."));
+        };
+
+        xhr.send(formData);
       });
+    } catch (error) {
+      if (attempt < 3) {
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.id === queueId
+              ? {
+                  ...item,
+                  status: "uploading",
+                  progress: 10,
+                  error: `Retrying upload... (${attempt + 1}/3)`,
+                }
+              : item
+          )
+        );
 
-      formData.append("folder", folder);
-      formData.append("alt_text", altText);
+        await new Promise((resolve) => setTimeout(resolve, 1200));
 
-      const response = await fetch("/api/media/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = (await response.json()) as MediaResponse & {
-        uploaded?: number;
-      };
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data.error || "Upload failed.");
+        return uploadSingleFile(
+          queueId,
+          file,
+          selectedFolder,
+          selectedAltText,
+          attempt + 1
+        );
       }
 
-      const uploadedItems = Array.isArray(data.items)
-        ? data.items
-        : data.item
-          ? [data.item]
-          : [];
+      const message = error instanceof Error ? error.message : "Upload failed.";
 
-      setItems((prev) => [...uploadedItems, ...prev]);
-      setFiles([]);
-      setAltText("");
-      setSuccessMessage(`${uploadedItems.length} image(s) uploaded successfully.`);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "An unknown error occurred."
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.id === queueId
+            ? { ...item, status: "error", error: message }
+            : item
+        )
       );
-    } finally {
-      setUploading(false);
+
+      throw error;
     }
+  }
+
+  async function startUploadQueue(selectedFiles: File[]) {
+    if (selectedFiles.length === 0) return;
+
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsQueueVisible(true);
+
+    const selectedFolder = folder.trim() || "general";
+    const selectedAltText = altText.trim();
+
+    const newQueueItems: UploadQueueItem[] = selectedFiles.map((file) => ({
+      id: createQueueId(file),
+      file,
+      progress: 0,
+      status: "queued",
+    }));
+
+    setQueue((prev) => [...newQueueItems, ...prev]);
+
+    let totalUploaded = 0;
+    let totalFailed = 0;
+
+    for (const queueItem of newQueueItems) {
+      try {
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.id === queueItem.id
+              ? { ...item, status: "uploading", progress: 3 }
+              : item
+          )
+        );
+
+        const uploadedItems = await uploadSingleFile(
+          queueItem.id,
+          queueItem.file,
+          selectedFolder,
+          selectedAltText
+        );
+
+        if (uploadedItems.length > 0) {
+          totalUploaded += uploadedItems.length;
+        }
+      } catch {
+        totalFailed += 1;
+      }
+    }
+
+    if (totalUploaded > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await loadMedia();
+
+      setSuccessMessage(`${totalUploaded} image(s) uploaded successfully.`);
+      setAltText("");
+    }
+
+    if (totalFailed > 0) {
+      setErrorMessage(`${totalFailed} image(s) could not be uploaded.`);
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    setTimeout(() => {
+      setQueue((prev) => prev.filter((item) => item.status !== "done"));
+    }, 3500);
   }
 
   async function handleCopy(url: string) {
@@ -237,8 +397,8 @@ export default function AdminMediaPage() {
         <div>
           <h1 style={titleStyle}>Files</h1>
           <p style={subtitleStyle}>
-            Upload images to Google Drive, copy their URLs, and use them inside
-            your custom code.
+            Select images and they will be uploaded automatically to Google
+            Drive.
           </p>
         </div>
 
@@ -247,33 +407,36 @@ export default function AdminMediaPage() {
         </button>
       </div>
 
-      <form onSubmit={handleUpload} style={uploadCardStyle}>
+      <div style={uploadCardStyle}>
         <div style={formGridStyle}>
           <div>
-  <label style={labelStyle}>Images</label>
+            <label style={labelStyle}>Images</label>
 
-  <label style={uploadDropStyle}>
-    <input
-      type="file"
-      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-      multiple
-      onChange={(event) => {
-        const selectedFiles = Array.from(event.target.files || []);
-        setFiles(selectedFiles);
-      }}
-      style={hiddenFileInputStyle}
-    />
+            <label style={uploadDropStyle}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                multiple
+                onChange={(event) => {
+                  const selectedFiles = Array.from(event.target.files || []);
+                  startUploadQueue(selectedFiles);
+                }}
+                style={hiddenFileInputStyle}
+              />
 
-    <span style={uploadIconStyle}>+</span>
+              <span style={uploadIconStyle}>+</span>
 
-    <span style={uploadTextWrapStyle}>
-      <strong style={uploadTitleStyle}>
-        {files.length > 0 ? `${files.length} file(s) selected` : "Choose images"}
-      </strong>
-      <span style={uploadHintStyle}>JPG, PNG, WEBP or GIF</span>
-    </span>
-  </label>
-</div>
+              <span style={uploadTextWrapStyle}>
+                <strong style={uploadTitleStyle}>
+                  {hasActiveUploads ? "Uploading images..." : "Choose images"}
+                </strong>
+                <span style={uploadHintStyle}>
+                  JPG, PNG, WEBP or GIF. Multiple images supported.
+                </span>
+              </span>
+            </label>
+          </div>
 
           <div>
             <label style={labelStyle}>Folder</label>
@@ -295,11 +458,7 @@ export default function AdminMediaPage() {
             />
           </div>
         </div>
-
-        <button type="submit" disabled={uploading} style={primaryButtonStyle}>
-          {uploading ? "Uploading..." : "Upload Image(s)"}
-        </button>
-      </form>
+      </div>
 
       {errorMessage ? <div style={errorBoxStyle}>{errorMessage}</div> : null}
       {successMessage ? (
@@ -308,10 +467,6 @@ export default function AdminMediaPage() {
 
       <div style={tableCardStyle}>
         <div style={toolbarStyle}>
-          <button type="button" style={tabButtonStyle}>
-            All
-          </button>
-
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -352,16 +507,12 @@ export default function AdminMediaPage() {
                         <div style={fileCellStyle}>
                           <div style={thumbWrapStyle}>
                             {previewUrl ? (
-                              <img
+                             <img
                                 src={previewUrl}
-                                alt={
-                                  item.alt_text ||
-                                  item.file_name ||
-                                  "Media image"
-                                }
+                                alt={item.alt_text || item.file_name || "Media image"}
                                 style={thumbStyle}
                                 loading="lazy"
-                              />
+                                />
                             ) : (
                               <div style={thumbEmptyStyle}>
                                 {getFileExtension(item)}
@@ -433,6 +584,61 @@ export default function AdminMediaPage() {
           </div>
         )}
       </div>
+
+      {queue.length > 0 && isQueueVisible ? (
+        <div style={uploadToastStyle}>
+          <div style={uploadToastHeaderStyle}>
+            <strong>Upload Queue</strong>
+
+            <div style={uploadToastActionsStyle}>
+              <span>{queue.length}</span>
+
+              <button
+                type="button"
+                onClick={() => setIsQueueVisible(false)}
+                style={queueCloseButtonStyle}
+                aria-label="Close upload queue"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div style={uploadQueueListStyle}>
+            {queue.slice(0, 6).map((item) => (
+              <div key={item.id} style={queueItemStyle}>
+                <div style={queueItemTopStyle}>
+                  <span style={queueFileNameStyle}>{item.file.name}</span>
+                  <span style={queueStatusStyle}>
+                    {item.status === "queued"
+                      ? "Queued"
+                      : item.status === "uploading"
+                        ? `${item.progress}%`
+                        : item.status === "done"
+                          ? "Done"
+                          : "Error"}
+                  </span>
+                </div>
+
+                <div style={progressTrackStyle}>
+                  <div
+                    style={{
+                      ...progressFillStyle,
+                      width: `${item.progress}%`,
+                      background:
+                        item.status === "error" ? "#b84242" : "#2f7d62",
+                    }}
+                  />
+                </div>
+
+                {item.error ? (
+                  <div style={queueErrorStyle}>{item.error}</div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -499,25 +705,6 @@ const inputStyle: React.CSSProperties = {
   fontSize: 14,
 };
 
-const selectedFilesStyle: React.CSSProperties = {
-  marginTop: 8,
-  color: "#6f6559",
-  fontSize: 13,
-  fontWeight: 700,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  width: "fit-content",
-  minHeight: 46,
-  padding: "0 18px",
-  borderRadius: 13,
-  border: "1px solid #2f7d62",
-  background: "#2f7d62",
-  color: "#fff",
-  fontWeight: 800,
-  cursor: "pointer",
-};
-
 const secondaryButtonStyle: React.CSSProperties = {
   minHeight: 46,
   padding: "0 18px",
@@ -561,17 +748,6 @@ const toolbarStyle: React.CSSProperties = {
   gap: 12,
   padding: 14,
   borderBottom: "1px solid #eee6da",
-};
-
-const tabButtonStyle: React.CSSProperties = {
-  minHeight: 36,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid #e1d8cb",
-  background: "#f8f5ef",
-  color: "#171717",
-  fontWeight: 800,
-  cursor: "pointer",
 };
 
 const searchInputStyle: React.CSSProperties = {
@@ -749,7 +925,7 @@ const emptyStateStyle: React.CSSProperties = {
 const uploadDropStyle: React.CSSProperties = {
   minHeight: 58,
   borderRadius: 16,
-  border: "1px dashed #cdbfAD",
+  border: "1px dashed #cdbfad",
   background: "#fcfbf8",
   display: "flex",
   alignItems: "center",
@@ -788,4 +964,98 @@ const uploadTitleStyle: React.CSSProperties = {
 const uploadHintStyle: React.CSSProperties = {
   color: "#6f6559",
   fontSize: 12,
+};
+
+const uploadToastStyle: React.CSSProperties = {
+  position: "fixed",
+  right: 24,
+  bottom: 24,
+  width: 360,
+  maxWidth: "calc(100vw - 48px)",
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 18,
+  boxShadow: "0 18px 48px rgba(23,23,23,0.18)",
+  padding: 14,
+  zIndex: 1000,
+};
+
+const uploadToastHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 10,
+  color: "#171717",
+};
+
+const uploadToastActionsStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const queueCloseButtonStyle: React.CSSProperties = {
+  width: 26,
+  height: 26,
+  borderRadius: 999,
+  border: "1px solid #ddd3c5",
+  background: "#fff",
+  color: "#171717",
+  fontSize: 18,
+  fontWeight: 800,
+  lineHeight: 1,
+  cursor: "pointer",
+};
+
+const uploadQueueListStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
+const queueItemStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+};
+
+const queueItemTopStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "center",
+};
+
+const queueFileNameStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "#171717",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const queueStatusStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "#6f6559",
+  flex: "0 0 auto",
+};
+
+const progressTrackStyle: React.CSSProperties = {
+  width: "100%",
+  height: 7,
+  background: "#f0ebe3",
+  borderRadius: 999,
+  overflow: "hidden",
+};
+
+const progressFillStyle: React.CSSProperties = {
+  height: "100%",
+  borderRadius: 999,
+  transition: "width 0.2s ease",
+};
+
+const queueErrorStyle: React.CSSProperties = {
+  color: "#8d2f2f",
+  fontSize: 11,
+  fontWeight: 700,
 };
