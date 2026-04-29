@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { SITE_SETTINGS } from "../../lib/site-settings";
 
 const navigation = [
   { label: "Home", href: "/" },
@@ -10,7 +11,6 @@ const navigation = [
   { label: "Collections", href: "/collections" },
   { label: "Contact Us", href: "/contact-us" },
   { label: "FAQ", href: "/faq" },
-
 ];
 
 type SearchProduct = {
@@ -347,67 +347,22 @@ export default function Header() {
               color: "#171717",
               display: "inline-flex",
               alignItems: "center",
-              gap: 12,
               flexShrink: 0,
               minWidth: 0,
             }}
           >
-            <div
-              className="header-logo-mark"
+            <img
+              src={SITE_SETTINGS.logo.header}
+              alt={SITE_SETTINGS.siteName}
+              className="header-logo-image"
               style={{
-                width: 42,
-                height: 42,
-                borderRadius: 12,
-                background:
-                  "linear-gradient(135deg, #17352d 0%, #2f7d62 75%, #49a487 100%)",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontWeight: 900,
-                fontSize: 16,
-                letterSpacing: "0.04em",
+                width: 168,
+                height: "auto",
+                display: "block",
+                objectFit: "contain",
                 flexShrink: 0,
               }}
-            >
-              PT
-            </div>
-
-            <div
-              className="header-logo-text"
-              style={{
-                display: "grid",
-                gap: 2,
-                minWidth: 0,
-              }}
-            >
-              <span
-                className="header-logo-title"
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  letterSpacing: "-0.02em",
-                  lineHeight: 1.1,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Patak Textile
-              </span>
-
-              <span
-                className="header-logo-subtitle"
-                style={{
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: "#7a7064",
-                  fontWeight: 800,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Corporate Textile Catalog
-              </span>
-            </div>
+            />
           </Link>
 
           <button
@@ -530,6 +485,14 @@ export default function Header() {
       </div>
 
       <style jsx>{`
+        .header-logo-image {
+          max-width: 168px;
+          width: 100%;
+          height: auto;
+          object-fit: contain;
+          display: block;
+        }
+
         @media (max-width: 1180px) {
           .header-desktop-search-holder {
             width: 190px !important;
@@ -594,25 +557,12 @@ export default function Header() {
           }
 
           .header-logo-link {
-            gap: 9px !important;
             max-width: calc(100vw - 88px) !important;
             overflow: hidden !important;
           }
 
-          .header-logo-mark {
-            width: 40px !important;
-            height: 40px !important;
-            border-radius: 10px !important;
-            font-size: 13px !important;
-          }
-
-          .header-logo-title {
-            font-size: 17px !important;
-          }
-
-          .header-logo-subtitle {
-            font-size: 8px !important;
-            letter-spacing: 0.055em !important;
+          .header-logo-image {
+            max-width: 138px !important;
           }
 
           .header-mobile-menu-button {

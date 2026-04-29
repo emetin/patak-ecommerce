@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Assistant } from "next/font/google";
 import Header from "../components/layout/header";
 import Footer from "../components/layout/footer";
+import { SITE_SETTINGS } from "../lib/site-settings";
 
 const assistant = Assistant({
   subsets: ["latin"],
@@ -17,8 +18,8 @@ const SITE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Patak Textile",
-    template: "%s | Patak Textile",
+    default: SITE_SETTINGS.siteName,
+    template: `%s | ${SITE_SETTINGS.siteName}`,
   },
   description:
     "Patak Textile presents premium textile collections for hospitality, residences and refined project-based environments through a stronger corporate catalog structure.",
@@ -32,28 +33,44 @@ export const metadata: Metadata = {
     "hotel linen supplier",
     "corporate textile catalog",
   ],
+  icons: {
+    icon: [
+      {
+        url: SITE_SETTINGS.favicon.icon,
+        sizes: "96x96",
+        type: "image/png",
+      },
+    ],
+    apple: [
+      {
+        url: SITE_SETTINGS.favicon.apple,
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Patak Textile",
+    title: SITE_SETTINGS.siteName,
     description:
       "Patak Textile presents premium textile collections for hospitality, residences and refined project-based environments through a stronger corporate catalog structure.",
     url: SITE_URL,
-    siteName: "Patak Textile",
+    siteName: SITE_SETTINGS.siteName,
     type: "website",
     images: [
       {
         url: "/og-default.jpg",
         width: 1200,
         height: 630,
-        alt: "Patak Textile",
+        alt: SITE_SETTINGS.siteName,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Patak Textile",
+    title: SITE_SETTINGS.siteName,
     description:
       "Patak Textile presents premium textile collections for hospitality, residences and refined project-based environments through a stronger corporate catalog structure.",
     images: ["/og-default.jpg"],

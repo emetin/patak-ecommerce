@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   memo,
   useCallback,
@@ -52,7 +53,17 @@ function isTrue(value: unknown) {
   return normalizeLower(value) === "true";
 }
 
+function createProductKey(item: ProductItem, index: number) {
+  return normalizeText(item.slug) || normalizeText(item.id) || `row-${index}`;
+}
+
+function encodeSlugList(slugs: string[]) {
+  return slugs.map((slug) => encodeURIComponent(slug)).join(",");
+}
+
 export default function AdminProductsPage() {
+  const router = useRouter();
+
   const [items, setItems] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -60,6 +71,8 @@ export default function AdminProductsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [contentFilter, setContentFilter] = useState("all");
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [deleteLoadingSlug, setDeleteLoadingSlug] = useState("");
 
   const [page, setPage] = useState(1);
@@ -76,6 +89,7 @@ export default function AdminProductsPage() {
     debounceRef.current = setTimeout(() => {
       setPage(1);
       setSearch(searchInput.trim());
+      setSelectedSlugs([]);
     }, 350);
 
     return () => {
@@ -87,7 +101,8 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter]);
+    setSelectedSlugs([]);
+  }, [statusFilter, contentFilter]);
 
   const loadOverview = useCallback(
     async (signal?: AbortSignal): Promise<ProductsOverviewResponse> => {
@@ -163,10 +178,78 @@ export default function AdminProductsPage() {
       setLoading(true);
       const data = await loadOverview();
       applyOverviewData(data);
+      setSelectedSlugs([]);
     } finally {
       setLoading(false);
     }
   }, [loadOverview, applyOverviewData]);
+
+  const filteredItems = useMemo(() => {
+    if (contentFilter === "all") return items;
+
+    return items.filter((item) => {
+      const imageCount = Number(item.image_count || 0);
+      const altCount = Number(item.alt_count || 0);
+
+      if (contentFilter === "no_gallery") return imageCount === 0;
+      if (contentFilter === "no_main_image") {
+        return imageCount > 0 && !item.main_image_exists;
+      }
+      if (contentFilter === "missing_alt_text") {
+        return imageCount > 0 && altCount < imageCount;
+      }
+      if (contentFilter === "low_image_count") {
+        return imageCount > 0 && imageCount < 3;
+      }
+      if (contentFilter === "featured") return isTrue(item.featured);
+      if (contentFilter === "not_featured") return !isTrue(item.featured);
+
+      return true;
+    });
+  }, [contentFilter, items]);
+
+  const visibleSlugs = useMemo(() => {
+    return filteredItems.map((item) => normalizeText(item.slug)).filter(Boolean);
+  }, [filteredItems]);
+
+  const allVisibleSelected =
+    visibleSlugs.length > 0 &&
+    visibleSlugs.every((slug) => selectedSlugs.includes(slug));
+
+  const selectedVisibleCount = visibleSlugs.filter((slug) =>
+    selectedSlugs.includes(slug)
+  ).length;
+
+  function toggleProductSelection(slug?: string) {
+    const safeSlug = normalizeText(slug);
+    if (!safeSlug) return;
+
+    setSelectedSlugs((prev) => {
+      if (prev.includes(safeSlug)) {
+        return prev.filter((item) => item !== safeSlug);
+      }
+
+      return [...prev, safeSlug];
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedSlugs((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((slug) => !visibleSlugs.includes(slug));
+      }
+
+      return Array.from(new Set([...prev, ...visibleSlugs]));
+    });
+  }
+
+  function openBulkEdit() {
+    const slugsToEdit = selectedSlugs.length > 0 ? selectedSlugs : visibleSlugs;
+
+    if (slugsToEdit.length === 0) return;
+
+    router.push(`/admin/products/bulk-edit?slugs=${encodeSlugList(slugsToEdit)}`);
+  }
 
   const handleDelete = useCallback(
     async (slug?: string) => {
@@ -249,7 +332,7 @@ export default function AdminProductsPage() {
         <div>
           <h1 style={titleStyle}>Products</h1>
           <p style={subtitleStyle}>
-            Lightweight product overview using one optimized backend request.
+            Filter products, select the rows you need, then open the bulk editor.
           </p>
         </div>
 
@@ -258,9 +341,14 @@ export default function AdminProductsPage() {
             + New Product
           </Link>
 
-          <Link href="/admin/products/bulk-edit" style={secondaryButtonStyle}>
+          <button
+            type="button"
+            onClick={openBulkEdit}
+            disabled={visibleSlugs.length === 0}
+            style={secondaryButtonStyle}
+          >
             Bulk Edit
-          </Link>
+          </button>
 
           <a href="/api/products/export?format=csv" style={secondaryButtonStyle}>
             Export CSV
@@ -324,8 +412,51 @@ export default function AdminProductsPage() {
               <option value="archived">archived</option>
             </select>
           </div>
+
+          <div>
+            <label style={labelStyle}>Content Filter</label>
+            <select
+              value={contentFilter}
+              onChange={(event) => setContentFilter(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="all">all</option>
+              <option value="featured">featured only</option>
+              <option value="not_featured">not featured only</option>
+              <option value="no_gallery">no gallery</option>
+              <option value="no_main_image">no main image</option>
+              <option value="missing_alt_text">missing alt text</option>
+              <option value="low_image_count">low image count</option>
+            </select>
+          </div>
         </div>
       </div>
+
+      {selectedVisibleCount > 0 ? (
+        <div style={bulkBarStyle}>
+          <div>
+            <strong>{selectedVisibleCount}</strong> selected on this page
+          </div>
+
+          <div style={bulkBarActionsStyle}>
+            <button
+              type="button"
+              onClick={() => setSelectedSlugs([])}
+              style={secondarySmallButtonStyle}
+            >
+              Clear Selection
+            </button>
+
+            <button
+              type="button"
+              onClick={openBulkEdit}
+              style={primarySmallButtonStyle}
+            >
+              Bulk Edit Selected
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {loading ? (
         <div style={cardStyle}>Loading...</div>
@@ -334,7 +465,7 @@ export default function AdminProductsPage() {
           <strong>Error:</strong>
           <div style={{ marginTop: 8 }}>{errorMessage}</div>
         </div>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div style={emptyStateStyle}>
           No products matched your current search or filters.
         </div>
@@ -344,6 +475,13 @@ export default function AdminProductsPage() {
             <table style={tableStyle}>
               <thead>
                 <tr>
+                  <th style={checkboxThStyle}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                    />
+                  </th>
                   <th style={thStyle}>Product</th>
                   <th style={thStyle}>Slug</th>
                   <th style={thStyle}>Collection</th>
@@ -356,14 +494,21 @@ export default function AdminProductsPage() {
               </thead>
 
               <tbody>
-                {items.map((item, index) => (
-                  <ProductRow
-                    key={item.id || item.slug || index}
-                    item={item}
-                    deleteLoadingSlug={deleteLoadingSlug}
-                    onDelete={handleDelete}
-                  />
-                ))}
+                {filteredItems.map((item, index) => {
+                  const slug = normalizeText(item.slug);
+                  const selected = selectedSlugs.includes(slug);
+
+                  return (
+                    <ProductRow
+                      key={createProductKey(item, index)}
+                      item={item}
+                      selected={selected}
+                      deleteLoadingSlug={deleteLoadingSlug}
+                      onToggleSelected={toggleProductSelection}
+                      onDelete={handleDelete}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -399,11 +544,15 @@ export default function AdminProductsPage() {
 
 const ProductRow = memo(function ProductRow({
   item,
+  selected,
   deleteLoadingSlug,
+  onToggleSelected,
   onDelete,
 }: {
   item: ProductItem;
+  selected: boolean;
   deleteLoadingSlug: string;
+  onToggleSelected: (slug?: string) => void;
   onDelete: (slug?: string) => void;
 }) {
   const primaryImage = normalizeImageUrl(item.main_image || item.image || "");
@@ -411,7 +560,15 @@ const ProductRow = memo(function ProductRow({
   const issues = Array.isArray(item.gallery_issues) ? item.gallery_issues : [];
 
   return (
-    <tr>
+    <tr style={selected ? selectedRowStyle : undefined}>
+      <td style={checkboxTdStyle}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelected(item.slug)}
+        />
+      </td>
+
       <td style={tdStyle}>
         <div style={productCellStyle}>
           <div style={thumbWrapStyle}>
@@ -652,7 +809,7 @@ const warningStatValueStyle: CSSProperties = {
 
 const filterGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "2fr 1fr",
+  gridTemplateColumns: "2fr 1fr 1fr",
   gap: 16,
 };
 
@@ -672,6 +829,24 @@ const inputStyle: CSSProperties = {
   background: "#fcfbf8",
   outline: "none",
   fontSize: 15,
+};
+
+const bulkBarStyle: CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 18,
+  padding: 14,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 14,
+  flexWrap: "wrap",
+};
+
+const bulkBarActionsStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
 };
 
 const tableCardStyle: CSSProperties = {
@@ -702,11 +877,27 @@ const thStyle: CSSProperties = {
   borderBottom: "1px solid #e5dccf",
 };
 
+const checkboxThStyle: CSSProperties = {
+  ...thStyle,
+  width: 46,
+  textAlign: "center",
+};
+
 const tdStyle: CSSProperties = {
   padding: "18px",
   borderBottom: "1px solid #efe8dc",
   verticalAlign: "top",
   fontSize: 15,
+};
+
+const checkboxTdStyle: CSSProperties = {
+  ...tdStyle,
+  width: 46,
+  textAlign: "center",
+};
+
+const selectedRowStyle: CSSProperties = {
+  background: "#f3fbf6",
 };
 
 const productCellStyle: CSSProperties = {

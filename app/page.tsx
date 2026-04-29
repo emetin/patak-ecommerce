@@ -78,7 +78,7 @@ export default async function HomePage() {
     <>
       <section className="home-hero">
         <img
-          src="https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1800&q=80"
+          src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
           alt="Premium Turkish cotton hotel textiles"
           className="home-hero__image"
         />
@@ -237,9 +237,9 @@ export default async function HomePage() {
 
             <div className="home-split__media">
               <img
-                src="https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1400&q=80"
-                alt="Premium textile production"
-              />
+  src="https://drive.google.com/thumbnail?id=1KRxy4fUcecVIznibQv8E6Ky54ExuLKdN&sz=w1200"
+  alt="Premium textile production"
+/>
               <div className="home-split__media-overlay" />
               <div className="home-split__media-card">
                 <div className="home-split__media-card-kicker">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import FooterNewsletterForm from "./FooterNewsletterForm";
+import { SITE_SETTINGS } from "../../lib/site-settings";
 
 export default function Footer() {
   return (
@@ -38,49 +39,18 @@ export default function Footer() {
                 marginBottom: 16,
               }}
             >
-              <div
+              <img
+                src={SITE_SETTINGS.logo.footer}
+                alt={SITE_SETTINGS.siteName}
+                className="footer-logo-image"
                 style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 12,
-                  background:
-                    "linear-gradient(135deg, #17352d 0%, #2f7d62 75%, #49a487 100%)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontWeight: 900,
-                  fontSize: 16,
-                  letterSpacing: "0.04em",
-                  flexShrink: 0,
+                  width: 180,
+                  height: "auto",
+                  display: "block",
+                  objectFit: "contain",
+                  filter: "brightness(0) invert(1)",
                 }}
-              >
-                PT
-              </div>
-
-              <div style={{ display: "grid", gap: 2 }}>
-                <span
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 800,
-                    letterSpacing: "-0.02em",
-                    lineHeight: 1.1,
-                  }}
-                >
-                  Patak Textile
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: "rgba(255,255,255,0.52)",
-                    fontWeight: 800,
-                  }}
-                >
-                  Corporate Textile Presentation
-                </span>
-              </div>
+              />
             </div>
 
             <div
@@ -160,7 +130,7 @@ export default function Footer() {
               Be the first to know about new collections and exclusive offers.
             </p>
 
-           <FooterNewsletterForm />
+            <FooterNewsletterForm />
 
             <div style={socialWrapperStyle}>
               <a
@@ -192,46 +162,47 @@ export default function Footer() {
         </div>
 
         <div style={policyBarStyle}>
-  <Link
-    href="/policies/privacy-policy"
-    className="footer-policy-link"
-    style={policyLinkStyle}
-  >
-    Privacy Policy
-  </Link>
+          <Link
+            href="/policies/privacy-policy"
+            className="footer-policy-link"
+            style={policyLinkStyle}
+          >
+            Privacy Policy
+          </Link>
 
-  <Link
-    href="/policies/terms-and-conditions"
-    className="footer-policy-link"
-    style={policyLinkStyle}
-  >
-    Terms & Conditions
-  </Link>
+          <Link
+            href="/policies/terms-and-conditions"
+            className="footer-policy-link"
+            style={policyLinkStyle}
+          >
+            Terms & Conditions
+          </Link>
 
-  <Link
-    href="/policies/cookie-policy"
-    className="footer-policy-link"
-    style={policyLinkStyle}
-  >
-    Cookie Policy
-  </Link>
+          <Link
+            href="/policies/cookie-policy"
+            className="footer-policy-link"
+            style={policyLinkStyle}
+          >
+            Cookie Policy
+          </Link>
 
-  <Link
-    href="/policies/kvkk"
-    className="footer-policy-link"
-    style={policyLinkStyle}
-  >
-    KVKK
-  </Link>
+          <Link
+            href="/policies/kvkk"
+            className="footer-policy-link"
+            style={policyLinkStyle}
+          >
+            KVKK
+          </Link>
 
-  <Link
-    href="/policies/return-policy"
-    className="footer-policy-link"
-    style={policyLinkStyle}
-  >
-    Return Policy
-  </Link>
-</div>
+          <Link
+            href="/policies/return-policy"
+            className="footer-policy-link"
+            style={policyLinkStyle}
+          >
+            Return Policy
+          </Link>
+        </div>
+
         <div
           className="footer-bottom"
           style={{
@@ -256,6 +227,13 @@ export default function Footer() {
       </div>
 
       <style>{`
+        .footer-logo-image {
+          max-width: 180px;
+          width: 100%;
+          height: auto;
+          object-fit: contain;
+        }
+
         .footer-newsletter input::placeholder {
           color: rgba(255,255,255,0.48);
         }
@@ -308,6 +286,10 @@ export default function Footer() {
 
           .footer-brand {
             grid-column: auto;
+          }
+
+          .footer-logo-image {
+            max-width: 160px !important;
           }
 
           .footer-bottom {
@@ -406,47 +388,6 @@ const footerButtonStyle: React.CSSProperties = {
   border: "1px solid #2f7d62",
   textDecoration: "none",
   fontWeight: 800,
-};
-
-const newsletterFormStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-  marginTop: 14,
-};
-
-const newsletterInputWrapStyle: React.CSSProperties = {
-  minHeight: 50,
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.16)",
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035))",
-  display: "flex",
-  alignItems: "center",
-  padding: "0 16px",
-};
-
-const newsletterInputStyle: React.CSSProperties = {
-  width: "100%",
-  border: 0,
-  background: "transparent",
-  color: "#fff",
-  padding: 0,
-  outline: "none",
-  fontSize: 14,
-  fontWeight: 600,
-};
-
-const newsletterButtonStyle: React.CSSProperties = {
-  minHeight: 50,
-  borderRadius: 999,
-  border: "1px solid #2f7d62",
-  background: "#2f7d62",
-  color: "#ffffff",
-  cursor: "pointer",
-  fontWeight: 800,
-  fontSize: 14,
-  letterSpacing: "0.01em",
-  transition: "all 0.22s ease",
 };
 
 const socialWrapperStyle: React.CSSProperties = {

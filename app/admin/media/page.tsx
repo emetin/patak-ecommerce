@@ -69,6 +69,14 @@ function extractDriveFileId(url: string) {
   return "";
 }
 
+function formatFrontendDriveUrl(url: string, size = "w1600") {
+  const fileId = extractDriveFileId(url);
+
+  if (!fileId) return url;
+
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=${size}`;
+}
+
 function getPreviewUrl(item: MediaItem) {
   const fileId = item.file_id || extractDriveFileId(item.image_url);
 
@@ -239,56 +247,56 @@ export default function AdminMediaPage() {
   }
 
   async function handleBulkDelete() {
-  if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0) return;
 
-  const confirmed = window.confirm(
-    `Are you sure you want to delete ${selectedIds.length} selected image(s)?`
-  );
-
-  if (!confirmed) return;
-
-  try {
-    setBulkDeleting(true);
-    setErrorMessage("");
-    setSuccessMessage("");
-
-    const selectedItems = items.filter((item) => selectedIds.includes(item.id));
-
-    let deletedCount = 0;
-    let failedCount = 0;
-
-    await runInBatches(selectedItems, 3, async (item) => {
-      const deleted = await deleteMediaItemWithRetry(item);
-
-      if (deleted) {
-        deletedCount += 1;
-      } else {
-        failedCount += 1;
-      }
-    });
-
-    setSelectedIds([]);
-
-    await sleep(1000);
-    await loadMedia();
-
-    if (deletedCount > 0) {
-      setSuccessMessage(`${deletedCount} image(s) deleted successfully.`);
-    }
-
-    if (failedCount > 0) {
-      setErrorMessage(
-        `${failedCount} image(s) could not be deleted. Please try again.`
-      );
-    }
-  } catch (error) {
-    setErrorMessage(
-      error instanceof Error ? error.message : "Bulk delete failed."
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedIds.length} selected image(s)?`
     );
-  } finally {
-    setBulkDeleting(false);
+
+    if (!confirmed) return;
+
+    try {
+      setBulkDeleting(true);
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      const selectedItems = items.filter((item) => selectedIds.includes(item.id));
+
+      let deletedCount = 0;
+      let failedCount = 0;
+
+      await runInBatches(selectedItems, 3, async (item) => {
+        const deleted = await deleteMediaItemWithRetry(item);
+
+        if (deleted) {
+          deletedCount += 1;
+        } else {
+          failedCount += 1;
+        }
+      });
+
+      setSelectedIds([]);
+
+      await sleep(1000);
+      await loadMedia();
+
+      if (deletedCount > 0) {
+        setSuccessMessage(`${deletedCount} image(s) deleted successfully.`);
+      }
+
+      if (failedCount > 0) {
+        setErrorMessage(
+          `${failedCount} image(s) could not be deleted. Please try again.`
+        );
+      }
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Bulk delete failed."
+      );
+    } finally {
+      setBulkDeleting(false);
+    }
   }
-}
 
   async function uploadSingleFile(
     queueId: string,
@@ -395,77 +403,80 @@ export default function AdminMediaPage() {
   }
 
   async function startUploadQueue(selectedFiles: File[]) {
-  if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0) return;
 
-  setErrorMessage("");
-  setSuccessMessage("");
-  setIsQueueVisible(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+    setIsQueueVisible(true);
 
-  const selectedFolder = folder.trim() || "general";
-  const selectedAltText = altText.trim();
+    const selectedFolder = folder.trim() || "general";
+    const selectedAltText = altText.trim();
 
-  const newQueueItems: UploadQueueItem[] = selectedFiles.map((file) => ({
-    id: createQueueId(file),
-    file,
-    progress: 0,
-    status: "queued",
-  }));
+    const newQueueItems: UploadQueueItem[] = selectedFiles.map((file) => ({
+      id: createQueueId(file),
+      file,
+      progress: 0,
+      status: "queued",
+    }));
 
-  setQueue((prev) => [...newQueueItems, ...prev]);
+    setQueue((prev) => [...newQueueItems, ...prev]);
 
-  let totalUploaded = 0;
-  let totalFailed = 0;
+    let totalUploaded = 0;
+    let totalFailed = 0;
 
-  await runInBatches(newQueueItems, 2, async (queueItem) => {
-    try {
-      setQueue((prev) =>
-        prev.map((item) =>
-          item.id === queueItem.id
-            ? { ...item, status: "uploading", progress: 3 }
-            : item
-        )
-      );
+    await runInBatches(newQueueItems, 2, async (queueItem) => {
+      try {
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.id === queueItem.id
+              ? { ...item, status: "uploading", progress: 3 }
+              : item
+          )
+        );
 
-      const uploadedItems = await uploadSingleFile(
-        queueItem.id,
-        queueItem.file,
-        selectedFolder,
-        selectedAltText
-      );
+        const uploadedItems = await uploadSingleFile(
+          queueItem.id,
+          queueItem.file,
+          selectedFolder,
+          selectedAltText
+        );
 
-      if (uploadedItems.length > 0) {
-        totalUploaded += uploadedItems.length;
+        if (uploadedItems.length > 0) {
+          totalUploaded += uploadedItems.length;
+        }
+      } catch {
+        totalFailed += 1;
       }
-    } catch {
-      totalFailed += 1;
+    });
+
+    await sleep(1200);
+    await loadMedia();
+
+    if (totalUploaded > 0) {
+      setSuccessMessage(`${totalUploaded} image(s) uploaded successfully.`);
+      setAltText("");
     }
-  });
 
-  await sleep(1200);
-  await loadMedia();
+    if (totalFailed > 0) {
+      setErrorMessage(`${totalFailed} image(s) could not be uploaded.`);
+    }
 
-  if (totalUploaded > 0) {
-    setSuccessMessage(`${totalUploaded} image(s) uploaded successfully.`);
-    setAltText("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    setTimeout(() => {
+      setQueue((prev) => prev.filter((item) => item.status !== "done"));
+    }, 3500);
   }
-
-  if (totalFailed > 0) {
-    setErrorMessage(`${totalFailed} image(s) could not be uploaded.`);
-  }
-
-  if (fileInputRef.current) {
-    fileInputRef.current.value = "";
-  }
-
-  setTimeout(() => {
-    setQueue((prev) => prev.filter((item) => item.status !== "done"));
-  }, 3500);
-}
 
   async function handleCopy(url: string) {
     try {
-      await navigator.clipboard.writeText(url);
-      setSuccessMessage("Image URL copied.");
+      const formattedUrl = formatFrontendDriveUrl(url, "w1600");
+
+      await navigator.clipboard.writeText(formattedUrl);
+
+      setSuccessMessage("Frontend-ready image URL copied.");
     } catch {
       setErrorMessage("Could not copy URL. Please copy it manually.");
     }
