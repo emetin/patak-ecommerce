@@ -224,73 +224,84 @@ export default function AdminProductImagesPage({
   }
 
   async function uploadSingleFile(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("folder", `products-${slug}`);
 
-    const response = await fetch("/api/upload/image", {
+  const response = await fetch("/api/upload/image", {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.ok) {
+    throw new Error(`${file.name}: ${data?.error || "Upload failed."}`);
+  }
+
+  return String(data.url || "").trim();
+}
+
+  async function handleBulkUpload() {
+  if (queue.length === 0) return;
+
+  try {
+    setBulkUploading(true);
+    setSaveError("");
+    setSaveMessage("");
+
+    const uploadedItems: Array<{
+      image_url: string;
+      alt_text: string;
+      is_main: string;
+    }> = [];
+
+    for (let i = 0; i < queue.length; i += 1) {
+      const queueItem = queue[i];
+      const uploadedUrl = await uploadSingleFile(queueItem.file);
+
+      uploadedItems.push({
+        image_url: uploadedUrl,
+        alt_text: queueItem.alt_text,
+        is_main: queueItem.is_main ? "true" : "false",
+      });
+    }
+
+    const response = await fetch("/api/product-images/bulk-create", {
       method: "POST",
-      body: formData,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        product_slug: slug,
+        images: uploadedItems,
+      }),
     });
 
     const data = await response.json();
 
     if (!response.ok || !data.ok) {
-      throw new Error(data?.error || "Upload failed.");
+      throw new Error(data?.error || "Failed to save product images.");
     }
 
-    return String(data.url || "").trim();
-  }
-
-  async function handleBulkUpload() {
-    if (queue.length === 0) return;
-
-    try {
-      setBulkUploading(true);
-      setSaveError("");
-      setSaveMessage("");
-
-      for (let i = 0; i < queue.length; i += 1) {
-        const queueItem = queue[i];
-        const uploadedUrl = await uploadSingleFile(queueItem.file);
-
-        const response = await fetch("/api/product-images/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            product_slug: slug,
-            image_url: uploadedUrl,
-            sort_order: String(items.length + i + 1),
-            alt_text: queueItem.alt_text,
-            is_main: queueItem.is_main ? "true" : "false",
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.ok) {
-          throw new Error(data?.error || "Failed to create product image.");
-        }
+    queue.forEach((item) => {
+      if (item.preview) {
+        URL.revokeObjectURL(item.preview);
       }
+    });
 
-      queue.forEach((item) => {
-        if (item.preview) {
-          URL.revokeObjectURL(item.preview);
-        }
-      });
+    setQueue([]);
+    await loadImages();
 
-      setQueue([]);
-      setSaveMessage("Bulk upload completed successfully.");
-      await loadImages();
-    } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : "Bulk upload failed."
-      );
-    } finally {
-      setBulkUploading(false);
-    }
+    setSaveMessage(`${data.count || uploadedItems.length} image(s) uploaded successfully.`);
+  } catch (error) {
+    setSaveError(
+      error instanceof Error ? error.message : "Bulk upload failed."
+    );
+  } finally {
+    setBulkUploading(false);
   }
+}
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -184,19 +184,9 @@ export async function POST(req: Request) {
     const rowValues = headers.map((header) => item[header] || "");
     await appendSheetRow(SHEET_NAME, rowValues);
 
-    const refreshedImages = (await getSheetData(SHEET_NAME, {
-      forceFresh: true,
-      ttlSeconds: 30,
-    })) as ProductImageItem[];
-
-    const bestMain =
-      sortImages(
-        refreshedImages.filter(
-          (image) => normalizeLower(image.product_slug) === productSlug
-        )
-      )[0] || null;
-
-    await syncMainProductImage(productSlug, normalizeText(bestMain?.image_url || ""));
+    if (item.is_main === "true") {
+  await syncMainProductImage(productSlug, imageUrl);
+}
 
     return NextResponse.json({
       ok: true,

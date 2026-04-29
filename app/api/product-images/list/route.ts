@@ -42,7 +42,8 @@ export async function GET(req: Request) {
     const productSlug = normalizeLower(searchParams.get("product_slug"));
 
     const images = (await getSheetData("product_images", {
-      ttlSeconds: 300,
+      forceFresh: true,
+      ttlSeconds: 0,
     })) as ProductImageItem[];
 
     let items = images.filter((item) => item && normalizeText(item.id));
@@ -63,7 +64,9 @@ export async function GET(req: Request) {
       },
       {
         headers: {
-          "Cache-Control": "no-store",
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma: "no-cache",
+          Expires: "0",
         },
       }
     );

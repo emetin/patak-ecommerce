@@ -9,6 +9,8 @@ import ProductCard from "../components/cards/ProductCard";
 import BlogCard from "../components/cards/BlogCard";
 import ScrollPromo from "../components/sections/ScrollPromo";
 import { buildPageMetadata } from "../lib/seo";
+import { normalizeImageUrl } from "../lib/image-url";
+
 
 export const revalidate = 300;
 
@@ -78,10 +80,19 @@ export default async function HomePage() {
     <>
       <section className="home-hero">
         <img
-          src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
-          alt="Premium Turkish cotton hotel textiles"
-          className="home-hero__image"
-        />
+  src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
+  alt="Premium Turkish cotton hotel textiles"
+  className="home-hero__image"
+  style={{
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+    zIndex: 0,
+  }}
+/>
 
         <div className="home-hero__overlay" />
 
@@ -237,7 +248,7 @@ export default async function HomePage() {
 
             <div className="home-split__media">
               <img
-  src="https://drive.google.com/thumbnail?id=1KRxy4fUcecVIznibQv8E6Ky54ExuLKdN&sz=w1200"
+  src={normalizeImageUrl("https://drive.google.com/thumbnail?id=1KRxy4fUcecVIznibQv8E6Ky54ExuLKdN&sz=w1200")}
   alt="Premium textile production"
 />
               <div className="home-split__media-overlay" />

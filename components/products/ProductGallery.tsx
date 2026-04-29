@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   areSameImageUrls,
   normalizeImageUrl,
@@ -31,21 +31,31 @@ export default function ProductGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  const resolvedActiveIndex = useMemo(() => {
-    if (!validImages.length) return 0;
+  useEffect(() => {
+    if (!validImages.length) {
+      setActiveIndex(0);
+      return;
+    }
 
     if (controlledActiveImage) {
       const controlledIndex = validImages.findIndex((item) =>
         areSameImageUrls(item, controlledActiveImage)
       );
 
-      if (controlledIndex >= 0) return controlledIndex;
+      if (controlledIndex >= 0) {
+        setActiveIndex(controlledIndex);
+        return;
+      }
     }
 
-    if (activeIndex >= validImages.length) return 0;
+    setActiveIndex((prev) => (prev >= validImages.length ? 0 : prev));
+  }, [controlledActiveImage, validImages]);
 
+  const resolvedActiveIndex = useMemo(() => {
+    if (!validImages.length) return 0;
+    if (activeIndex >= validImages.length) return 0;
     return activeIndex;
-  }, [activeIndex, controlledActiveImage, validImages]);
+  }, [activeIndex, validImages]);
 
   const activeImage = validImages[resolvedActiveIndex] || validImages[0] || "";
 
@@ -293,6 +303,7 @@ const navButtonBase: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   boxShadow: "0 10px 24px rgba(23,23,23,0.12)",
+  zIndex: 3,
 };
 
 const navButtonLeftStyle: React.CSSProperties = {
@@ -318,6 +329,7 @@ const zoomButtonStyle: React.CSSProperties = {
   cursor: "pointer",
   color: "#171717",
   boxShadow: "0 10px 24px rgba(23,23,23,0.12)",
+  zIndex: 3,
 };
 
 const lightboxOverlayStyle: React.CSSProperties = {
@@ -365,6 +377,7 @@ const lightboxNavBase: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  zIndex: 2,
 };
 
 const lightboxNavLeftStyle: React.CSSProperties = {

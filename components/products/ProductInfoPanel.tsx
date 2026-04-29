@@ -39,7 +39,13 @@ function normalizeLower(value?: string) {
 
 function isMeaningfulValue(value?: string) {
   const normalized = normalizeLower(value);
-  return Boolean(normalized) && normalized !== "default";
+
+  return (
+    Boolean(normalized) &&
+    normalized !== "default" &&
+    normalized !== "default title" &&
+    normalized !== "title"
+  );
 }
 
 function buildVariantLabel(variant: VariantItem) {
@@ -49,7 +55,16 @@ function buildVariantLabel(variant: VariantItem) {
     variant.option3_value,
   ]
     .map((item) => normalize(item))
-    .filter((item) => item && item.toLowerCase() !== "default");
+    .filter((item) => {
+      const normalized = item.toLowerCase();
+
+      return (
+        item &&
+        normalized !== "default" &&
+        normalized !== "default title" &&
+        normalized !== "title"
+      );
+    });
 
   return values.length ? values.join(" / ") : "";
 }
@@ -63,11 +78,9 @@ function isRealVariant(variant: VariantItem) {
 }
 
 function getActiveVariants(variants: VariantItem[]) {
-  return variants
-    .filter((variant) =>
-      ["", "published", "active"].includes(normalizeLower(variant.status))
-    )
-    .filter(isRealVariant);
+  return variants.filter((variant) =>
+    ["", "published", "active"].includes(normalizeLower(variant.status))
+  );
 }
 
 export default function ProductInfoPanel({
@@ -86,6 +99,21 @@ export default function ProductInfoPanel({
       activeVariants[0] ||
       null
     );
+  }, [activeVariants, selectedVariantId]);
+
+  useEffect(() => {
+    if (!activeVariants.length) {
+      setSelectedVariantId("");
+      return;
+    }
+
+    const selectedExists = activeVariants.some(
+      (variant) => variant.id === selectedVariantId
+    );
+
+    if (!selectedExists) {
+      setSelectedVariantId(activeVariants[0]?.id || "");
+    }
   }, [activeVariants, selectedVariantId]);
 
   useEffect(() => {
@@ -150,6 +178,7 @@ export default function ProductInfoPanel({
               const label = buildVariantLabel(variant);
               const isSelected = selectedVariant?.id === variant.id;
 
+
               return (
                 <button
                   key={variant.id || `${label}-${index}`}
@@ -170,37 +199,39 @@ export default function ProductInfoPanel({
                   }}
                 >
                   <div
-                    style={{
-                      fontWeight: 800,
-                      color: "#171717",
-                      fontSize: 15,
-                    }}
-                  >
-                    {label || "Option"}
-                  </div>
+  style={{
+    fontWeight: 800,
+    color: "#171717",
+    fontSize: 15,
+  }}
+>
+  {label || product.title || "Product Info"}
+</div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      flexWrap: "wrap",
-                      color: "#5f564c",
-                      fontSize: 13,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {variant.sku ? (
-                      <span>
-                        <strong>SKU:</strong> {variant.sku}
-                      </span>
-                    ) : null}
+                  {(variant.sku || variant.barcode) ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        color: "#5f564c",
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {variant.sku ? (
+                        <span>
+                          <strong>SKU:</strong> {variant.sku}
+                        </span>
+                      ) : null}
 
-                    {variant.barcode ? (
-                      <span>
-                        <strong>Barcode:</strong> {variant.barcode}
-                      </span>
-                    ) : null}
-                  </div>
+                      {variant.barcode ? (
+                        <span>
+                          <strong>Barcode:</strong> {variant.barcode}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </button>
               );
             })}

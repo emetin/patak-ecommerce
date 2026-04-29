@@ -193,19 +193,30 @@ export default async function ProductDetailPage({
         (item) => normalizeLower(item.product_slug) === decodedSlug
       );
 
-      relatedProducts = items
-        .filter((item) => {
-          const itemSlug = normalizeLower(item.slug);
-          const itemStatus = normalizeLower(item.status);
-          const itemCollectionSlug = normalizeLower(item.collection_slug);
+      const sameCollectionProducts = items.filter((item) => {
+        const itemSlug = normalizeLower(item.slug);
+        const itemStatus = normalizeLower(item.status);
+        const itemCollectionSlug = normalizeLower(item.collection_slug);
 
-          return (
-            itemSlug !== decodedSlug &&
-            itemStatus === "published" &&
-            itemCollectionSlug === currentCollectionSlug
-          );
-        })
-        .slice(0, 3);
+        return (
+          itemSlug !== decodedSlug &&
+          itemStatus === "published" &&
+          itemCollectionSlug === currentCollectionSlug
+        );
+      });
+
+      const fallbackProducts = items.filter((item) => {
+        const itemSlug = normalizeLower(item.slug);
+        const itemStatus = normalizeLower(item.status);
+
+        return itemSlug !== decodedSlug && itemStatus === "published";
+      });
+
+      relatedProducts = (
+        sameCollectionProducts.length > 0
+          ? sameCollectionProducts
+          : fallbackProducts
+      ).slice(0, 3);
     }
   } catch (error) {
     errorMessage =

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SITE_SETTINGS } from "../../lib/site-settings";
+import { normalizeImageUrl } from "../../lib/image-url";
+
 
 const navigation = [
   { label: "Home", href: "/" },
@@ -352,7 +354,7 @@ export default function Header() {
             }}
           >
             <img
-              src={SITE_SETTINGS.logo.header}
+              src={normalizeImageUrl(SITE_SETTINGS.logo.header)}
               alt={SITE_SETTINGS.siteName}
               className="header-logo-image"
               style={{

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import FooterNewsletterForm from "./FooterNewsletterForm";
 import { SITE_SETTINGS } from "../../lib/site-settings";
+import { normalizeImageUrl } from "../../lib/image-url";
 
 export default function Footer() {
   return (
@@ -40,7 +41,7 @@ export default function Footer() {
               }}
             >
               <img
-                src={SITE_SETTINGS.logo.footer}
+                src={normalizeImageUrl(SITE_SETTINGS.logo.footer)}
                 alt={SITE_SETTINGS.siteName}
                 className="footer-logo-image"
                 style={{
