@@ -21,9 +21,9 @@ type CollectionItem = {
 };
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Collections",
+  title: "Premium Textile Collections",
   description:
-    "Explore Patak Textile collections organized to support a clearer and more corporate hospitality textile catalog experience.",
+    "Explore Patak Textile’s premium textile collections designed for hospitality, residential and professional spaces.",
   path: "/collections",
 });
 
@@ -87,7 +87,7 @@ export default async function CollectionsPage() {
                 color: "#171717",
               }}
             >
-              The main navigation layer for a stronger textile catalog experience
+              Premium Textile Collections for Hospitality and Home
             </h1>
 
             <p
@@ -99,21 +99,14 @@ export default async function CollectionsPage() {
                 lineHeight: 1.9,
               }}
             >
-              Collections organize the brand presentation around textile families,
-              helping visitors explore categories in a more confident and more
-              structured corporate flow.
+              Browse Patak Textile’s carefully developed collections, crafted to
+              deliver comfort, durability and refined presentation across
+              hospitality, residential and professional environments.
             </p>
           </div>
         </Container>
       </section>
 
-      <Section tight>
-        <Container>
-          <ButtonLink href="/" variant="secondary">
-            ← Back to Home
-          </ButtonLink>
-        </Container>
-      </Section>
 
       {errorMessage ? (
         <Section>
@@ -138,14 +131,16 @@ export default async function CollectionsPage() {
           <Container>
             <SectionHeading
               kicker="Collection Directory"
-              title="Curated textile families presented with a more corporate tone"
-              text="This area should help users navigate product groups clearly while reinforcing Patak Textile’s manufacturing strength and category structure."
+              title="Explore our product categories"
+              text="Discover textile categories designed to support hotels, residences and professional projects with reliable quality and refined presentation."
             />
 
             <div className="cards-grid cards-grid--3">
               {collections.map((collection, index) => (
                 <CollectionCard
-                  key={`${collection.slug || collection.title || "collection"}-${index}`}
+                  key={`${
+                    collection.slug || collection.title || "collection"
+                  }-${index}`}
                   title={collection.title || "Untitled Collection"}
                   description={
                     collection.description ||
