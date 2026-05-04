@@ -248,8 +248,8 @@ export default async function HomePage() {
 
             <div className="home-split__media">
               <img
-  src={normalizeImageUrl("https://drive.google.com/thumbnail?id=1KRxy4fUcecVIznibQv8E6Ky54ExuLKdN&sz=w1200")}
-  alt="Premium textile production"
+  src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
+  alt="Premium Turkish cotton hotel textiles"
 />
               <div className="home-split__media-overlay" />
               <div className="home-split__media-card">

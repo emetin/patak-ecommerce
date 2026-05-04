@@ -1,4 +1,4 @@
-import "../globals.css";
+import "./globals.css";
 import type { Metadata } from "next";
 import { Assistant } from "next/font/google";
 import Header from "../components/layout/header";

@@ -85,7 +85,7 @@ export default function AboutUsPage() {
 
             <div className="split-media">
               <img
-                src="https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1400&q=80"
+                src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
                 alt="Patak Textile production"
               />
 
@@ -242,7 +242,7 @@ export default function AboutUsPage() {
           <div className="split-layout">
             <div className="split-media">
               <img
-                src="https://images.unsplash.com/photo-1582582494700-587b6b4d8507?auto=format&fit=crop&w=1400&q=80"
+                src="https://drive.google.com/thumbnail?id=1KRxy4fUcecVIznibQv8E6Ky54ExuLKdN&sz=w1600"
                 alt="Hotel textile quality"
               />
 
