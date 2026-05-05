@@ -6,11 +6,11 @@ import {
   getExpiredCsrfCookieOptions,
 } from "../../../../lib/admin-auth";
 
-export async function POST() {
-  const response = NextResponse.json({
-    ok: true,
-    message: "Çıkış yapıldı.",
-  });
+function createLogoutResponse(request: Request) {
+  const response = NextResponse.redirect(
+    new URL("/portal-ptx-admin", request.url),
+    { status: 303 }
+  );
 
   response.cookies.set({
     name: ADMIN_COOKIE_NAME,
@@ -25,4 +25,12 @@ export async function POST() {
   });
 
   return response;
+}
+
+export async function POST(request: Request) {
+  return createLogoutResponse(request);
+}
+
+export async function GET(request: Request) {
+  return createLogoutResponse(request);
 }

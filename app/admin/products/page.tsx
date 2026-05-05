@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CSSProperties } from "react";
+import type { ChangeEvent, CSSProperties } from "react";
 import { normalizeImageUrl } from "../../../lib/image-url";
 
 type ProductItem = {
@@ -74,6 +74,7 @@ export default function AdminProductsPage() {
   const [contentFilter, setContentFilter] = useState("all");
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
   const [deleteLoadingSlug, setDeleteLoadingSlug] = useState("");
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -192,15 +193,19 @@ export default function AdminProductsPage() {
       const altCount = Number(item.alt_count || 0);
 
       if (contentFilter === "no_gallery") return imageCount === 0;
+
       if (contentFilter === "no_main_image") {
         return imageCount > 0 && !item.main_image_exists;
       }
+
       if (contentFilter === "missing_alt_text") {
         return imageCount > 0 && altCount < imageCount;
       }
+
       if (contentFilter === "low_image_count") {
         return imageCount > 0 && imageCount < 3;
       }
+
       if (contentFilter === "featured") return isTrue(item.featured);
       if (contentFilter === "not_featured") return !isTrue(item.featured);
 
@@ -216,9 +221,10 @@ export default function AdminProductsPage() {
     visibleSlugs.length > 0 &&
     visibleSlugs.every((slug) => selectedSlugs.includes(slug));
 
-  const selectedVisibleCount = visibleSlugs.filter((slug) =>
-    selectedSlugs.includes(slug)
-  ).length;
+  function clearFilters() {
+    setStatusFilter("all");
+    setContentFilter("all");
+  }
 
   function toggleProductSelection(slug?: string) {
     const safeSlug = normalizeText(slug);
@@ -250,6 +256,55 @@ export default function AdminProductsPage() {
 
     router.push(`/admin/products/bulk-edit?slugs=${encodeSlugList(slugsToEdit)}`);
   }
+
+  function handleExportChange(event: ChangeEvent<HTMLSelectElement>) {
+    const format = event.currentTarget.value;
+
+    if (!format) return;
+
+    window.location.href = `/api/products/export?format=${format}`;
+    event.currentTarget.value = "";
+  }
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (selectedSlugs.length === 0) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedSlugs.length} selected product${
+        selectedSlugs.length > 1 ? "s" : ""
+      }?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setBulkDeleteLoading(true);
+
+      await Promise.all(
+        selectedSlugs.map(async (slug) => {
+          const response = await fetch("/api/products/delete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ slug }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok || !data.ok) {
+            throw new Error(data?.error || `Failed to delete ${slug}.`);
+          }
+        })
+      );
+
+      await reloadCurrentPage();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "An unknown error occurred.");
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  }, [selectedSlugs, reloadCurrentPage]);
 
   const handleDelete = useCallback(
     async (slug?: string) => {
@@ -292,8 +347,7 @@ export default function AdminProductsPage() {
 
   const publishedCount = useMemo(
     () =>
-      items.filter((item) => normalizeLower(item.status) === "published")
-        .length,
+      items.filter((item) => normalizeLower(item.status) === "published").length,
     [items]
   );
 
@@ -329,10 +383,11 @@ export default function AdminProductsPage() {
   return (
     <div style={pageWrapStyle}>
       <div style={pageHeaderStyle}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 style={titleStyle}>Products</h1>
           <p style={subtitleStyle}>
-            Filter products, select the rows you need, then open the bulk editor.
+            Manage product records, review image quality and open selected rows
+            in bulk edit.
           </p>
         </div>
 
@@ -350,113 +405,139 @@ export default function AdminProductsPage() {
             Bulk Edit
           </button>
 
-          <a href="/api/products/export?format=csv" style={secondaryButtonStyle}>
-            Export CSV
-          </a>
+          {selectedSlugs.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleDeleteSelected}
+              disabled={bulkDeleteLoading}
+              style={dangerButtonStyle}
+            >
+              {bulkDeleteLoading ? "Deleting..." : `Delete (${selectedSlugs.length})`}
+            </button>
+          ) : null}
 
-          <a href="/api/products/export?format=json" style={secondaryButtonStyle}>
-            Export JSON
-          </a>
-
-          <a href="/api/products/export?format=xml" style={secondaryButtonStyle}>
-            Export XML
-          </a>
+          <select
+            aria-label="Export products"
+            defaultValue=""
+            onChange={handleExportChange}
+            style={exportSelectStyle}
+          >
+            <option value="" disabled>
+              Export
+            </option>
+            <option value="csv">Export CSV</option>
+            <option value="json">Export JSON</option>
+            <option value="xml">Export XML</option>
+          </select>
         </div>
       </div>
 
       <div style={filterCardStyle}>
         <div style={statsRowStyle}>
-          <StatBox label="Total Results" value={String(total)} />
-          <StatBox label="On This Page" value={String(items.length)} />
-          <StatBox label="Published" value={String(publishedCount)} />
-          <StatBox label="Draft" value={String(draftCount)} />
-          <WarningStatBox
+          <StatButton
+            label="Total"
+            value={String(total)}
+            active={statusFilter === "all" && contentFilter === "all"}
+            onClick={clearFilters}
+          />
+
+          <StatButton
+            label="Page"
+            value={String(items.length)}
+            active={false}
+            onClick={clearFilters}
+          />
+
+          <StatButton
+            label="Published"
+            value={String(publishedCount)}
+            active={statusFilter === "published"}
+            onClick={() => {
+              setStatusFilter("published");
+              setContentFilter("all");
+            }}
+          />
+
+          <StatButton
+            label="Draft"
+            value={String(draftCount)}
+            active={statusFilter === "draft"}
+            onClick={() => {
+              setStatusFilter("draft");
+              setContentFilter("all");
+            }}
+          />
+
+          <StatButton
             label="No Gallery"
             value={String(galleryAudit.missingGallery)}
+            tone="warning"
+            active={contentFilter === "no_gallery"}
+            onClick={() => setContentFilter("no_gallery")}
           />
-          <WarningStatBox
-            label="No Main Image"
+
+          <StatButton
+            label="No Main"
             value={String(galleryAudit.missingMainImage)}
+            tone="warning"
+            active={contentFilter === "no_main_image"}
+            onClick={() => setContentFilter("no_main_image")}
           />
-          <WarningStatBox
-            label="Missing Alt Text"
+
+          <StatButton
+            label="Alt Missing"
             value={String(galleryAudit.missingAltText)}
+            tone="warning"
+            active={contentFilter === "missing_alt_text"}
+            onClick={() => setContentFilter("missing_alt_text")}
           />
-          <WarningStatBox
-            label="Low Image Count"
+
+          <StatButton
+            label="Low Images"
             value={String(galleryAudit.lowImageCount)}
+            tone="warning"
+            active={contentFilter === "low_image_count"}
+            onClick={() => setContentFilter("low_image_count")}
           />
         </div>
 
         <div style={filterGridStyle}>
-          <div>
-            <label style={labelStyle}>Search</label>
-            <input
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search by title, slug, collection, short description"
-              style={inputStyle}
-            />
-          </div>
+          <input
+            aria-label="Search products"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Search products..."
+            style={inputStyle}
+          />
 
-          <div>
-            <label style={labelStyle}>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              style={inputStyle}
-            >
-              <option value="all">all</option>
-              <option value="published">published</option>
-              <option value="draft">draft</option>
-              <option value="archived">archived</option>
-            </select>
-          </div>
+          <select
+            aria-label="Filter by status"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            style={inputStyle}
+          >
+            <option value="all">all</option>
+            <option value="published">published</option>
+            <option value="draft">draft</option>
+            <option value="archived">archived</option>
+          </select>
 
-          <div>
-            <label style={labelStyle}>Content Filter</label>
-            <select
-              value={contentFilter}
-              onChange={(event) => setContentFilter(event.target.value)}
-              style={inputStyle}
-            >
-              <option value="all">all</option>
-              <option value="featured">featured only</option>
-              <option value="not_featured">not featured only</option>
-              <option value="no_gallery">no gallery</option>
-              <option value="no_main_image">no main image</option>
-              <option value="missing_alt_text">missing alt text</option>
-              <option value="low_image_count">low image count</option>
-            </select>
-          </div>
+          <select
+            aria-label="Filter by content issue"
+            value={contentFilter}
+            onChange={(event) => setContentFilter(event.target.value)}
+            style={inputStyle}
+          >
+            <option value="all">all</option>
+            <option value="featured">featured</option>
+            <option value="not_featured">not featured</option>
+            <option value="no_gallery">no gallery</option>
+            <option value="no_main_image">no main image</option>
+            <option value="missing_alt_text">missing alt text</option>
+            <option value="low_image_count">low image count</option>
+          </select>
         </div>
       </div>
-
-      {selectedVisibleCount > 0 ? (
-        <div style={bulkBarStyle}>
-          <div>
-            <strong>{selectedVisibleCount}</strong> selected on this page
-          </div>
-
-          <div style={bulkBarActionsStyle}>
-            <button
-              type="button"
-              onClick={() => setSelectedSlugs([])}
-              style={secondarySmallButtonStyle}
-            >
-              Clear Selection
-            </button>
-
-            <button
-              type="button"
-              onClick={openBulkEdit}
-              style={primarySmallButtonStyle}
-            >
-              Bulk Edit Selected
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {loading ? (
         <div style={cardStyle}>Loading...</div>
@@ -470,73 +551,122 @@ export default function AdminProductsPage() {
           No products matched your current search or filters.
         </div>
       ) : (
-        <div style={tableCardStyle}>
-          <div style={tableScrollStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={checkboxThStyle}>
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleAllVisible}
-                    />
-                  </th>
-                  <th style={thStyle}>Product</th>
-                  <th style={thStyle}>Slug</th>
-                  <th style={thStyle}>Collection</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Gallery</th>
-                  <th style={thStyle}>Warnings</th>
-                  <th style={thStyle}>Updated</th>
-                  <th style={thStyle}>Actions</th>
-                </tr>
-              </thead>
+        <>
+          <div className="admin-products-mobile-list" style={mobileListStyle}>
+            {filteredItems.map((item, index) => {
+              const slug = normalizeText(item.slug);
+              const selected = selectedSlugs.includes(slug);
 
-              <tbody>
-                {filteredItems.map((item, index) => {
-                  const slug = normalizeText(item.slug);
-                  const selected = selectedSlugs.includes(slug);
-
-                  return (
-                    <ProductRow
-                      key={createProductKey(item, index)}
-                      item={item}
-                      selected={selected}
-                      deleteLoadingSlug={deleteLoadingSlug}
-                      onToggleSelected={toggleProductSelection}
-                      onDelete={handleDelete}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
+              return (
+                <ProductMobileRow
+                  key={`mobile-${createProductKey(item, index)}`}
+                  item={item}
+                  selected={selected}
+                  onToggleSelected={toggleProductSelection}
+                />
+              );
+            })}
           </div>
 
-          <div style={paginationWrapStyle}>
+          <div className="admin-products-table-card" style={tableCardStyle}>
+            <div style={tableScrollStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={checkboxThStyle}>
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                      />
+                    </th>
+                    <th style={thStyle}>Product</th>
+                    <th style={thStyle}>Slug</th>
+                    <th style={thStyle}>Collection</th>
+                    <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Gallery</th>
+                    <th style={thStyle}>Warnings</th>
+                    <th style={thStyle}>Updated</th>
+                    <th style={thStyle}>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredItems.map((item, index) => {
+                    const slug = normalizeText(item.slug);
+                    const selected = selectedSlugs.includes(slug);
+
+                    return (
+                      <ProductRow
+                        key={createProductKey(item, index)}
+                        item={item}
+                        selected={selected}
+                        deleteLoadingSlug={deleteLoadingSlug}
+                        onToggleSelected={toggleProductSelection}
+                        onDelete={handleDelete}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={paginationWrapStyle}>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1 || loading}
+                style={secondarySmallButtonStyle}
+              >
+                Previous
+              </button>
+
+              <div style={paginationInfoStyle}>
+                Page {page} / {totalPages}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPage((prev) => Math.min(totalPages, prev + 1))
+                }
+                disabled={page >= totalPages || loading}
+                style={secondarySmallButtonStyle}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="admin-products-mobile-pagination"
+            style={mobilePaginationStyle}
+          >
             <button
               type="button"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={page <= 1 || loading}
               style={secondarySmallButtonStyle}
             >
-              Previous
+              Prev
             </button>
 
             <div style={paginationInfoStyle}>
-              Page {page} / {totalPages}
+              {page} / {totalPages}
             </div>
 
             <button
               type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() =>
+                setPage((prev) => Math.min(totalPages, prev + 1))
+              }
               disabled={page >= totalPages || loading}
               style={secondarySmallButtonStyle}
             >
               Next
             </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -686,21 +816,143 @@ const ProductRow = memo(function ProductRow({
   );
 });
 
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={statBoxStyle}>
-      <div style={statLabelStyle}>{label}</div>
-      <div style={statValueStyle}>{value}</div>
-    </div>
-  );
-}
+const ProductMobileRow = memo(function ProductMobileRow({
+  item,
+  selected,
+  onToggleSelected,
+}: {
+  item: ProductItem;
+  selected: boolean;
+  onToggleSelected: (slug?: string) => void;
+}) {
+  const primaryImage = normalizeImageUrl(item.main_image || item.image || "");
+  const featured = isTrue(item.featured);
+  const issues = Array.isArray(item.gallery_issues) ? item.gallery_issues : [];
+  const imageCount = Number(item.image_count || 0);
+  const altCount = Number(item.alt_count || 0);
+  const galleryScore = Number(item.gallery_score || 0);
 
-function WarningStatBox({ label, value }: { label: string; value: string }) {
   return (
-    <div style={warningStatBoxStyle}>
-      <div style={statLabelStyle}>{label}</div>
-      <div style={warningStatValueStyle}>{value}</div>
-    </div>
+    <article style={mobileRowStyle}>
+      <div style={mobileMainRowStyle}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelected(item.slug)}
+          style={mobileCheckboxStyle}
+          aria-label={`Select ${item.title || "product"}`}
+        />
+
+        <Link href={`/admin/products/${item.slug || ""}`} style={mobileThumbLinkStyle}>
+          <div style={mobileThumbStyle}>
+            {primaryImage ? (
+              <img
+                src={primaryImage}
+                alt={item.title || "Product"}
+                style={mobileImageStyle}
+                loading="lazy"
+              />
+            ) : (
+              <div style={mobileNoImageStyle}>No image</div>
+            )}
+          </div>
+        </Link>
+
+        <div style={mobileContentStyle}>
+          <div style={mobileTitleRowStyle}>
+            <Link
+              href={`/admin/products/${item.slug || ""}`}
+              style={mobileTitleLinkStyle}
+            >
+              <h3 style={mobileTitleStyle}>{item.title || "-"}</h3>
+            </Link>
+
+            <StatusBadge value={item.status || "-"} />
+          </div>
+
+          <div style={mobileSubTextStyle}>
+            {item.collection_slug || "No collection"} · Gallery {galleryScore}% ·{" "}
+            {imageCount} img · Alt {altCount}/{imageCount}
+          </div>
+
+          <div style={mobileIssueRowStyle}>
+            {featured ? (
+              <span style={mobileFeaturedBadgeStyle}>Featured</span>
+            ) : null}
+
+            {issues.length > 0 ? (
+              issues.slice(0, 1).map((issue) => (
+                <span key={issue} style={mobileIssueBadgeStyle}>
+                  {issue}
+                </span>
+              ))
+            ) : (
+              <span style={mobileOkBadgeStyle}>OK</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={mobileActionsStyle}>
+        {item.slug ? (
+          <Link
+            href={`/admin/products/${item.slug}`}
+            style={mobileActionButtonStyle}
+          >
+            Edit Product
+          </Link>
+        ) : null}
+
+        {item.slug ? (
+          <Link
+            href={`/admin/products/${item.slug}/images`}
+            style={mobilePrimaryActionButtonStyle}
+          >
+            Images
+          </Link>
+        ) : null}
+      </div>
+    </article>
+  );
+});
+
+function StatButton({
+  label,
+  value,
+  active,
+  onClick,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+  onClick: () => void;
+  tone?: "default" | "warning";
+}) {
+  const isWarning = tone === "warning";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...statButtonStyle,
+        ...(isWarning ? warningStatButtonStyle : {}),
+        ...(active ? activeStatButtonStyle : {}),
+      }}
+      title={`${label}: ${value}`}
+    >
+      <span style={statLabelStyle}>{label}</span>
+      <strong
+        style={{
+          ...statValueStyle,
+          ...(isWarning ? warningStatValueStyle : {}),
+          ...(active ? activeStatValueStyle : {}),
+        }}
+      >
+        {value}
+      </strong>
+    </button>
   );
 }
 
@@ -717,144 +969,361 @@ function StatusBadge({ value }: { value: string }) {
   return <span style={style}>{value}</span>;
 }
 
+/* styles */
+
 const pageWrapStyle: CSSProperties = {
   display: "grid",
-  gap: 24,
+  gap: 10,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
 };
 
 const pageHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 20,
-  flexWrap: "wrap",
+  display: "grid",
+  gap: 6,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
 };
 
 const titleStyle: CSSProperties = {
-  fontSize: 42,
-  lineHeight: 1.1,
+  fontSize: 22,
+  lineHeight: 1.05,
   margin: 0,
-  fontWeight: 800,
+  fontWeight: 850,
 };
 
 const subtitleStyle: CSSProperties = {
-  marginTop: 10,
+  marginTop: 4,
   marginBottom: 0,
   color: "#6f6559",
-  fontSize: 16,
-  maxWidth: 760,
+  fontSize: 10,
+  lineHeight: 1.35,
+  maxWidth: "100%",
 };
 
 const headerActionsStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
+  gap: 4,
+  flexWrap: "nowrap",
+  overflowX: "auto",
+  paddingBottom: 2,
+  width: "100%",
 };
 
 const cardStyle: CSSProperties = {
-  background: "#fff",
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 24,
+  borderRadius: 10,
+  padding: 8,
 };
 
 const filterCardStyle: CSSProperties = {
-  background: "#fff",
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 24,
-  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+  borderRadius: 10,
+  padding: 6,
+  boxShadow: "0 2px 8px rgba(23,23,23,0.02)",
+  overflow: "hidden",
 };
 
 const statsRowStyle: CSSProperties = {
   display: "flex",
-  gap: 14,
-  flexWrap: "wrap",
-  marginBottom: 20,
+  alignItems: "center",
+  gap: 4,
+  flexWrap: "nowrap",
+  overflowX: "auto",
+  overflowY: "hidden",
+  paddingBottom: 4,
+  marginBottom: 5,
+  scrollbarWidth: "thin",
+  width: "100%",
 };
 
-const statBoxStyle: CSSProperties = {
-  minWidth: 160,
-  background: "#f8f5ef",
-  border: "1px solid #e3dbcf",
-  borderRadius: 18,
-  padding: 16,
+const statButtonStyle: CSSProperties = {
+  minHeight: 22,
+  flex: "0 0 auto",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 4,
+  textAlign: "left",
+  border: "1px solid #e4dacd",
+  borderRadius: 999,
+  padding: "3px 6px",
+  background: "#fbfaf7",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 
-const warningStatBoxStyle: CSSProperties = {
-  minWidth: 160,
-  background: "#fff7e8",
-  border: "1px solid #ecd8ad",
-  borderRadius: 18,
-  padding: 16,
+const warningStatButtonStyle: CSSProperties = {
+  background: "#fffaf0",
+  border: "1px solid #ead8ad",
+};
+
+const activeStatButtonStyle: CSSProperties = {
+  background: "#edf8f1",
+  border: "1px solid #2f7d62",
 };
 
 const statLabelStyle: CSSProperties = {
-  fontSize: 13,
+  fontSize: 7,
   color: "#7c7267",
-  marginBottom: 8,
-  fontWeight: 700,
+  fontWeight: 850,
+  letterSpacing: "0.02em",
+  textTransform: "uppercase",
 };
 
 const statValueStyle: CSSProperties = {
-  fontSize: 28,
-  fontWeight: 800,
+  fontSize: 9,
+  lineHeight: 1,
+  fontWeight: 900,
+  color: "#111827",
 };
 
 const warningStatValueStyle: CSSProperties = {
-  fontSize: 28,
-  fontWeight: 800,
   color: "#8a6418",
+};
+
+const activeStatValueStyle: CSSProperties = {
+  color: "#2f7d62",
 };
 
 const filterGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "2fr 1fr 1fr",
-  gap: 16,
-};
-
-const labelStyle: CSSProperties = {
-  display: "block",
-  marginBottom: 8,
-  fontWeight: 800,
-  fontSize: 15,
+  gridTemplateColumns: "minmax(0, 1fr) 58px 82px",
+  gap: 4,
+  alignItems: "center",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  minHeight: 52,
-  padding: "14px 16px",
-  borderRadius: 16,
+  minHeight: 26,
+  padding: "4px 6px",
+  borderRadius: 7,
   border: "1px solid #d9cfbf",
   background: "#fcfbf8",
   outline: "none",
-  fontSize: 15,
+  fontSize: 8,
 };
 
-const bulkBarStyle: CSSProperties = {
-  background: "#fff",
+const mobileListStyle: CSSProperties = {
+  display: "none",
+  gap: 0,
+  width: "100%",
+  maxWidth: "100%",
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 18,
-  padding: 14,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 14,
-  flexWrap: "wrap",
+  borderRadius: 10,
+  overflow: "hidden",
 };
 
-const bulkBarActionsStyle: CSSProperties = {
+const mobileRowStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: "100%",
+  padding: "8px 8px 7px",
+  borderBottom: "1px solid #eee7dc",
+  background: "#ffffff",
+  overflow: "hidden",
+};
+
+const mobileMainRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "14px 40px minmax(0, 1fr)",
+  gap: 7,
+  alignItems: "start",
+  width: "100%",
+  maxWidth: "100%",
+};
+
+const mobileCheckboxStyle: CSSProperties = {
+  width: 12,
+  height: 12,
+  marginTop: 4,
+};
+
+const mobileThumbLinkStyle: CSSProperties = {
+  display: "block",
+  width: 40,
+  height: 40,
+  textDecoration: "none",
+};
+
+const mobileThumbStyle: CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 7,
+  overflow: "hidden",
+  background: "#f6f3ee",
+  border: "1px solid #e4dacd",
+};
+
+const mobileImageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  display: "block",
+};
+
+const mobileNoImageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  display: "grid",
+  placeItems: "center",
+  textAlign: "center",
+  padding: 2,
+  fontSize: 6,
+  lineHeight: 1,
+  color: "#8a8176",
+  background: "#faf8f4",
+};
+
+const mobileContentStyle: CSSProperties = {
+  minWidth: 0,
+  maxWidth: "100%",
+  overflow: "hidden",
+};
+
+const mobileTitleRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gap: 5,
+  alignItems: "start",
+  minWidth: 0,
+};
+
+const mobileTitleLinkStyle: CSSProperties = {
+  minWidth: 0,
+  color: "inherit",
+  textDecoration: "none",
+};
+
+const mobileTitleStyle: CSSProperties = {
+  margin: 0,
+  minWidth: 0,
+  fontSize: 10,
+  lineHeight: 1.22,
+  fontWeight: 900,
+  color: "#111827",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: "vertical",
+  wordBreak: "break-word",
+};
+
+const mobileSubTextStyle: CSSProperties = {
+  marginTop: 2,
+  minWidth: 0,
+  fontSize: 8,
+  lineHeight: 1.3,
+  color: "#6f6559",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const mobileIssueRowStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
+  flexWrap: "nowrap",
+  gap: 3,
+  marginTop: 4,
+  minWidth: 0,
+  overflow: "hidden",
+};
+
+const mobileFeaturedBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 14,
+  padding: "0 5px",
+  borderRadius: 999,
+  background: "#eef8f0",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
+  fontSize: 7,
+  fontWeight: 850,
+  whiteSpace: "nowrap",
+};
+
+const mobileIssueBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 14,
+  maxWidth: "100%",
+  padding: "0 5px",
+  borderRadius: 999,
+  background: "#fff7e8",
+  color: "#8a6418",
+  border: "1px solid #ecd8ad",
+  fontSize: 7,
+  fontWeight: 850,
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const mobileOkBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 14,
+  padding: "0 5px",
+  borderRadius: 999,
+  background: "#edf8f1",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
+  fontSize: 7,
+  fontWeight: 850,
+};
+
+const mobileActionsStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 6,
+  marginTop: 7,
+  marginLeft: 61,
+  width: "calc(100% - 61px)",
+  maxWidth: "calc(100% - 61px)",
+  overflow: "hidden",
+};
+
+const mobileActionButtonStyle: CSSProperties = {
+  minWidth: 0,
+  width: "100%",
+  minHeight: 28,
+  height: 28,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 6px",
+  borderRadius: 7,
+  border: "1px solid #d9cfbf",
+  background: "#ffffff",
+  color: "#111827",
+  textDecoration: "none",
+  fontSize: 9,
+  lineHeight: 1,
+  fontWeight: 850,
+  cursor: "pointer",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const mobilePrimaryActionButtonStyle: CSSProperties = {
+  ...mobileActionButtonStyle,
+  border: "1px solid #2f7d62",
+  background: "#2f7d62",
+  color: "#ffffff",
 };
 
 const tableCardStyle: CSSProperties = {
-  background: "#fff",
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 24,
+  borderRadius: 14,
   overflow: "hidden",
-  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
+  boxShadow: "0 4px 12px rgba(23,23,23,0.02)",
 };
 
 const tableScrollStyle: CSSProperties = {
@@ -868,8 +1337,8 @@ const tableStyle: CSSProperties = {
 
 const thStyle: CSSProperties = {
   textAlign: "left",
-  padding: "18px",
-  fontSize: 13,
+  padding: "10px 12px",
+  fontSize: 10,
   letterSpacing: "0.04em",
   textTransform: "uppercase",
   color: "#7d7266",
@@ -879,20 +1348,20 @@ const thStyle: CSSProperties = {
 
 const checkboxThStyle: CSSProperties = {
   ...thStyle,
-  width: 46,
+  width: 38,
   textAlign: "center",
 };
 
 const tdStyle: CSSProperties = {
-  padding: "18px",
+  padding: "10px 12px",
   borderBottom: "1px solid #efe8dc",
   verticalAlign: "top",
-  fontSize: 15,
+  fontSize: 12,
 };
 
 const checkboxTdStyle: CSSProperties = {
   ...tdStyle,
-  width: 46,
+  width: 38,
   textAlign: "center",
 };
 
@@ -902,29 +1371,30 @@ const selectedRowStyle: CSSProperties = {
 
 const productCellStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "82px 1fr",
-  gap: 14,
+  gridTemplateColumns: "52px 1fr",
+  gap: 10,
   alignItems: "start",
 };
 
 const productInfoStyle: CSSProperties = {
   display: "grid",
-  gap: 6,
+  gap: 5,
 };
 
 const productTitleStyle: CSSProperties = {
-  fontWeight: 800,
+  fontWeight: 850,
+  fontSize: 12,
 };
 
 const thumbWrapStyle: CSSProperties = {
-  width: 82,
+  width: 52,
 };
 
 const thumbStyle: CSSProperties = {
   width: "100%",
   aspectRatio: "1 / 1",
   objectFit: "cover",
-  borderRadius: 14,
+  borderRadius: 10,
   border: "1px solid #e5dccf",
   background: "#f5f5f5",
   display: "block",
@@ -933,82 +1403,82 @@ const thumbStyle: CSSProperties = {
 const thumbEmptyStyle: CSSProperties = {
   width: "100%",
   aspectRatio: "1 / 1",
-  borderRadius: 14,
+  borderRadius: 10,
   border: "1px dashed #d8cdbd",
   background: "#faf8f4",
   color: "#8c8174",
   fontWeight: 700,
-  fontSize: 12,
+  fontSize: 9,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   textAlign: "center",
-  padding: 8,
+  padding: 6,
 };
 
 const productTitleRowStyle: CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 6,
   alignItems: "center",
   flexWrap: "wrap",
 };
 
 const descriptionStyle: CSSProperties = {
   color: "#6f6559",
-  fontSize: 13,
-  lineHeight: 1.6,
+  fontSize: 10,
+  lineHeight: 1.45,
 };
 
 const featuredBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 28,
-  padding: "0 10px",
+  minHeight: 18,
+  padding: "0 6px",
   borderRadius: 999,
   background: "#eef8f0",
   color: "#1d6a43",
   border: "1px solid #cfe7d8",
-  fontWeight: 800,
-  fontSize: 12,
+  fontWeight: 850,
+  fontSize: 8,
 };
 
 const galleryInfoStyle: CSSProperties = {
   display: "grid",
-  gap: 8,
+  gap: 5,
 };
 
 const galleryScoreValueStyle: CSSProperties = {
-  fontSize: 24,
-  fontWeight: 800,
+  fontSize: 16,
+  fontWeight: 850,
   color: "#171717",
 };
 
 const galleryMetaStyle: CSSProperties = {
   display: "grid",
-  gap: 6,
-  fontSize: 13,
+  gap: 3,
+  fontSize: 10,
   color: "#5f564c",
-  lineHeight: 1.5,
+  lineHeight: 1.4,
 };
 
 const okBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 32,
-  padding: "0 12px",
+  minHeight: 24,
+  padding: "0 8px",
   borderRadius: 999,
   background: "#edf8f1",
   color: "#1d6a43",
   border: "1px solid #cfe7d8",
-  fontWeight: 800,
-  fontSize: 12,
+  fontWeight: 850,
+  fontSize: 9,
 };
 
 const warningListStyle: CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 5,
   flexWrap: "wrap",
 };
 
@@ -1016,25 +1486,26 @@ const warningBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 30,
-  padding: "0 10px",
+  minHeight: 24,
+  padding: "0 7px",
   borderRadius: 999,
   background: "#fff7e8",
   color: "#8a6418",
   border: "1px solid #ecd8ad",
-  fontWeight: 800,
-  fontSize: 12,
+  fontWeight: 850,
+  fontSize: 9,
 };
 
 const badgeBaseStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 32,
-  padding: "0 12px",
+  minHeight: 16,
+  padding: "0 5px",
   borderRadius: 999,
-  fontWeight: 800,
-  fontSize: 13,
+  fontWeight: 850,
+  fontSize: 7,
+  whiteSpace: "nowrap",
 };
 
 const publishedBadgeStyle: CSSProperties = {
@@ -1060,7 +1531,7 @@ const neutralBadgeStyle: CSSProperties = {
 
 const actionColumnStyle: CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 6,
   flexWrap: "wrap",
 };
 
@@ -1068,107 +1539,156 @@ const primaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 48,
-  padding: "0 18px",
-  borderRadius: 14,
+  minHeight: 24,
+  flex: "0 0 auto",
+  padding: "0 7px",
+  borderRadius: 7,
   border: "1px solid #2f7d62",
   background: "#2f7d62",
-  color: "#fff",
-  fontWeight: 800,
+  color: "#ffffff",
+  fontWeight: 850,
   cursor: "pointer",
   textDecoration: "none",
+  fontSize: 8,
+  whiteSpace: "nowrap",
 };
 
 const secondaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 48,
-  padding: "0 18px",
-  borderRadius: 14,
+  minHeight: 24,
+  flex: "0 0 auto",
+  padding: "0 7px",
+  borderRadius: 7,
   border: "1px solid #d9cfbf",
-  background: "#fff",
+  background: "#ffffff",
   color: "#171717",
-  fontWeight: 800,
+  fontWeight: 850,
   cursor: "pointer",
   textDecoration: "none",
+  fontSize: 8,
+  whiteSpace: "nowrap",
+};
+
+const dangerButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 24,
+  flex: "0 0 auto",
+  padding: "0 7px",
+  borderRadius: 7,
+  border: "1px solid #e5c9c9",
+  background: "#fff5f5",
+  color: "#8f2d2d",
+  fontWeight: 850,
+  cursor: "pointer",
+  textDecoration: "none",
+  fontSize: 8,
+  whiteSpace: "nowrap",
+};
+
+const exportSelectStyle: CSSProperties = {
+  minHeight: 24,
+  flex: "0 0 auto",
+  padding: "0 7px",
+  borderRadius: 7,
+  border: "1px solid #d9cfbf",
+  background: "#ffffff",
+  color: "#171717",
+  fontWeight: 850,
+  cursor: "pointer",
+  fontSize: 8,
+  whiteSpace: "nowrap",
+  outline: "none",
 };
 
 const primarySmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 38,
-  padding: "0 14px",
-  borderRadius: 12,
+  minHeight: 26,
+  padding: "0 8px",
+  borderRadius: 8,
   border: "1px solid #2f7d62",
   background: "#2f7d62",
-  color: "#fff",
-  fontWeight: 700,
+  color: "#ffffff",
+  fontWeight: 750,
   cursor: "pointer",
   textDecoration: "none",
-  fontSize: 14,
+  fontSize: 10,
 };
 
 const secondarySmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 38,
-  padding: "0 14px",
-  borderRadius: 12,
+  minHeight: 26,
+  padding: "0 8px",
+  borderRadius: 8,
   border: "1px solid #d9cfbf",
-  background: "#fff",
+  background: "#ffffff",
   color: "#171717",
-  fontWeight: 700,
+  fontWeight: 750,
   cursor: "pointer",
   textDecoration: "none",
-  fontSize: 14,
+  fontSize: 10,
 };
 
 const dangerSmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 38,
-  padding: "0 14px",
-  borderRadius: 12,
+  minHeight: 26,
+  padding: "0 8px",
+  borderRadius: 8,
   border: "1px solid #e5c9c9",
   background: "#fff5f5",
   color: "#8f2d2d",
-  fontWeight: 700,
+  fontWeight: 750,
   cursor: "pointer",
   textDecoration: "none",
-  fontSize: 14,
+  fontSize: 10,
 };
 
 const paginationWrapStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  gap: 12,
-  padding: 18,
+  gap: 10,
+  padding: 12,
   borderTop: "1px solid #efe8dc",
   flexWrap: "wrap",
 };
 
+const mobilePaginationStyle: CSSProperties = {
+  display: "none",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
 const paginationInfoStyle: CSSProperties = {
-  fontWeight: 800,
+  fontWeight: 850,
   color: "#5f564b",
+  fontSize: 10,
 };
 
 const emptyStateStyle: CSSProperties = {
-  background: "#fff",
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 28,
+  borderRadius: 12,
+  padding: 12,
   color: "#6f6559",
-  fontWeight: 700,
+  fontWeight: 750,
+  fontSize: 11,
 };
 
 const errorBoxStyle: CSSProperties = {
-  padding: 18,
-  borderRadius: 16,
+  padding: 12,
+  borderRadius: 12,
   background: "#fff1f1",
   border: "1px solid #f0c9c9",
   color: "#8d2f2f",

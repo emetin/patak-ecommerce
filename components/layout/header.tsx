@@ -6,11 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { SITE_SETTINGS } from "../../lib/site-settings";
 import { normalizeImageUrl } from "../../lib/image-url";
 
-
 const navigation = [
   { label: "Home", href: "/" },
   { label: "About Us", href: "/about-us" },
   { label: "Collections", href: "/collections" },
+  { label: "Hospitality Projects", href: "/hospitality-projects" },
   { label: "Contact Us", href: "/contact-us" },
   { label: "FAQ", href: "/faq" },
 ];
@@ -223,7 +223,6 @@ export default function Header() {
                       }}
                     >
                       {product.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={product.image}
                           alt={product.title}
@@ -236,11 +235,7 @@ export default function Header() {
                       ) : null}
                     </div>
 
-                    <div
-                      style={{
-                        minWidth: 0,
-                      }}
-                    >
+                    <div style={{ minWidth: 0 }}>
                       <div
                         style={{
                           color: "#171717",
@@ -251,6 +246,7 @@ export default function Header() {
                       >
                         {product.title}
                       </div>
+
                       <div
                         style={{
                           marginTop: 3,
@@ -315,11 +311,87 @@ export default function Header() {
         top: 0,
         zIndex: 100,
         width: "100%",
-        background: "rgba(255,255,255,0.92)",
+        background: "rgba(255,255,255,0.94)",
         backdropFilter: "blur(14px)",
         boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
       }}
     >
+      <div
+        className="header-top-cta"
+        style={{
+          width: "100%",
+          background: "#111827",
+          color: "#ffffff",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div
+          className="header-top-cta-inner"
+          style={{
+            width: "100%",
+            maxWidth: 1320,
+            margin: "0 auto",
+            padding: "9px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <div
+            className="header-top-cta-text"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              minWidth: 0,
+              color: "rgba(255,255,255,0.78)",
+              fontSize: 13,
+              fontWeight: 700,
+              lineHeight: 1.45,
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: "#d8bc55",
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+            />
+
+            <span>
+              Planning a hospitality textile purchase? Schedule a wholesale
+              appointment with our team.
+            </span>
+          </div>
+
+          <Link
+            href="/make-an-appointment"
+            className="header-top-cta-button"
+            style={{
+              minHeight: 34,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 16px",
+              borderRadius: 999,
+              background: "#d8bc55",
+              color: "#111827",
+              textDecoration: "none",
+              fontSize: 13,
+              fontWeight: 900,
+              whiteSpace: "nowrap",
+              border: "1px solid #d8bc55",
+            }}
+          >
+            Make an Appointment
+          </Link>
+        </div>
+      </div>
+
       <div
         className="header-container"
         style={{
@@ -388,33 +460,9 @@ export default function Header() {
               flexShrink: 0,
             }}
           >
-            <span
-              style={{
-                width: 18,
-                height: 2,
-                borderRadius: 99,
-                background: "#171717",
-                display: "block",
-              }}
-            />
-            <span
-              style={{
-                width: 18,
-                height: 2,
-                borderRadius: 99,
-                background: "#171717",
-                display: "block",
-              }}
-            />
-            <span
-              style={{
-                width: 18,
-                height: 2,
-                borderRadius: 99,
-                background: "#171717",
-                display: "block",
-              }}
-            />
+            <span style={mobileLineStyle} />
+            <span style={mobileLineStyle} />
+            <span style={mobileLineStyle} />
           </button>
 
           <nav
@@ -430,7 +478,11 @@ export default function Header() {
             }}
           >
             {navigation.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`);
 
               return (
                 <Link
@@ -448,7 +500,7 @@ export default function Header() {
                     fontSize: 14,
                     fontWeight: 800,
                     letterSpacing: "0.01em",
-                    color: active ? "#fff" : "#2f2a24",
+                    color: active ? "#ffffff" : "#2f2a24",
                     background: active ? "#2f7d62" : "transparent",
                     border: active
                       ? "1px solid #2f7d62"
@@ -495,9 +547,24 @@ export default function Header() {
           display: block;
         }
 
-        @media (max-width: 1180px) {
+        @media (max-width: 1280px) {
+          .header-inner {
+            gap: 14px !important;
+          }
+
+          .header-nav a {
+            padding: 0 12px !important;
+            font-size: 13px !important;
+          }
+
           .header-desktop-search-holder {
             width: 190px !important;
+          }
+        }
+
+        @media (max-width: 1120px) {
+          .header-desktop-search-holder {
+            display: none !important;
           }
         }
 
@@ -508,10 +575,6 @@ export default function Header() {
 
           .header-mobile-menu-button {
             display: inline-flex !important;
-          }
-
-          .header-desktop-search-holder {
-            display: none !important;
           }
 
           .header-nav {
@@ -548,6 +611,24 @@ export default function Header() {
           }
         }
 
+        @media (max-width: 768px) {
+          .header-top-cta-inner {
+            align-items: flex-start !important;
+            flex-direction: column !important;
+            gap: 9px !important;
+            padding: 10px 16px !important;
+          }
+
+          .header-top-cta-text {
+            font-size: 12px !important;
+          }
+
+          .header-top-cta-button {
+            width: 100% !important;
+            min-height: 36px !important;
+          }
+        }
+
         @media (max-width: 640px) {
           .header-container {
             padding: 0 14px !important;
@@ -576,3 +657,11 @@ export default function Header() {
     </header>
   );
 }
+
+const mobileLineStyle: React.CSSProperties = {
+  width: 18,
+  height: 2,
+  borderRadius: 99,
+  background: "#171717",
+  display: "block",
+};

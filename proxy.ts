@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { ADMIN_COOKIE_NAME } from "./lib/admin-auth";
+import {
+  ADMIN_COOKIE_NAME,
+  verifyAdminSessionToken,
+} from "./lib/admin-auth";
 
 function isAuthDisabled() {
   return process.env.ADMIN_AUTH_DISABLED === "true";
@@ -27,11 +30,7 @@ function isAllowedAdminAuthRoute(pathname: string) {
   );
 }
 
-function hasAdminCookie(request: NextRequest) {
-  return Boolean(request.cookies.get(ADMIN_COOKIE_NAME)?.value);
-}
-
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAdminRoute = pathname.startsWith("/admin");
@@ -45,7 +44,7 @@ export function proxy(request: NextRequest) {
 
   if (isAuthDisabled()) {
     if (isPortalRoute) {
-      return NextResponse.redirect(new URL("/admin/products", request.url));
+      return NextResponse.redirect(new URL("/admin", request.url));
     }
 
     return NextResponse.next();
@@ -55,11 +54,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const loggedIn = hasAdminCookie(request);
+  const token = request.cookies.get(ADMIN_COOKIE_NAME)?.value || null;
+  const loggedIn = await verifyAdminSessionToken(token);
 
   if (isPortalRoute) {
     if (loggedIn) {
-      return NextResponse.redirect(new URL("/admin/products", request.url));
+      return NextResponse.redirect(new URL("/admin", request.url));
     }
 
     return NextResponse.next();

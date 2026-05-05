@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, CSSProperties } from "react";
 
 type BlogItem = {
   id?: string;
@@ -31,15 +32,11 @@ function normalizeLower(value: unknown) {
 function formatDateTime(value?: string) {
   const raw = normalizeText(value);
 
-  if (!raw) {
-    return "-";
-  }
+  if (!raw) return "-";
 
   const date = new Date(raw);
 
-  if (Number.isNaN(date.getTime())) {
-    return raw;
-  }
+  if (Number.isNaN(date.getTime())) return raw;
 
   return date.toLocaleString("en-US", {
     year: "numeric",
@@ -54,23 +51,13 @@ function getScheduleState(item: BlogItem) {
   const status = normalizeLower(item.status);
   const publishedAt = normalizeText(item.published_at);
 
-  if (status !== "scheduled") {
-    return "-";
-  }
-
-  if (!publishedAt) {
-    return "Missing date";
-  }
+  if (status !== "scheduled") return "-";
+  if (!publishedAt) return "Missing date";
 
   const date = new Date(publishedAt);
 
-  if (Number.isNaN(date.getTime())) {
-    return "Invalid date";
-  }
-
-  if (date.getTime() <= Date.now()) {
-    return "Ready to publish";
-  }
+  if (Number.isNaN(date.getTime())) return "Invalid date";
+  if (date.getTime() <= Date.now()) return "Ready to publish";
 
   return "Scheduled";
 }
@@ -165,10 +152,24 @@ export default function AdminBlogPage() {
     });
   }, [items, search, statusFilter]);
 
+  function clearFilters() {
+    setSearch("");
+    setStatusFilter("all");
+  }
+
+  function handleExportChange(event: ChangeEvent<HTMLSelectElement>) {
+    const format = event.currentTarget.value;
+
+    if (!format) return;
+
+    window.location.href = `/api/blog/export?format=${format}`;
+    event.currentTarget.value = "";
+  }
+
   return (
-    <div style={{ display: "grid", gap: 24 }}>
+    <div style={pageWrapStyle}>
       <div style={pageHeaderStyle}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 style={titleStyle}>Blog</h1>
           <p style={subtitleStyle}>
             Manage blog posts, authors, SEO fields, and scheduled publishing.
@@ -180,55 +181,88 @@ export default function AdminBlogPage() {
             + New Post
           </Link>
 
-          <a href="/api/blog/export?format=csv" style={secondaryButtonStyle}>
-            Export CSV
-          </a>
-
-          <a href="/api/blog/export?format=json" style={secondaryButtonStyle}>
-            Export JSON
-          </a>
-
-          <a href="/api/blog/export?format=xml" style={secondaryButtonStyle}>
-            Export XML
-          </a>
+          <select
+            aria-label="Export blog posts"
+            defaultValue=""
+            onChange={handleExportChange}
+            style={exportSelectStyle}
+          >
+            <option value="" disabled>
+              Export
+            </option>
+            <option value="csv">Export CSV</option>
+            <option value="json">Export JSON</option>
+            <option value="xml">Export XML</option>
+          </select>
         </div>
       </div>
 
       <div style={filterCardStyle}>
         <div style={statsRowStyle}>
-          <StatBox label="Total Records" value={String(items.length)} />
-          <StatBox label="Filtered Results" value={String(filteredItems.length)} />
-          <StatBox label="Published" value={String(stats.published)} />
-          <StatBox label="Scheduled" value={String(stats.scheduled)} />
-          <StatBox label="Draft" value={String(stats.draft)} />
-          <StatBox label="Archived" value={String(stats.archived)} />
+          <StatButton
+            label="Total"
+            value={String(items.length)}
+            active={statusFilter === "all" && !search.trim()}
+            onClick={clearFilters}
+          />
+
+          <StatButton
+            label="Filtered"
+            value={String(filteredItems.length)}
+            active={false}
+            onClick={clearFilters}
+          />
+
+          <StatButton
+            label="Published"
+            value={String(stats.published)}
+            active={statusFilter === "published"}
+            onClick={() => setStatusFilter("published")}
+          />
+
+          <StatButton
+            label="Scheduled"
+            value={String(stats.scheduled)}
+            active={statusFilter === "scheduled"}
+            onClick={() => setStatusFilter("scheduled")}
+          />
+
+          <StatButton
+            label="Draft"
+            value={String(stats.draft)}
+            active={statusFilter === "draft"}
+            onClick={() => setStatusFilter("draft")}
+          />
+
+          <StatButton
+            label="Archived"
+            value={String(stats.archived)}
+            active={statusFilter === "archived"}
+            onClick={() => setStatusFilter("archived")}
+          />
         </div>
 
         <div style={filterGridStyle}>
-          <div>
-            <label style={labelStyle}>Search</label>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by title, slug, author, excerpt, content, or SEO fields"
-              style={inputStyle}
-            />
-          </div>
+          <input
+            aria-label="Search blog posts"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search blog posts..."
+            style={inputStyle}
+          />
 
-          <div>
-            <label style={labelStyle}>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="all">all</option>
-              <option value="published">published</option>
-              <option value="scheduled">scheduled</option>
-              <option value="draft">draft</option>
-              <option value="archived">archived</option>
-            </select>
-          </div>
+          <select
+            aria-label="Filter by status"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            style={inputStyle}
+          >
+            <option value="all">all</option>
+            <option value="published">published</option>
+            <option value="scheduled">scheduled</option>
+            <option value="draft">draft</option>
+            <option value="archived">archived</option>
+          </select>
         </div>
       </div>
 
@@ -244,146 +278,211 @@ export default function AdminBlogPage() {
           No blog posts matched your current search or filters.
         </div>
       ) : (
-        <div style={tableCardStyle}>
-          <div style={tableScrollStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Post</th>
-                  <th style={thStyle}>Author</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Publish Date</th>
-                  <th style={thStyle}>Schedule</th>
-                  <th style={thStyle}>SEO</th>
-                  <th style={thStyle}>Featured</th>
-                  <th style={thStyle}>Updated</th>
-                  <th style={thStyle}>Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredItems.map((item, index) => (
-                  <tr key={item.id || item.slug || index}>
-                    <td style={tdStyle}>
-                      <div style={postTitleStyle}>{item.title || "-"}</div>
-
-                      <div style={slugStyle}>{item.slug || "-"}</div>
-
-                      <div style={excerptStyle}>
-                        {item.excerpt || "No excerpt added yet."}
-                      </div>
-                    </td>
-
-                    <td style={tdStyle}>{item.author || "-"}</td>
-
-                    <td style={tdStyle}>
-                      <StatusBadge value={item.status || "-"} />
-                    </td>
-
-                    <td style={tdStyle}>{formatDateTime(item.published_at)}</td>
-
-                    <td style={tdStyle}>
-                      <ScheduleBadge value={getScheduleState(item)} />
-                    </td>
-
-                    <td style={tdStyle}>
-                      <div style={seoBoxStyle}>
-                        <div>
-                          <strong>Title:</strong>{" "}
-                          {item.seo_title ? "Yes" : "Missing"}
-                        </div>
-                        <div>
-                          <strong>Description:</strong>{" "}
-                          {item.seo_description ? "Yes" : "Missing"}
-                        </div>
-                      </div>
-                    </td>
-
-                    <td style={tdStyle}>
-                      {normalizeLower(item.featured) === "true" ? "Yes" : "No"}
-                    </td>
-
-                    <td style={tdStyle}>{formatDateTime(item.updated_at)}</td>
-
-                    <td style={tdStyle}>
-                      <div style={actionRowStyle}>
-                        {item.slug ? (
-                          <Link
-                            href={`/admin/blog/${item.slug}`}
-                            style={secondarySmallButtonStyle}
-                          >
-                            Edit
-                          </Link>
-                        ) : null}
-
-                        {item.slug ? (
-                          <Link
-                            href={`/blog/${item.slug}`}
-                            style={secondarySmallButtonStyle}
-                          >
-                            View
-                          </Link>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          <div className="admin-blog-mobile-list" style={mobileListStyle}>
+            {filteredItems.map((item, index) => (
+              <BlogMobileRow key={item.id || item.slug || `mobile-${index}`} item={item} />
+            ))}
           </div>
-        </div>
+
+          <div className="admin-blog-table-card" style={tableCardStyle}>
+            <div style={tableScrollStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Post</th>
+                    <th style={thStyle}>Author</th>
+                    <th style={thStyle}>Status</th>
+                    <th style={thStyle}>Publish Date</th>
+                    <th style={thStyle}>Schedule</th>
+                    <th style={thStyle}>SEO</th>
+                    <th style={thStyle}>Featured</th>
+                    <th style={thStyle}>Updated</th>
+                    <th style={thStyle}>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredItems.map((item, index) => (
+                    <BlogRow key={item.id || item.slug || index} item={item} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-function StatBox({ label, value }: { label: string; value: string }) {
+function BlogRow({ item }: { item: BlogItem }) {
   return (
-    <div style={statBoxStyle}>
-      <div style={statLabelStyle}>{label}</div>
-      <div style={statValueStyle}>{value}</div>
-    </div>
+    <tr>
+      <td style={tdStyle}>
+        <div style={postTitleStyle}>{item.title || "-"}</div>
+        <div style={slugStyle}>{item.slug || "-"}</div>
+        <div style={excerptStyle}>{item.excerpt || "No excerpt added yet."}</div>
+      </td>
+
+      <td style={tdStyle}>{item.author || "-"}</td>
+
+      <td style={tdStyle}>
+        <StatusBadge value={item.status || "-"} />
+      </td>
+
+      <td style={tdStyle}>{formatDateTime(item.published_at)}</td>
+
+      <td style={tdStyle}>
+        <ScheduleBadge value={getScheduleState(item)} />
+      </td>
+
+      <td style={tdStyle}>
+        <div style={seoBoxStyle}>
+          <div>
+            <strong>Title:</strong> {item.seo_title ? "Yes" : "Missing"}
+          </div>
+          <div>
+            <strong>Description:</strong>{" "}
+            {item.seo_description ? "Yes" : "Missing"}
+          </div>
+        </div>
+      </td>
+
+      <td style={tdStyle}>
+        {normalizeLower(item.featured) === "true" ? "Yes" : "No"}
+      </td>
+
+      <td style={tdStyle}>{formatDateTime(item.updated_at)}</td>
+
+      <td style={tdStyle}>
+        <div style={actionRowStyle}>
+          {item.slug ? (
+            <Link href={`/admin/blog/${item.slug}`} style={secondarySmallButtonStyle}>
+              Edit
+            </Link>
+          ) : null}
+
+          {item.slug ? (
+            <Link href={`/blog/${item.slug}`} style={secondarySmallButtonStyle}>
+              View
+            </Link>
+          ) : null}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function BlogMobileRow({ item }: { item: BlogItem }) {
+  const scheduleState = getScheduleState(item);
+  const hasSeoTitle = Boolean(normalizeText(item.seo_title));
+  const hasSeoDescription = Boolean(normalizeText(item.seo_description));
+  const isFeatured = normalizeLower(item.featured) === "true";
+
+  return (
+    <article style={mobileRowStyle}>
+      <div style={mobileTitleRowStyle}>
+        <Link href={`/admin/blog/${item.slug || ""}`} style={mobileTitleLinkStyle}>
+          <h3 style={mobileTitleStyle}>{item.title || "-"}</h3>
+        </Link>
+
+        <StatusBadge value={item.status || "-"} />
+      </div>
+
+      <div style={mobileSubTextStyle}>
+        {item.slug || "No slug"} · {item.author || "No author"}
+      </div>
+
+      <p style={mobileExcerptStyle}>
+        {item.excerpt || "No excerpt added yet."}
+      </p>
+
+      <div style={mobileMetaRowStyle}>
+        <ScheduleBadge value={scheduleState} />
+
+        {isFeatured ? (
+          <span style={mobileFeaturedBadgeStyle}>Featured</span>
+        ) : null}
+
+        <span
+          style={
+            hasSeoTitle && hasSeoDescription
+              ? mobileOkBadgeStyle
+              : mobileWarningBadgeStyle
+          }
+        >
+          {hasSeoTitle && hasSeoDescription ? "SEO OK" : "SEO Missing"}
+        </span>
+      </div>
+
+      <div style={mobileDateStyle}>
+        Publish: {formatDateTime(item.published_at)} · Updated:{" "}
+        {formatDateTime(item.updated_at)}
+      </div>
+
+      <div style={mobileActionsStyle}>
+        {item.slug ? (
+          <Link href={`/admin/blog/${item.slug}`} style={mobileActionButtonStyle}>
+            Edit Post
+          </Link>
+        ) : null}
+
+        {item.slug ? (
+          <Link href={`/blog/${item.slug}`} style={mobilePrimaryActionButtonStyle}>
+            View
+          </Link>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function StatButton({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        ...statButtonStyle,
+        ...(active ? activeStatButtonStyle : {}),
+      }}
+      title={`${label}: ${value}`}
+    >
+      <span style={statLabelStyle}>{label}</span>
+      <strong
+        style={{
+          ...statValueStyle,
+          ...(active ? activeStatValueStyle : {}),
+        }}
+      >
+        {value}
+      </strong>
+    </button>
   );
 }
 
 function StatusBadge({ value }: { value: string }) {
   const normalized = value.toLowerCase();
 
-  const style: React.CSSProperties =
+  const style: CSSProperties =
     normalized === "published"
-      ? {
-          ...badgeStyle,
-          background: "#edf8f1",
-          color: "#1d6a43",
-          border: "1px solid #cfe7d8",
-        }
+      ? publishedBadgeStyle
       : normalized === "scheduled"
-        ? {
-            ...badgeStyle,
-            background: "#eef4ff",
-            color: "#24579b",
-            border: "1px solid #cdddf6",
-          }
+        ? scheduledBadgeStyle
         : normalized === "draft"
-          ? {
-              ...badgeStyle,
-              background: "#fff7e8",
-              color: "#8a6418",
-              border: "1px solid #ecd8ad",
-            }
-          : normalized === "archived"
-            ? {
-                ...badgeStyle,
-                background: "#f3f3f3",
-                color: "#5e5e5e",
-                border: "1px solid #dddddd",
-              }
-            : {
-                ...badgeStyle,
-                background: "#f3f3f3",
-                color: "#5e5e5e",
-                border: "1px solid #dddddd",
-              };
+          ? draftBadgeStyle
+          : neutralBadgeStyle;
 
   return <span style={style}>{value}</span>;
 }
@@ -391,155 +490,340 @@ function StatusBadge({ value }: { value: string }) {
 function ScheduleBadge({ value }: { value: string }) {
   const normalized = value.toLowerCase();
 
-  const style: React.CSSProperties =
+  const style: CSSProperties =
     normalized === "scheduled"
-      ? {
-          ...smallBadgeStyle,
-          background: "#eef4ff",
-          color: "#24579b",
-          border: "1px solid #cdddf6",
-        }
+      ? scheduledSmallBadgeStyle
       : normalized === "ready to publish"
-        ? {
-            ...smallBadgeStyle,
-            background: "#fff7e8",
-            color: "#8a6418",
-            border: "1px solid #ecd8ad",
-          }
+        ? draftSmallBadgeStyle
         : normalized === "missing date" || normalized === "invalid date"
-          ? {
-              ...smallBadgeStyle,
-              background: "#fff1f1",
-              color: "#8d2f2f",
-              border: "1px solid #f0c9c9",
-            }
-          : {
-              ...smallBadgeStyle,
-              background: "#f3f3f3",
-              color: "#5e5e5e",
-              border: "1px solid #dddddd",
-            };
+          ? dangerSmallBadgeStyle
+          : neutralSmallBadgeStyle;
 
   return <span style={style}>{value}</span>;
 }
 
-const pageHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 20,
-  flexWrap: "wrap",
+const pageWrapStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
 };
 
-const titleStyle: React.CSSProperties = {
-  fontSize: 42,
-  lineHeight: 1.1,
+const pageHeaderStyle: CSSProperties = {
+  display: "grid",
+  gap: 6,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
+};
+
+const titleStyle: CSSProperties = {
+  fontSize: 22,
+  lineHeight: 1.05,
   margin: 0,
-  fontWeight: 800,
+  fontWeight: 850,
 };
 
-const subtitleStyle: React.CSSProperties = {
-  marginTop: 10,
+const subtitleStyle: CSSProperties = {
+  marginTop: 4,
   marginBottom: 0,
   color: "#6f6559",
-  fontSize: 16,
-  maxWidth: 760,
+  fontSize: 10,
+  lineHeight: 1.35,
+  maxWidth: "100%",
 };
 
-const headerActionsStyle: React.CSSProperties = {
+const headerActionsStyle: CSSProperties = {
   display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
-};
-
-const cardStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 24,
-};
-
-const filterCardStyle: React.CSSProperties = {
-  background: "#fff",
-  border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 24,
-  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
-};
-
-const statsRowStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 14,
-  flexWrap: "wrap",
-  marginBottom: 20,
-};
-
-const statBoxStyle: React.CSSProperties = {
-  minWidth: 160,
-  background: "#f8f5ef",
-  border: "1px solid #e3dbcf",
-  borderRadius: 18,
-  padding: 16,
-};
-
-const statLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#7c7267",
-  marginBottom: 8,
-  fontWeight: 700,
-};
-
-const statValueStyle: React.CSSProperties = {
-  fontSize: 28,
-  fontWeight: 800,
-};
-
-const filterGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "2fr 1fr",
-  gap: 16,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: 8,
-  fontWeight: 800,
-  fontSize: 15,
-};
-
-const inputStyle: React.CSSProperties = {
+  gap: 4,
+  flexWrap: "nowrap",
+  overflowX: "auto",
+  paddingBottom: 2,
   width: "100%",
-  minHeight: 52,
-  padding: "14px 16px",
-  borderRadius: 16,
+};
+
+const cardStyle: CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 10,
+  padding: 8,
+};
+
+const filterCardStyle: CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 10,
+  padding: 6,
+  boxShadow: "0 2px 8px rgba(23,23,23,0.02)",
+  overflow: "hidden",
+};
+
+const statsRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  flexWrap: "nowrap",
+  overflowX: "auto",
+  overflowY: "hidden",
+  paddingBottom: 4,
+  marginBottom: 5,
+  scrollbarWidth: "thin",
+  width: "100%",
+};
+
+const statButtonStyle: CSSProperties = {
+  minHeight: 22,
+  flex: "0 0 auto",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 4,
+  textAlign: "left",
+  border: "1px solid #e4dacd",
+  borderRadius: 999,
+  padding: "3px 6px",
+  background: "#fbfaf7",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const activeStatButtonStyle: CSSProperties = {
+  background: "#edf8f1",
+  border: "1px solid #2f7d62",
+};
+
+const statLabelStyle: CSSProperties = {
+  fontSize: 7,
+  color: "#7c7267",
+  fontWeight: 850,
+  letterSpacing: "0.02em",
+  textTransform: "uppercase",
+};
+
+const statValueStyle: CSSProperties = {
+  fontSize: 9,
+  lineHeight: 1,
+  fontWeight: 900,
+  color: "#111827",
+};
+
+const activeStatValueStyle: CSSProperties = {
+  color: "#2f7d62",
+};
+
+const filterGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) 92px",
+  gap: 4,
+  alignItems: "center",
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 26,
+  padding: "4px 6px",
+  borderRadius: 7,
   border: "1px solid #d9cfbf",
   background: "#fcfbf8",
   outline: "none",
-  fontSize: 15,
+  fontSize: 8,
 };
 
-const tableCardStyle: React.CSSProperties = {
-  background: "#fff",
+const mobileListStyle: CSSProperties = {
+  display: "none",
+  gap: 0,
+  width: "100%",
+  maxWidth: "100%",
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 24,
+  borderRadius: 10,
   overflow: "hidden",
-  boxShadow: "0 10px 30px rgba(23,23,23,0.04)",
 };
 
-const tableScrollStyle: React.CSSProperties = {
+const mobileRowStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: "100%",
+  padding: "8px 8px 7px",
+  borderBottom: "1px solid #eee7dc",
+  background: "#ffffff",
+  overflow: "hidden",
+};
+
+const mobileTitleRowStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  gap: 5,
+  alignItems: "start",
+  minWidth: 0,
+};
+
+const mobileTitleLinkStyle: CSSProperties = {
+  minWidth: 0,
+  color: "inherit",
+  textDecoration: "none",
+};
+
+const mobileTitleStyle: CSSProperties = {
+  margin: 0,
+  minWidth: 0,
+  fontSize: 10,
+  lineHeight: 1.22,
+  fontWeight: 900,
+  color: "#111827",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: "vertical",
+  wordBreak: "break-word",
+};
+
+const mobileSubTextStyle: CSSProperties = {
+  marginTop: 2,
+  minWidth: 0,
+  fontSize: 8,
+  lineHeight: 1.3,
+  color: "#6f6559",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const mobileExcerptStyle: CSSProperties = {
+  margin: "3px 0 0",
+  minWidth: 0,
+  fontSize: 8,
+  lineHeight: 1.35,
+  color: "#6f6559",
+  overflow: "hidden",
+  display: "-webkit-box",
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: "vertical",
+};
+
+const mobileMetaRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "nowrap",
+  gap: 3,
+  marginTop: 5,
+  minWidth: 0,
+  overflow: "hidden",
+};
+
+const mobileFeaturedBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 14,
+  padding: "0 5px",
+  borderRadius: 999,
+  background: "#eef8f0",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
+  fontSize: 7,
+  fontWeight: 850,
+  whiteSpace: "nowrap",
+};
+
+const mobileOkBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 14,
+  padding: "0 5px",
+  borderRadius: 999,
+  background: "#edf8f1",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
+  fontSize: 7,
+  fontWeight: 850,
+  whiteSpace: "nowrap",
+};
+
+const mobileWarningBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 14,
+  padding: "0 5px",
+  borderRadius: 999,
+  background: "#fff7e8",
+  color: "#8a6418",
+  border: "1px solid #ecd8ad",
+  fontSize: 7,
+  fontWeight: 850,
+  whiteSpace: "nowrap",
+};
+
+const mobileDateStyle: CSSProperties = {
+  marginTop: 5,
+  fontSize: 7,
+  lineHeight: 1.35,
+  color: "#7c7267",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const mobileActionsStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 6,
+  marginTop: 7,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
+};
+
+const mobileActionButtonStyle: CSSProperties = {
+  minWidth: 0,
+  width: "100%",
+  minHeight: 28,
+  height: 28,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 6px",
+  borderRadius: 7,
+  border: "1px solid #d9cfbf",
+  background: "#ffffff",
+  color: "#111827",
+  textDecoration: "none",
+  fontSize: 9,
+  lineHeight: 1,
+  fontWeight: 850,
+  cursor: "pointer",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const mobilePrimaryActionButtonStyle: CSSProperties = {
+  ...mobileActionButtonStyle,
+  border: "1px solid #2f7d62",
+  background: "#2f7d62",
+  color: "#ffffff",
+};
+
+const tableCardStyle: CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #ddd3c5",
+  borderRadius: 14,
+  overflow: "hidden",
+  boxShadow: "0 4px 12px rgba(23,23,23,0.02)",
+};
+
+const tableScrollStyle: CSSProperties = {
   overflowX: "auto",
 };
 
-const tableStyle: React.CSSProperties = {
+const tableStyle: CSSProperties = {
   width: "100%",
-  borderCollapse: "collapse",
   minWidth: 1120,
+  borderCollapse: "collapse",
 };
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: "left",
-  padding: "18px 18px",
-  fontSize: 13,
+  padding: "10px 12px",
+  fontSize: 10,
   letterSpacing: "0.04em",
   textTransform: "uppercase",
   color: "#7d7266",
@@ -547,126 +831,181 @@ const thStyle: React.CSSProperties = {
   borderBottom: "1px solid #e5dccf",
 };
 
-const tdStyle: React.CSSProperties = {
-  padding: "18px 18px",
+const tdStyle: CSSProperties = {
+  padding: "10px 12px",
   borderBottom: "1px solid #efe8dc",
   verticalAlign: "top",
-  fontSize: 15,
+  fontSize: 12,
 };
 
-const postTitleStyle: React.CSSProperties = {
+const postTitleStyle: CSSProperties = {
   fontWeight: 900,
-  marginBottom: 6,
+  marginBottom: 5,
+  fontSize: 12,
 };
 
-const slugStyle: React.CSSProperties = {
+const slugStyle: CSSProperties = {
   color: "#7d7266",
-  fontSize: 13,
-  marginBottom: 8,
+  fontSize: 10,
+  marginBottom: 5,
 };
 
-const excerptStyle: React.CSSProperties = {
+const excerptStyle: CSSProperties = {
   color: "#6f6559",
-  fontSize: 13,
-  lineHeight: 1.6,
+  fontSize: 10,
+  lineHeight: 1.45,
   maxWidth: 340,
 };
 
-const seoBoxStyle: React.CSSProperties = {
+const seoBoxStyle: CSSProperties = {
   display: "grid",
-  gap: 6,
+  gap: 4,
   color: "#6f6559",
-  fontSize: 13,
+  fontSize: 10,
 };
 
-const badgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 32,
-  padding: "0 12px",
-  borderRadius: 999,
-  fontWeight: 800,
-  fontSize: 13,
-  whiteSpace: "nowrap",
-};
-
-const smallBadgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 30,
-  padding: "0 10px",
-  borderRadius: 999,
-  fontWeight: 800,
-  fontSize: 12,
-  whiteSpace: "nowrap",
-};
-
-const actionRowStyle: React.CSSProperties = {
+const actionRowStyle: CSSProperties = {
   display: "flex",
-  gap: 8,
+  gap: 6,
   flexWrap: "wrap",
 };
 
-const primaryButtonStyle: React.CSSProperties = {
+const primaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 48,
-  padding: "0 18px",
-  borderRadius: 14,
+  minHeight: 24,
+  flex: "0 0 auto",
+  padding: "0 7px",
+  borderRadius: 7,
   border: "1px solid #2f7d62",
   background: "#2f7d62",
-  color: "#fff",
-  fontWeight: 800,
+  color: "#ffffff",
+  fontWeight: 850,
   cursor: "pointer",
   textDecoration: "none",
+  fontSize: 8,
+  whiteSpace: "nowrap",
 };
 
-const secondaryButtonStyle: React.CSSProperties = {
+const exportSelectStyle: CSSProperties = {
+  minHeight: 24,
+  flex: "0 0 auto",
+  padding: "0 7px",
+  borderRadius: 7,
+  border: "1px solid #d9cfbf",
+  background: "#ffffff",
+  color: "#171717",
+  fontWeight: 850,
+  cursor: "pointer",
+  fontSize: 8,
+  whiteSpace: "nowrap",
+  outline: "none",
+};
+
+const secondarySmallButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 48,
-  padding: "0 18px",
-  borderRadius: 14,
+  minHeight: 26,
+  padding: "0 8px",
+  borderRadius: 8,
   border: "1px solid #d9cfbf",
-  background: "#fff",
+  background: "#ffffff",
   color: "#171717",
-  fontWeight: 800,
+  fontWeight: 750,
   cursor: "pointer",
   textDecoration: "none",
+  fontSize: 10,
 };
 
-const secondarySmallButtonStyle: React.CSSProperties = {
+const badgeBaseStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 38,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid #d9cfbf",
-  background: "#fff",
-  color: "#171717",
-  fontWeight: 700,
-  cursor: "pointer",
-  textDecoration: "none",
-  fontSize: 14,
+  minHeight: 16,
+  padding: "0 5px",
+  borderRadius: 999,
+  fontWeight: 850,
+  fontSize: 7,
+  whiteSpace: "nowrap",
 };
 
-const emptyStateStyle: React.CSSProperties = {
-  background: "#fff",
+const smallBadgeBaseStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  minHeight: 15,
+  fontSize: 7,
+};
+
+const publishedBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#edf8f1",
+  color: "#1d6a43",
+  border: "1px solid #cfe7d8",
+};
+
+const scheduledBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#eef4ff",
+  color: "#24579b",
+  border: "1px solid #cdddf6",
+};
+
+const draftBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#fff7e8",
+  color: "#8a6418",
+  border: "1px solid #ecd8ad",
+};
+
+const neutralBadgeStyle: CSSProperties = {
+  ...badgeBaseStyle,
+  background: "#f3f3f3",
+  color: "#5e5e5e",
+  border: "1px solid #dddddd",
+};
+
+const scheduledSmallBadgeStyle: CSSProperties = {
+  ...smallBadgeBaseStyle,
+  background: "#eef4ff",
+  color: "#24579b",
+  border: "1px solid #cdddf6",
+};
+
+const draftSmallBadgeStyle: CSSProperties = {
+  ...smallBadgeBaseStyle,
+  background: "#fff7e8",
+  color: "#8a6418",
+  border: "1px solid #ecd8ad",
+};
+
+const dangerSmallBadgeStyle: CSSProperties = {
+  ...smallBadgeBaseStyle,
+  background: "#fff1f1",
+  color: "#8d2f2f",
+  border: "1px solid #f0c9c9",
+};
+
+const neutralSmallBadgeStyle: CSSProperties = {
+  ...smallBadgeBaseStyle,
+  background: "#f3f3f3",
+  color: "#5e5e5e",
+  border: "1px solid #dddddd",
+};
+
+const emptyStateStyle: CSSProperties = {
+  background: "#ffffff",
   border: "1px solid #ddd3c5",
-  borderRadius: 24,
-  padding: 28,
+  borderRadius: 12,
+  padding: 12,
   color: "#6f6559",
-  fontWeight: 700,
+  fontWeight: 750,
+  fontSize: 11,
 };
 
-const errorBoxStyle: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 16,
+const errorBoxStyle: CSSProperties = {
+  padding: 12,
+  borderRadius: 12,
   background: "#fff1f1",
   border: "1px solid #f0c9c9",
   color: "#8d2f2f",
