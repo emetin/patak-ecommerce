@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { normalizeImageUrl } from "../../../../../lib/image-url";
 
 type ProductItem = {
@@ -51,7 +51,7 @@ export default function AdminCollectionProductsPage({
   const [saveError, setSaveError] = useState("");
   const [deleteLoadingId, setDeleteLoadingId] = useState("");
 
-  async function loadLinks() {
+  const loadLinks = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage("");
@@ -75,9 +75,9 @@ export default function AdminCollectionProductsPage({
     } finally {
       setLoading(false);
     }
-  }
+  }, [slug]);
 
-  async function loadProducts() {
+  const loadProducts = useCallback(async () => {
     try {
       setProductsLoading(true);
 
@@ -97,12 +97,12 @@ export default function AdminCollectionProductsPage({
     } finally {
       setProductsLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadLinks();
     loadProducts();
-  }, [slug]);
+  }, [loadLinks, loadProducts]);
 
   const linkedSlugSet = useMemo(() => {
     return new Set(

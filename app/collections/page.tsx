@@ -4,7 +4,6 @@ import Container from "../../components/ui/Container";
 import Section from "../../components/ui/Section";
 import SectionHeading from "../../components/ui/SectionHeading";
 import CollectionCard from "../../components/cards/CollectionCard";
-import ButtonLink from "../../components/ui/ButtonLink";
 import { buildPageMetadata } from "../../lib/seo";
 
 type CollectionItem = {

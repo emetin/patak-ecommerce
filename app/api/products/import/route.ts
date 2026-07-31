@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseCsvImportText } from "../../../../lib/import/csv-import";
-import { parseJsonImportText } from "../../../../lib/import/json-import";
+import { parseImportText } from "../../../../lib/import/parse-import";
 import {
   importRecords,
   validateSheetHeaders,
@@ -13,16 +12,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const format = String(body?.format || "csv").trim().toLowerCase();
     const text = String(body?.text || "");
-
-    if (!["csv", "json"].includes(format)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'Invalid import format. Use "csv" or "json".',
-        },
-        { status: 400 }
-      );
-    }
+    const dryRun = body?.dry_run === true;
 
     if (!text.trim()) {
       return NextResponse.json(
@@ -31,10 +21,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const items =
-      format === "json" ? parseJsonImportText(text) : parseCsvImportText(text);
+    const items = parseImportText("products", format, text);
 
-    const result = await importRecords("products", items);
+    if (items.length > 2000) {
+      return NextResponse.json(
+        { ok: false, error: "A maximum of 2000 records can be imported at once." },
+        { status: 400 }
+      );
+    }
+
+    const result = await importRecords("products", items, { dryRun });
 
     return NextResponse.json(result);
   } catch (error) {

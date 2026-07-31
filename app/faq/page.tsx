@@ -3,6 +3,7 @@ import Link from "next/link";
 import Container from "../../components/ui/Container";
 import Section from "../../components/ui/Section";
 import ButtonLink from "../../components/ui/ButtonLink";
+import JsonLd from "../../components/seo/JsonLd";
 import { buildPageMetadata } from "../../lib/seo";
 
 export const dynamic = "force-static";
@@ -88,6 +89,20 @@ const supportItems = [
 export default function FAQPage() {
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqItems.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.answer,
+            },
+          })),
+        }}
+      />
       <section style={heroStyle}>
         <Container>
           <div style={heroInnerStyle}>

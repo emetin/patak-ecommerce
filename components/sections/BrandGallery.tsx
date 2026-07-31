@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const brands = [
   {
@@ -22,15 +22,17 @@ export default function BrandGallery() {
 
   const activeBrand = activeIndex !== null ? brands[activeIndex] : null;
 
-  function closeModal() {
+  const closeModal = useCallback(() => {
     setActiveIndex(null);
-  }
+  }, []);
 
-  function changeSlide(direction: number) {
-    if (activeIndex === null) return;
-
-    setActiveIndex((activeIndex + direction + brands.length) % brands.length);
-  }
+  const changeSlide = useCallback((direction: number) => {
+    setActiveIndex((currentIndex) =>
+      currentIndex === null
+        ? null
+        : (currentIndex + direction + brands.length) % brands.length
+    );
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -48,7 +50,7 @@ export default function BrandGallery() {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [activeIndex]);
+  }, [activeIndex, changeSlide, closeModal]);
 
   return (
     <>

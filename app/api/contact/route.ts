@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { appendFormSheetRow } from "../../../lib/sheets";
+import { guardPublicRequest } from "../../../lib/public-api-guard";
 
 function normalizeText(value: unknown) {
   return String(value || "").trim();
@@ -11,6 +12,19 @@ function isValidEmail(email: string) {
 
 export async function POST(req: Request) {
   try {
+    const guard = guardPublicRequest(req, "contact");
+    if (!guard.allowed) {
+      return NextResponse.json(
+        { ok: false, error: guard.error },
+        {
+          status: guard.status,
+          headers: guard.retryAfterSeconds
+            ? { "Retry-After": String(guard.retryAfterSeconds) }
+            : undefined,
+        }
+      );
+    }
+
     const body = await req.json();
 
     const firstName = normalizeText(body?.first_name);
@@ -69,12 +83,12 @@ export async function POST(req: Request) {
       ok: true,
       message: "Contact message submitted successfully.",
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error ? error.message : "Failed to submit contact form.",
+          "Failed to submit contact form. Please try again later.",
       },
       { status: 500 }
     );

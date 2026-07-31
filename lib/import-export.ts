@@ -5,6 +5,7 @@ import {
   getSheetRowNumberMapByField,
   updateSheetRowByRowNumber,
 } from "./sheets";
+import { findDuplicateImportSlugs } from "./import/batch-validation";
 
 export const SHEET_CONFIG = {
   products: {
@@ -191,7 +192,8 @@ export async function getExportData(type: ContentType) {
 
 export async function importRecords(
   type: ContentType,
-  incomingItems: Record<string, string>[]
+  incomingItems: Record<string, string>[],
+  options?: { dryRun?: boolean }
 ) {
   const config = SHEET_CONFIG[type];
   const sheetName = config.sheetName;
@@ -211,17 +213,31 @@ export async function importRecords(
   const rowsToAppend: string[][] = [];
   const rowsToUpdate: Array<{ rowNumber: number; rowValues: string[] }> = [];
   const errors: string[] = [];
+  const duplicateRows = new Set(
+    findDuplicateImportSlugs(incomingItems).map((item) => item.duplicateRow)
+  );
+  const preparedSlugs = new Set<string>();
 
   for (let index = 0; index < incomingItems.length; index += 1) {
     const rawItem = incomingItems[index];
 
     try {
+      if (duplicateRows.has(index + 2)) {
+        throw new Error("duplicate slug in the import file.");
+      }
+
       const preparedSlug =
         rawItem.slug?.trim() || makeSlug(String(rawItem.title || ""));
 
       if (!preparedSlug) {
         throw new Error("slug or title is required.");
       }
+
+      const normalizedPreparedSlug = preparedSlug.toLowerCase();
+      if (preparedSlugs.has(normalizedPreparedSlug)) {
+        throw new Error("duplicate slug in the import file.");
+      }
+      preparedSlugs.add(normalizedPreparedSlug);
 
       rawItem.slug = preparedSlug;
 
@@ -252,18 +268,23 @@ export async function importRecords(
     }
   }
 
-  for (const item of rowsToUpdate) {
-    await updateSheetRowByRowNumber(sheetName, item.rowNumber, item.rowValues);
-  }
+  if (!options?.dryRun) {
+    for (const item of rowsToUpdate) {
+      await updateSheetRowByRowNumber(sheetName, item.rowNumber, item.rowValues);
+    }
 
-  if (rowsToAppend.length) {
-    await appendSheetRows(sheetName, rowsToAppend);
+    if (rowsToAppend.length) {
+      await appendSheetRows(sheetName, rowsToAppend);
+    }
   }
 
   return {
     ok: true,
     inserted: rowsToAppend.length,
     updated: rowsToUpdate.length,
+    dryRun: Boolean(options?.dryRun),
+    total: incomingItems.length,
+    valid: rowsToAppend.length + rowsToUpdate.length,
     errors,
   };
 }
