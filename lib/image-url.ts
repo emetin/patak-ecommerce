@@ -79,7 +79,7 @@ export function normalizeImageUrl(url?: string) {
     const fileId = extractGoogleDriveFileId(value);
 
     if (fileId) {
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w2000`;
+      return `https://lh3.googleusercontent.com/d/${fileId}=w2000`;
     }
   }
 
