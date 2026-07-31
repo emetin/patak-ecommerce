@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { guardPublicRequest } from "../../../lib/public-api-guard";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,19 @@ async function fileToBase64(file: File) {
 
 export async function POST(request: Request) {
   try {
+    const guard = guardPublicRequest(request, "career");
+    if (!guard.allowed) {
+      return NextResponse.json(
+        { ok: false, message: guard.error },
+        {
+          status: guard.status,
+          headers: guard.retryAfterSeconds
+            ? { "Retry-After": String(guard.retryAfterSeconds) }
+            : undefined,
+        }
+      );
+    }
+
     if (!APPS_SCRIPT_URL) {
       return NextResponse.json(
         {
@@ -141,7 +155,6 @@ export async function POST(request: Request) {
         {
           ok: false,
           message: "Apps Script returned an invalid response.",
-          rawResponse: rawText,
         },
         { status: 500 }
       );
@@ -168,10 +181,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Application could not be submitted.",
+        message: "Application could not be submitted. Please try again later.",
       },
       { status: 500 }
     );

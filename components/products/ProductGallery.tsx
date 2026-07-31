@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   areSameImageUrls,
   normalizeImageUrl,
@@ -31,31 +31,17 @@ export default function ProductGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  useEffect(() => {
-    if (!validImages.length) {
-      setActiveIndex(0);
-      return;
-    }
-
+  const resolvedActiveIndex = useMemo(() => {
+    if (!validImages.length) return 0;
     if (controlledActiveImage) {
       const controlledIndex = validImages.findIndex((item) =>
         areSameImageUrls(item, controlledActiveImage)
       );
-
-      if (controlledIndex >= 0) {
-        setActiveIndex(controlledIndex);
-        return;
-      }
+      if (controlledIndex >= 0) return controlledIndex;
     }
-
-    setActiveIndex((prev) => (prev >= validImages.length ? 0 : prev));
-  }, [controlledActiveImage, validImages]);
-
-  const resolvedActiveIndex = useMemo(() => {
-    if (!validImages.length) return 0;
     if (activeIndex >= validImages.length) return 0;
     return activeIndex;
-  }, [activeIndex, validImages]);
+  }, [activeIndex, controlledActiveImage, validImages]);
 
   const activeImage = validImages[resolvedActiveIndex] || validImages[0] || "";
 

@@ -26,33 +26,8 @@ function normalizeBool(value: unknown, fallback = "false") {
   return normalizeLower(value || fallback);
 }
 
-function isTrue(value: unknown) {
-  return normalizeLower(value) === "true";
-}
-
-function toSafeOrder(value: unknown) {
-  const num = Number(normalizeText(value));
-  return Number.isFinite(num) ? num : 999999;
-}
-
 function buildImageId() {
   return `img_${Date.now()}${Math.floor(Math.random() * 1000)}`;
-}
-
-function sortImages(items: ProductImageItem[]) {
-  return [...items].sort((a, b) => {
-    const aMain = isTrue(a.is_main);
-    const bMain = isTrue(b.is_main);
-
-    if (aMain !== bMain) {
-      return aMain ? -1 : 1;
-    }
-
-    const byOrder = toSafeOrder(a.sort_order) - toSafeOrder(b.sort_order);
-    if (byOrder !== 0) return byOrder;
-
-    return normalizeText(a.id).localeCompare(normalizeText(b.id));
-  });
 }
 
 async function syncMainProductImage(productSlug: string, imageUrl: string) {

@@ -4,7 +4,9 @@ import { getSheetData } from "../../../lib/sheets";
 import { buildPageMetadata } from "../../../lib/seo";
 import { normalizeImageUrl } from "../../../lib/image-url";
 import ProductDetailClient from "../../../components/products/ProductDetailClient";
+import JsonLd from "../../../components/seo/JsonLd";
 import type { VariantItem } from "../../../components/products/ProductInfoPanel";
+import { absoluteUrl } from "../../../lib/seo";
 
 type ProductItem = {
   id?: string;
@@ -235,13 +237,67 @@ export default async function ProductDetailPage({
     notFound();
   }
 
+  const productUrl = absoluteUrl(`/products/${decodedSlug}`);
+  const productImage = getPrimaryProductImage(product, productImages);
+  const productDescription =
+    product.seo_description ||
+    product.short_description ||
+    product.description ||
+    `Explore ${product.title || "this textile product"} by Patak Textile.`;
+
   return (
-    <ProductDetailClient
-      product={product}
-      relatedProducts={relatedProducts}
-      variants={variants}
-      productImages={productImages}
-      allProductImages={allProductImages}
-    />
+    <>
+      <JsonLd
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "@id": `${productUrl}#product`,
+            name: product.title || "Patak Textile Product",
+            description: productDescription,
+            url: productUrl,
+            ...(productImage ? { image: [productImage] } : {}),
+            brand: {
+              "@type": "Brand",
+              name: product.vendor || "Patak Textile",
+            },
+            ...(product.product_category || product.type
+              ? { category: product.product_category || product.type }
+              : {}),
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: absoluteUrl("/"),
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Products",
+                item: absoluteUrl("/products"),
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: product.title || "Product",
+                item: productUrl,
+              },
+            ],
+          },
+        ]}
+      />
+      <ProductDetailClient
+        product={product}
+        relatedProducts={relatedProducts}
+        variants={variants}
+        productImages={productImages}
+        allProductImages={allProductImages}
+      />
+    </>
   );
 }

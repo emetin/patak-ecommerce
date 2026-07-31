@@ -1,468 +1,262 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getSheetData } from "../lib/sheets";
-import Container from "../components/ui/Container";
-import Section from "../components/ui/Section";
-import SectionHeading from "../components/ui/SectionHeading";
-import ButtonLink from "../components/ui/ButtonLink";
-import CollectionCard from "../components/cards/CollectionCard";
-import ProductCard from "../components/cards/ProductCard";
-import BlogCard from "../components/cards/BlogCard";
-import ScrollPromo from "../components/sections/ScrollPromo";
-import { buildPageMetadata } from "../lib/seo";
 import { normalizeImageUrl } from "../lib/image-url";
-
+import { buildPageMetadata } from "../lib/seo";
 
 export const revalidate = 300;
 
-type ProductItem = {
+type CatalogItem = {
   title?: string;
   slug?: string;
   description?: string;
   short_description?: string;
+  excerpt?: string;
+  content?: string;
   image?: string;
   collection_slug?: string;
   status?: string;
   featured?: string;
-};
-
-type CollectionItem = {
-  title?: string;
-  slug?: string;
-  description?: string;
-  image?: string;
-  status?: string;
-};
-
-type BlogItem = {
-  title?: string;
-  slug?: string;
-  excerpt?: string;
-  content?: string;
-  image?: string;
-  status?: string;
+  published_at?: string;
 };
 
 export const metadata: Metadata = buildPageMetadata({
-  title: "Patak Textile | Premium Turkish Cotton Hotel Textiles",
+  title: "Patak Textile | Premium Hospitality Textiles",
   description:
-    "Patak Textile delivers premium Turkish cotton textile solutions for hotels, residences and professional hospitality projects from Denizli, Turkey.",
+    "Premium Turkish cotton textiles engineered for hotels, resorts, residences and exceptional hospitality experiences worldwide.",
   path: "/",
 });
+
+const heroImage =
+  "https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w2000";
 
 function isPublished(value?: string) {
   return String(value || "").trim().toLowerCase() === "published";
 }
 
+function imageOf(item: CatalogItem, fallback: string) {
+  return normalizeImageUrl(String(item.image || "").trim()) || fallback;
+}
+
 export default async function HomePage() {
-  const [productsData, collectionsData, blogData] = await Promise.all([
+  const [productRows, collectionRows, blogRows] = await Promise.all([
     getSheetData("products"),
     getSheetData("collections"),
     getSheetData("blog"),
   ]);
 
-  const products = (productsData as ProductItem[]).filter((item) =>
+  const products = (productRows as CatalogItem[]).filter((item) =>
     isPublished(item.status)
   );
-
-  const collections = (collectionsData as CollectionItem[]).filter((item) =>
+  const collections = (collectionRows as CatalogItem[]).filter((item) =>
     isPublished(item.status)
   );
+  const blog = (blogRows as CatalogItem[])
+    .filter((item) => isPublished(item.status))
+    .slice(0, 3);
 
-  const blog = (blogData as BlogItem[]).filter((item) =>
-    isPublished(item.status)
-  );
-
-  const featuredProducts = products.slice(0, 3);
   const featuredCollections = collections.slice(0, 4);
-  const blogPosts = blog.slice(0, 3);
+  const featuredProducts = products.slice(0, 4);
 
   return (
     <>
-      <section className="home-hero">
-        <img
-  src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
-  alt="Premium Turkish cotton hotel textiles"
-  className="home-hero__image"
-  style={{
-    position: "absolute",
-    inset: 0,
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    display: "block",
-    zIndex: 0,
-  }}
-/>
-
-        <div className="home-hero__overlay" />
-
-        <Container>
-          <div className="home-hero__inner">
-            <div className="home-hero__badge">
-              Premium Turkish Cotton Textiles
-            </div>
-
-            <div className="home-hero__copy">
-              <h1 className="home-hero__title">
-                Excellence in Textile Supply for Hospitality and Home
-              </h1>
-
-              <p className="home-hero__text">
-                Based in Denizli, Turkey, Patak Textile delivers premium textile
-                solutions for distinguished hotels, residences and professional
-                projects worldwide. We combine Turkish cotton quality, refined
-                workmanship and reliable supply standards.
-              </p>
-            </div>
-
-            <div className="home-hero__actions">
-              <ButtonLink href="/collections">Explore Collections</ButtonLink>
-              <ButtonLink href="/contact-us" variant="secondary">
-                Contact Our Team
-              </ButtonLink>
-            </div>
-
-            <div className="home-hero__features">
-              <div className="home-hero__feature">
-                <div className="home-hero__feature-kicker">Material</div>
-                <div className="home-hero__feature-title">Turkish Cotton</div>
-                <div className="home-hero__feature-text">
-                  Natural softness, breathability and long-lasting comfort for
-                  professional hospitality use.
-                </div>
-              </div>
-
-              <div className="home-hero__feature">
-                <div className="home-hero__feature-kicker">Production</div>
-                <div className="home-hero__feature-title">Sustainable</div>
-                <div className="home-hero__feature-text">
-                  Responsible material selection and production methods designed
-                  to reduce environmental impact.
-                </div>
-              </div>
-
-              <div className="home-hero__feature">
-                <div className="home-hero__feature-kicker">Supply</div>
-                <div className="home-hero__feature-title">Reliable</div>
-                <div className="home-hero__feature-text">
-                  Fast, structured and dependable textile supply for hotels,
-                  residences and project-based needs.
-                </div>
-              </div>
-            </div>
+      <section className="editorial-hero">
+        <img src={heroImage} alt="Patak Textile hospitality collection" />
+        <div className="editorial-hero__veil" />
+        <div className="editorial-hero__content">
+          <p className="eyebrow eyebrow--light">Made in Denizli · Since 2013</p>
+          <h1>Textiles that define the guest experience.</h1>
+          <p className="editorial-hero__lead">
+            Premium Turkish cotton collections, engineered for the rhythm of
+            hospitality and refined for the world&apos;s most considered spaces.
+          </p>
+          <div className="editorial-hero__actions">
+            <Link className="lux-button lux-button--light" href="/collections">
+              Discover collections <span>↗</span>
+            </Link>
+            <Link className="lux-text-link lux-text-link--light" href="/about-us">
+              Our story <span>→</span>
+            </Link>
           </div>
-        </Container>
+        </div>
+        <div className="editorial-hero__foot">
+          <span>Turkish Cotton</span><span>Textile Heritage</span><span>Global Presence</span>
+        </div>
       </section>
 
-      <ScrollPromo
-        items={[
-          "Hospitality Textile Supply",
-          "100% Premium Turkish Cotton",
-          "Sustainable Production",
-          "Quality Control and Assurance",
-          "Reliable Supply Chain",
-          "Customized Textile Solutions",
-        ]}
-      />
-
-      <Section tight>
-        <Container>
-          <div className="home-feature-grid">
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>01 / Sustainability</div>
-              <h3 style={featureTitleStyle}>
-                Sustainable production and material selection
-              </h3>
-              <p style={featureTextStyle}>
-                We minimize environmental impact through responsible production
-                methods and careful material selection.
-              </p>
-            </article>
-
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>02 / Support</div>
-              <h3 style={featureTitleStyle}>
-                Customer communication and support
-              </h3>
-              <p style={featureTextStyle}>
-                We build strong business partnerships through professional
-                communication, fast support and solution-focused service.
-              </p>
-            </article>
-
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>03 / Supply</div>
-              <h3 style={featureTitleStyle}>
-                Fast and reliable supply chain
-              </h3>
-              <p style={featureTextStyle}>
-                We support our customers with effective supply chain management
-                and dependable product availability.
-              </p>
-            </article>
-
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>04 / Quality</div>
-              <h3 style={featureTitleStyle}>
-                Quality control and assurance
-              </h3>
-              <p style={featureTextStyle}>
-                We apply strict quality control processes to ensure our products
-                meet high standards for professional use.
-              </p>
-            </article>
+      <section className="intro-statement shell-wide">
+        <p className="eyebrow">Patak Textile</p>
+        <div className="intro-statement__grid">
+          <h2>Crafted for comfort.<br />Built for performance.</h2>
+          <div>
+            <p>
+              From the textile heartland of Türkiye, we create dependable linen
+              programs for hotels, resorts, spas and residences across the world.
+              Every collection balances tactile luxury with commercial durability.
+            </p>
+            <Link className="lux-text-link" href="/about-us">
+              Explore our expertise <span>→</span>
+            </Link>
           </div>
-        </Container>
-      </Section>
+        </div>
+      </section>
 
-      <Section>
-        <Container>
-          <div className="home-split">
-            <div className="home-split__panel">
-              <SectionHeading
-                kicker="About Patak Textile"
-                title="Trusted by hotels and residences"
-                text="Professional textile solutions with consistent, long-lasting quality."
-              />
+      <section className="collection-showcase shell-wide">
+        <div className="section-intro">
+          <div>
+            <p className="eyebrow">The collections</p>
+            <h2>Designed around every stay.</h2>
+          </div>
+          <Link className="lux-text-link" href="/collections">
+            View all collections <span>→</span>
+          </Link>
+        </div>
 
-              <p>
-                Welcome to Patak Textile, your trusted partner in premium textile
-                solutions for distinguished hotels and residences worldwide.
-                Located in Denizli, the heart of Turkish textile craftsmanship,
-                we combine industry expertise with refined production standards.
-              </p>
-
-              <p>
-                Our collections are designed to enhance comfort, aesthetics and
-                operational efficiency. From premium bedding to towels and
-                project-based textile solutions, we focus on durability,
-                softness and consistent performance.
-              </p>
-
-              <p>
-                Patak Textile brings together traditional craftsmanship and a
-                modern, sustainability-driven approach to create textiles that
-                leave a lasting impression in every space.
-              </p>
-            </div>
-
-            <div className="home-split__media">
-              <img
-                src="https://drive.google.com/thumbnail?id=1HU7rJ1xdEcG83lrtsQKrc6b19N8izmT-&sz=w1600"
-                alt="Premium Turkish cotton hotel textiles"
-/>
-              <div className="home-split__media-overlay" />
-              <div className="home-split__media-card">
-                <div className="home-split__media-card-kicker">
-                  Denizli Textile Craftsmanship
+        {featuredCollections.length ? (
+          <div className="editorial-grid">
+            {featuredCollections.map((item, index) => (
+              <Link
+                href={`/collections/${item.slug || ""}`}
+                className="editorial-card"
+                key={`${item.slug}-${index}`}
+              >
+                <div className="editorial-card__media">
+                  <img
+                    src={imageOf(item, heroImage)}
+                    alt={item.title || "Patak Textile collection"}
+                  />
+                  <span className="editorial-card__number">0{index + 1}</span>
                 </div>
-                <div className="home-split__media-card-title">
-                  Comfort, durability and elegance for professional spaces
+                <div className="editorial-card__body">
+                  <div>
+                    <h3>{item.title || "Hospitality Collection"}</h3>
+                    <p>{item.description || "Premium textiles for considered hospitality spaces."}</p>
+                  </div>
+                  <span className="circle-arrow">↗</span>
                 </div>
-                <div className="home-split__media-card-text">
-                  Our textile solutions are created for hotels, residences and
-                  environments where quality is noticed every day.
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="editorial-empty">Collections are being curated.</div>
+        )}
+      </section>
+
+      <section className="craft-story">
+        <div className="craft-story__image">
+          <img
+            src="https://images.unsplash.com/photo-1605518216938-7c31b7b14ad0?auto=format&fit=crop&w=1800&q=90"
+            alt="Textile craftsmanship and premium cotton"
+          />
+        </div>
+        <div className="craft-story__content">
+          <p className="eyebrow eyebrow--light">The Patak standard</p>
+          <h2>Performance is woven into every detail.</h2>
+          <p>
+            We combine Turkish cotton expertise with disciplined quality control
+            to create textiles that retain their comfort, finish and character
+            through the demands of professional use.
+          </p>
+          <div className="craft-values">
+            <div><strong>01</strong><span>Premium Turkish cotton</span></div>
+            <div><strong>02</strong><span>Commercial-grade durability</span></div>
+            <div><strong>03</strong><span>Responsible production</span></div>
+            <div><strong>04</strong><span>Reliable global supply</span></div>
+          </div>
+          <Link className="lux-button lux-button--outline" href="/services">
+            Explore how we produce <span>↗</span>
+          </Link>
+        </div>
+      </section>
+
+      <section className="products-showcase shell-wide">
+        <div className="section-intro">
+          <div>
+            <p className="eyebrow">Selected essentials</p>
+            <h2>Quiet luxury, made to work.</h2>
+          </div>
+          <Link className="lux-text-link" href="/products">
+            Browse the catalog <span>→</span>
+          </Link>
+        </div>
+        {featuredProducts.length ? (
+          <div className="product-editorial-grid">
+            {featuredProducts.map((item, index) => (
+              <Link href={`/products/${item.slug || ""}`} className="product-editorial" key={`${item.slug}-${index}`}>
+                <div className="product-editorial__image">
+                  <img src={imageOf(item, heroImage)} alt={item.title || "Textile product"} />
+                  <span>View details ↗</span>
                 </div>
-              </div>
-            </div>
+                <p>{item.collection_slug || "Patak Textile"}</p>
+                <h3>{item.title || "Premium textile essential"}</h3>
+              </Link>
+            ))}
           </div>
-        </Container>
-      </Section>
+        ) : (
+          <div className="editorial-empty">Products are being curated.</div>
+        )}
+      </section>
 
-      <Section tone="soft">
-        <Container>
-          <SectionHeading
-            kicker="Turkish Cotton"
-            title="Premium quality hotel textiles"
-            text="Our hotel textiles are crafted from premium Turkish cotton, combining natural softness with durability for frequent professional laundering."
-          />
+      <section className="cotton-journey shell-wide">
+        <div className="cotton-journey__intro">
+          <p className="eyebrow">From cotton to comfort</p>
+          <h2>The story behind every product.</h2>
+          <p>
+            A Patak Textile product begins long before it reaches a guest room.
+            Its character is shaped by material selection, skilled production,
+            careful finishing and a culture of quality at every stage.
+          </p>
+        </div>
+        <div className="cotton-journey__steps">
+          <article><span>01</span><h3>Fiber</h3><p>Quality begins with carefully selected Turkish cotton and traceable raw materials.</p></article>
+          <article><span>02</span><h3>Yarn</h3><p>Fiber is transformed into yarn engineered for softness, strength and consistent performance.</p></article>
+          <article><span>03</span><h3>Weaving</h3><p>Textile knowledge and modern production create the structure of each collection.</p></article>
+          <article><span>04</span><h3>Finishing</h3><p>Washing, dyeing and finishing give every product its final touch and character.</p></article>
+          <article><span>05</span><h3>Quality</h3><p>Each detail is reviewed before products become part of the Patak Textile story.</p></article>
+        </div>
+      </section>
 
-          <div className="home-feature-grid">
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>Softness</div>
-              <h3 style={featureTitleStyle}>Natural comfort</h3>
-              <p style={featureTextStyle}>
-                Turkish cotton is known for its soft touch, breathability and
-                elevated guest experience.
-              </p>
-            </article>
-
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>Durability</div>
-              <h3 style={featureTitleStyle}>Built for hotels</h3>
-              <p style={featureTextStyle}>
-                Strong fiber quality helps products maintain performance through
-                regular commercial use.
-              </p>
-            </article>
-
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>Maintenance</div>
-              <h3 style={featureTitleStyle}>Easy to wash</h3>
-              <p style={featureTextStyle}>
-                Designed for efficient care, quick maintenance and long-term
-                textile reliability.
-              </p>
-            </article>
-
-            <article className="home-feature-card">
-              <div style={featureKickerStyle}>Experience</div>
-              <h3 style={featureTitleStyle}>Memorable stays</h3>
-              <p style={featureTextStyle}>
-                Textiles that support comfort, presentation and guest
-                satisfaction at a higher standard.
-              </p>
-            </article>
+      <section className="company-window shell-wide">
+        <div className="company-window__visual">
+          <img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1800&q=90" alt="Patak Textile global offices" />
+        </div>
+        <div className="company-window__content">
+          <p className="eyebrow">One company, a complete story</p>
+          <h2>People, places and principles.</h2>
+          <p>Meet our leadership, discover our offices and learn about the standards and certifications that guide how Patak Textile works.</p>
+          <div className="company-window__links">
+            <Link href="/our-ceo">Our CEO <span>→</span></Link>
+            <Link href="/about-us">Company history <span>→</span></Link>
+            <Link href="/contact-us">Offices & contact <span>→</span></Link>
+            <Link href="/services">Quality standards <span>→</span></Link>
           </div>
-        </Container>
-      </Section>
+        </div>
+      </section>
 
-      <Section>
-        <Container>
-          <SectionHeading
-            kicker="Collections"
-            title="Explore our textile collections"
-            text="Browse our hospitality and home textile collections designed for comfort, elegance and reliable performance."
-          />
-
-          {featuredCollections.length > 0 ? (
-            <div className="cards-grid cards-grid--4">
-              {featuredCollections.map((item, i) => (
-                <CollectionCard
-                  key={`${item.slug || item.title || "collection"}-${i}`}
-                  title={item.title || "Collection"}
-                  description={
-                    item.description ||
-                    "Explore this hospitality-focused textile collection."
-                  }
-                  image={item.image || ""}
-                  href={`/collections/${item.slug || ""}`}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">No published collections found yet.</div>
-          )}
-        </Container>
-      </Section>
-
-      <Section tone="soft">
-        <Container>
-          <SectionHeading
-            kicker="Product Showcase"
-            title="Textile products for professional use"
-            text="Discover selected products designed for hotels, residences and refined textile projects."
-          />
-
-          {featuredProducts.length > 0 ? (
-            <div className="cards-grid cards-grid--3">
-              {featuredProducts.map((item, i) => (
-                <ProductCard
-                  key={`${item.slug || item.title || "product"}-${i}`}
-                  title={item.title || "Product"}
-                  description={
-                    item.short_description ||
-                    item.description ||
-                    "Explore this hospitality textile product."
-                  }
-                  image={item.image || ""}
-                  href={`/products/${item.slug || ""}`}
-                  collectionLabel={item.collection_slug || "Product"}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">No published products found yet.</div>
-          )}
-        </Container>
-      </Section>
-
-      <Section>
-        <Container>
-          <SectionHeading
-            kicker="Insights"
-            title="Textile knowledge and company updates"
-            text="Follow our latest updates, press releases and textile-focused insights from Patak Textile."
-          />
-
-          {blogPosts.length > 0 ? (
-            <div className="cards-grid cards-grid--3">
-              {blogPosts.map((item, i) => (
-                <BlogCard
-                  key={`${item.slug || item.title || "blog"}-${i}`}
-                  title={item.title || "Article"}
-                  excerpt={
-                    item.excerpt ||
-                    item.content ||
-                    "Read more from our hospitality textile perspective."
-                  }
-                  image={item.image || ""}
-                  href={`/blog/${item.slug || ""}`}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">No published blog posts found yet.</div>
-          )}
-        </Container>
-      </Section>
-
-      <Section tight>
-        <Container>
-          <div className="cta-panel-strong">
-            <div className="cta-panel-strong__circle--one" />
-            <div className="cta-panel-strong__circle--two" />
-
-            <div className="cta-panel-strong__inner">
-              <div className="cta-panel-strong__kicker">
-                Work with Patak Textile
-              </div>
-
-              <h2 className="cta-panel-strong__title">
-                Create a stronger textile experience for your guests and
-                projects
-              </h2>
-
-              <p className="cta-panel-strong__text">
-                From Turkish cotton hotel textiles to customized project-based
-                solutions, Patak Textile is ready to support your professional
-                textile needs with quality, consistency and care.
-              </p>
-
-              <div className="cta-panel-strong__actions">
-                <ButtonLink href="/collections">View Collections</ButtonLink>
-                <ButtonLink href="/contact-us" variant="secondary">
-                  Contact Us
-                </ButtonLink>
-              </div>
-            </div>
+      {blog.length ? (
+        <section className="journal shell-wide">
+          <div className="section-intro">
+            <div><p className="eyebrow">Journal</p><h2>Ideas, materials and perspective.</h2></div>
+            <Link className="lux-text-link" href="/blog">Read the journal <span>→</span></Link>
           </div>
-        </Container>
-      </Section>
+          <div className="journal-grid">
+            {blog.map((item, index) => (
+              <Link href={`/blog/${item.slug || ""}`} className="journal-card" key={`${item.slug}-${index}`}>
+                <img src={imageOf(item, heroImage)} alt={item.title || "Patak Textile journal"} />
+                <p>Insight · {String(index + 1).padStart(2, "0")}</p>
+                <h3>{item.title || "From the Patak Textile journal"}</h3>
+                <span>Read article →</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="closing-cta">
+        <p className="eyebrow">Discover Patak Textile</p>
+        <h2>There is a story woven into everything we make.</h2>
+        <Link className="lux-button" href="/about-us">Read our company story <span>↗</span></Link>
+      </section>
     </>
   );
 }
-
-const featureKickerStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 800,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  color: "#7a7064",
-  marginBottom: 12,
-};
-
-const featureTitleStyle: React.CSSProperties = {
-  margin: "0 0 10px",
-  fontSize: 22,
-  lineHeight: 1.2,
-  fontWeight: 800,
-  color: "#171717",
-};
-
-const featureTextStyle: React.CSSProperties = {
-  margin: 0,
-  color: "#5a5349",
-  lineHeight: 1.85,
-  fontSize: 15,
-};

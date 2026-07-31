@@ -3,6 +3,7 @@ import {
   getSheetRows,
   updateSheetRowByRowNumber,
 } from "../../../../lib/sheets";
+import { findVariantConflict } from "../../../../lib/variant-validation";
 
 type VariantRecord = Record<string, string>;
 
@@ -167,6 +168,16 @@ export async function POST(req: Request) {
       status,
       updated_at: new Date().toISOString(),
     };
+
+    const allVariants = rows.slice(1).map((row) => rowToObject(headers, row));
+    const conflict = findVariantConflict(allVariants, updatedItem, id);
+
+    if (conflict) {
+      return NextResponse.json(
+        { ok: false, error: conflict.message, field: conflict.field },
+        { status: 409 }
+      );
+    }
 
     const rowValues = headers.map((header) => updatedItem[header] || "");
 

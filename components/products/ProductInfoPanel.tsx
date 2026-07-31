@@ -37,17 +37,6 @@ function normalizeLower(value?: string) {
   return normalize(value).toLowerCase();
 }
 
-function isMeaningfulValue(value?: string) {
-  const normalized = normalizeLower(value);
-
-  return (
-    Boolean(normalized) &&
-    normalized !== "default" &&
-    normalized !== "default title" &&
-    normalized !== "title"
-  );
-}
-
 function buildVariantLabel(variant: VariantItem) {
   const values = [
     variant.option1_value,
@@ -67,14 +56,6 @@ function buildVariantLabel(variant: VariantItem) {
     });
 
   return values.length ? values.join(" / ") : "";
-}
-
-function isRealVariant(variant: VariantItem) {
-  return (
-    isMeaningfulValue(variant.option1_value) ||
-    isMeaningfulValue(variant.option2_value) ||
-    isMeaningfulValue(variant.option3_value)
-  );
 }
 
 function getActiveVariants(variants: VariantItem[]) {
@@ -99,21 +80,6 @@ export default function ProductInfoPanel({
       activeVariants[0] ||
       null
     );
-  }, [activeVariants, selectedVariantId]);
-
-  useEffect(() => {
-    if (!activeVariants.length) {
-      setSelectedVariantId("");
-      return;
-    }
-
-    const selectedExists = activeVariants.some(
-      (variant) => variant.id === selectedVariantId
-    );
-
-    if (!selectedExists) {
-      setSelectedVariantId(activeVariants[0]?.id || "");
-    }
   }, [activeVariants, selectedVariantId]);
 
   useEffect(() => {

@@ -22,7 +22,7 @@ async function generateUniqueFileName(originalName: string) {
 
   const existingNames = new Set(
     Array.isArray(existingFiles)
-      ? existingFiles.map((item: any) =>
+      ? existingFiles.map((item: Record<string, string>) =>
           String(item.file_name || "").toLowerCase()
         )
       : []

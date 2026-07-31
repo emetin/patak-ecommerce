@@ -28,10 +28,6 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
-
   return (
     <div className="ptx-admin-shell" style={shellStyle}>
       <div
@@ -99,6 +95,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => setMenuOpen(false)}
                   className={active ? "is-active" : ""}
                   style={{
                     ...navItemStyle,

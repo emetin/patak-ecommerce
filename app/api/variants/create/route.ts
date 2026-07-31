@@ -4,6 +4,7 @@ import {
   getSheetData,
   getSheetHeaders,
 } from "../../../../lib/sheets";
+import { findVariantConflict } from "../../../../lib/variant-validation";
 
 type VariantRecord = Record<string, string>;
 
@@ -73,22 +74,19 @@ export async function POST(req: Request) {
       ttlSeconds: 30,
     })) as VariantRecord[];
 
-    const duplicate = existing.find((item) => {
-      return (
-        normalizeLower(item.product_slug) === productSlug &&
-        normalizeText(item.option1_value) === option1Value &&
-        normalizeText(item.option2_value) === option2Value &&
-        normalizeText(item.option3_value) === option3Value
-      );
+    const conflict = findVariantConflict(existing, {
+      product_slug: productSlug,
+      option1_value: option1Value,
+      option2_value: option2Value,
+      option3_value: option3Value,
+      sku,
+      barcode,
     });
 
-    if (duplicate) {
+    if (conflict) {
       return NextResponse.json(
-        {
-          ok: false,
-          error: "A variant with the same option combination already exists.",
-        },
-        { status: 400 }
+        { ok: false, error: conflict.message, field: conflict.field },
+        { status: 409 }
       );
     }
 

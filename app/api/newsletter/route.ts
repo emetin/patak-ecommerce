@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { appendFormSheetRow, getFormSheetData } from "../../../lib/sheets";
+import { guardPublicRequest } from "../../../lib/public-api-guard";
 
 function normalizeText(value: unknown) {
   return String(value || "").trim();
@@ -11,6 +12,19 @@ function isValidEmail(email: string) {
 
 export async function POST(req: Request) {
   try {
+    const guard = guardPublicRequest(req, "newsletter");
+    if (!guard.allowed) {
+      return NextResponse.json(
+        { ok: false, error: guard.error },
+        {
+          status: guard.status,
+          headers: guard.retryAfterSeconds
+            ? { "Retry-After": String(guard.retryAfterSeconds) }
+            : undefined,
+        }
+      );
+    }
+
     const body = await req.json();
 
     const email = normalizeText(body?.email).toLowerCase();
@@ -56,14 +70,12 @@ export async function POST(req: Request) {
       ok: true,
       message: "Newsletter subscription saved successfully.",
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         ok: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Failed to submit newsletter form.",
+          "Failed to submit newsletter form. Please try again later.",
       },
       { status: 500 }
     );

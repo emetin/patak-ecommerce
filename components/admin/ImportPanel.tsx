@@ -17,7 +17,7 @@ export default function ImportPanel({
 }: ImportPanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [importFormat, setImportFormat] = useState<"csv" | "json">("csv");
+  const [importFormat, setImportFormat] = useState<"csv" | "json" | "xml">("csv");
   const [importText, setImportText] = useState("");
   const [selectedFileName, setSelectedFileName] = useState("");
   const [importLoading, setImportLoading] = useState(false);
@@ -35,6 +35,8 @@ export default function ImportPanel({
 
       if (fileName.endsWith(".json")) {
         setImportFormat("json");
+      } else if (fileName.endsWith(".xml")) {
+        setImportFormat("xml");
       } else {
         setImportFormat("csv");
       }
@@ -50,7 +52,7 @@ export default function ImportPanel({
     }
   }
 
-  async function handleImport() {
+  async function handleImport(dryRun = false) {
     setImportLoading(true);
     setImportMessage("");
     setImportError("");
@@ -64,6 +66,7 @@ export default function ImportPanel({
         body: JSON.stringify({
           format: importFormat,
           text: importText,
+          dry_run: dryRun,
         }),
       });
 
@@ -79,9 +82,10 @@ export default function ImportPanel({
           : "";
 
       setImportMessage(
-        `Import completed. Inserted: ${data.inserted || 0}, Updated: ${
-          data.updated || 0
-        }.${errorText}`
+        `${dryRun ? "Preview completed. No data was written" : "Import completed"}. ` +
+          `Total: ${data.total || 0}, Valid: ${data.valid || 0}, ` +
+          `To insert: ${data.inserted || 0}, To update: ${data.updated || 0}.` +
+          errorText
       );
     } catch (error) {
       setImportError(
@@ -105,11 +109,14 @@ export default function ImportPanel({
           <label style={labelStyle}>Format</label>
           <select
             value={importFormat}
-            onChange={(e) => setImportFormat(e.target.value as "csv" | "json")}
+            onChange={(e) =>
+              setImportFormat(e.target.value as "csv" | "json" | "xml")
+            }
             style={inputStyle}
           >
             <option value="csv">csv</option>
             <option value="json">json</option>
+            <option value="xml">xml</option>
           </select>
         </div>
 
@@ -119,7 +126,7 @@ export default function ImportPanel({
           <div style={uploadBoxStyle}>
             <div style={{ display: "grid", gap: 10 }}>
               <div style={uploadTitleStyle}>
-                Select a CSV or JSON file from your computer
+                Select a CSV, XML or JSON file from your computer
               </div>
 
               <div style={uploadSubTextStyle}>
@@ -147,7 +154,7 @@ export default function ImportPanel({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.json,text/csv,application/json"
+              accept=".csv,.xml,.json,text/csv,application/xml,text/xml,application/json"
               onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
               style={{ display: "none" }}
             />
@@ -159,7 +166,7 @@ export default function ImportPanel({
           <textarea
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
-            placeholder="You can also paste your CSV or JSON content here"
+            placeholder="You can also paste your CSV, XML or JSON content here"
             style={{ ...inputStyle, minHeight: 320, resize: "vertical" }}
           />
         </div>
@@ -168,8 +175,16 @@ export default function ImportPanel({
       <div style={buttonRowStyle}>
         <button
           type="button"
+          style={secondaryButtonStyle}
+          onClick={() => handleImport(true)}
+          disabled={importLoading || !importText.trim()}
+        >
+          {importLoading ? "Checking..." : "Preview Import"}
+        </button>
+        <button
+          type="button"
           style={primaryButtonStyle}
-          onClick={handleImport}
+          onClick={() => handleImport(false)}
           disabled={importLoading || !importText.trim()}
         >
           {importLoading ? "Importing..." : "Run Import"}
@@ -328,4 +343,10 @@ const errorBoxStyle: React.CSSProperties = {
   background: "#fff1f1",
   border: "1px solid #efc9c9",
   color: "#7a2222",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  ...primaryButtonStyle,
+  background: "#fff",
+  color: "#245943",
 };

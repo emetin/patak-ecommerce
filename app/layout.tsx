@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Assistant } from "next/font/google";
 import Header from "../components/layout/header";
 import Footer from "../components/layout/footer";
+import JsonLd from "../components/seo/JsonLd";
 import { SITE_SETTINGS } from "../lib/site-settings";
 
 const assistant = Assistant({
@@ -85,6 +86,27 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={assistant.variable}>
+        <JsonLd
+          data={[
+            {
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "@id": `${SITE_URL}/#organization`,
+              name: SITE_SETTINGS.siteName,
+              url: SITE_URL,
+              logo: SITE_SETTINGS.logo.header,
+            },
+            {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "@id": `${SITE_URL}/#website`,
+              name: SITE_SETTINGS.siteName,
+              url: SITE_URL,
+              publisher: { "@id": `${SITE_URL}/#organization` },
+              inLanguage: "en",
+            },
+          ]}
+        />
         <div className="site-shell">
           <Header />
 

@@ -17,8 +17,11 @@ function isProtectedApiRoute(pathname: string) {
     pathname.startsWith("/api/variants/") ||
     pathname.startsWith("/api/product-images/") ||
     pathname.startsWith("/api/media/") ||
+    pathname.startsWith("/api/collection-products/") ||
     pathname.startsWith("/api/blog/") ||
-    pathname.startsWith("/api/collections/")
+    pathname.startsWith("/api/collections/") ||
+    pathname.startsWith("/api/shopify/") ||
+    pathname.startsWith("/api/upload")
   );
 }
 
@@ -89,7 +92,10 @@ export const config = {
     "/api/variants/:path*",
     "/api/product-images/:path*",
     "/api/media/:path*",
+    "/api/collection-products/:path*",
     "/api/blog/:path*",
     "/api/collections/:path*",
+    "/api/shopify/:path*",
+    "/api/upload/:path*",
   ],
 };

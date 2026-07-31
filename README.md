@@ -39,6 +39,19 @@ this stage.
 
 ## Main Features
 
+### Backend health
+
+- `GET /api/health` provides a public, value-safe readiness response.
+- `GET /api/admin/health` verifies protected configuration and the live catalog
+  connection. It requires a valid admin session.
+- `npm run check` runs lint, backend tests and the production build.
+- Admin collection links, Shopify imports and upload endpoints are session-protected.
+- Variant option combinations are unique per product; non-empty SKU and barcode
+  values are unique across the catalog.
+- Public contact, newsletter and career endpoints enforce per-client rate limits
+  and request-size limits, and do not expose internal service errors.
+
+
 ### Website
 
 -   Premium catalog-style frontend
@@ -82,6 +95,11 @@ Supported formats:
 -   CSV
 -   JSON
 -   XML
+
+CSV, JSON and XML imports use `slug` as the upsert key: an existing record is
+updated and a new slug is appended to the relevant Google Sheets table.
+The admin import panel supports a no-write preview, rejects duplicate slugs in
+the same file and limits each batch to 2000 records.
 
 Supports bulk product, collection and blog migration workflows.
 

@@ -1,667 +1,88 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { SITE_SETTINGS } from "../../lib/site-settings";
 import { normalizeImageUrl } from "../../lib/image-url";
 
 const navigation = [
-  { label: "Home", href: "/" },
-  { label: "About Us", href: "/about-us" },
   { label: "Collections", href: "/collections" },
-  { label: "Hospitality Projects", href: "/hospitality-projects" },
-  { label: "Contact Us", href: "/contact-us" },
-  { label: "FAQ", href: "/faq" },
+  { label: "Products", href: "/products" },
+  { label: "Solutions", href: "/services" },
+  { label: "Company", href: "/about-us" },
+  { label: "Leadership", href: "/our-ceo" },
+  { label: "Journal", href: "/blog" },
 ];
-
-type SearchProduct = {
-  title: string;
-  slug: string;
-  image?: string;
-};
 
 export default function Header() {
   const pathname = usePathname();
-  const router = useRouter();
-
   const [menuOpen, setMenuOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const [suggestions, setSuggestions] = useState<SearchProduct[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  const searchWrapperRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const query = searchValue.trim();
-
-    if (query.length < 2) {
-      setSuggestions([]);
-      setSearchOpen(false);
-      return;
-    }
-
-    const timeout = window.setTimeout(async () => {
-      try {
-        setSearchLoading(true);
-
-        const response = await fetch(
-          `/api/products/product-search?q=${encodeURIComponent(query)}`
-        );
-
-        const data = await response.json();
-
-        setSuggestions(Array.isArray(data.products) ? data.products : []);
-        setSearchOpen(true);
-      } catch {
-        setSuggestions([]);
-        setSearchOpen(false);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 250);
-
-    return () => window.clearTimeout(timeout);
-  }, [searchValue]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        searchWrapperRef.current &&
-        !searchWrapperRef.current.contains(event.target as Node)
-      ) {
-        setSearchOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-
-    const query = searchValue.trim();
-
-    if (!query) {
-      return;
-    }
-
-    setMenuOpen(false);
-    setSearchOpen(false);
-    router.push(`/products?search=${encodeURIComponent(query)}`);
-  }
-
-  function handleSuggestionClick(product: SearchProduct) {
-    setMenuOpen(false);
-    setSearchOpen(false);
-    setSearchValue("");
-    router.push(`/products/${product.slug}`);
-  }
-
-  function renderSearchBox(isMobile = false) {
-    return (
-      <div
-        ref={isMobile ? null : searchWrapperRef}
-        className={isMobile ? "header-mobile-search-wrap" : "header-search-wrap"}
-        style={{
-          position: "relative",
-          width: "100%",
-        }}
-      >
-        <form
-          onSubmit={handleSearchSubmit}
-          className={isMobile ? "header-mobile-search" : "header-desktop-search"}
-          style={{
-            width: isMobile ? "100%" : 230,
-            minHeight: 46,
-            borderRadius: 14,
-            border: "1px solid #ebe2d5",
-            background: "#f8f5ef",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "0 12px",
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              color: "#2f7d62",
-              fontSize: 15,
-              fontWeight: 900,
-              lineHeight: 1,
-            }}
-          >
-            ⌕
-          </span>
-
-          <input
-            type="search"
-            placeholder={isMobile ? "Search products..." : "Search..."}
-            value={searchValue}
-            onFocus={() => {
-              if (suggestions.length > 0 || searchValue.trim().length >= 2) {
-                setSearchOpen(true);
-              }
-            }}
-            onChange={(e) => setSearchValue(e.target.value)}
-            style={{
-              width: "100%",
-              minWidth: 0,
-              border: 0,
-              outline: "none",
-              background: "transparent",
-              color: "#171717",
-              fontSize: 14,
-              fontWeight: 700,
-            }}
-          />
-        </form>
-
-        {searchOpen && searchValue.trim().length >= 2 ? (
-          <div
-            className="header-search-dropdown"
-            style={{
-              position: isMobile ? "relative" : "absolute",
-              top: isMobile ? "auto" : "calc(100% + 10px)",
-              right: isMobile ? "auto" : 0,
-              left: isMobile ? 0 : "auto",
-              width: isMobile ? "100%" : 320,
-              maxWidth: "100%",
-              background: "#ffffff",
-              border: "1px solid #ebe2d5",
-              borderRadius: 18,
-              boxShadow: "0 18px 44px rgba(17,17,17,0.12)",
-              padding: 8,
-              zIndex: 200,
-              marginTop: isMobile ? 10 : 0,
-            }}
-          >
-            {searchLoading ? (
-              <div
-                style={{
-                  padding: "12px 14px",
-                  color: "#6f6559",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                Searching...
-              </div>
-            ) : suggestions.length > 0 ? (
-              <>
-                {suggestions.map((product) => (
-                  <button
-                    key={`${product.slug}-${product.title}`}
-                    type="button"
-                    onClick={() => handleSuggestionClick(product)}
-                    style={{
-                      width: "100%",
-                      border: 0,
-                      background: "transparent",
-                      padding: 8,
-                      display: "grid",
-                      gridTemplateColumns: "46px 1fr",
-                      alignItems: "center",
-                      gap: 10,
-                      borderRadius: 12,
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 46,
-                        height: 46,
-                        borderRadius: 10,
-                        overflow: "hidden",
-                        background: "#f3eee6",
-                        border: "1px solid #eee3d5",
-                      }}
-                    >
-                      {product.image ? (
-                        <img
-                          src={product.image}
-                          alt={product.title}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : null}
-                    </div>
-
-                    <div style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          color: "#171717",
-                          fontSize: 14,
-                          fontWeight: 800,
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {product.title}
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: 3,
-                          color: "#7a7064",
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
-                        View product
-                      </div>
-                    </div>
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const query = searchValue.trim();
-                    setMenuOpen(false);
-                    setSearchOpen(false);
-                    router.push(`/products?search=${encodeURIComponent(query)}`);
-                  }}
-                  style={{
-                    width: "100%",
-                    minHeight: 42,
-                    marginTop: 6,
-                    border: 0,
-                    borderRadius: 12,
-                    background: "#2f7d62",
-                    color: "#ffffff",
-                    fontSize: 13,
-                    fontWeight: 900,
-                    cursor: "pointer",
-                  }}
-                >
-                  View all results
-                </button>
-              </>
-            ) : (
-              <div
-                style={{
-                  padding: "12px 14px",
-                  color: "#6f6559",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                No products found.
-              </div>
-            )}
-          </div>
-        ) : null}
-      </div>
-    );
-  }
 
   return (
-    <header
-      className="header-root"
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        width: "100%",
-        background: "rgba(255,255,255,0.94)",
-        backdropFilter: "blur(14px)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.04)",
-      }}
-    >
-      <div
-        className="header-top-cta"
-        style={{
-          width: "100%",
-          background: "#111827",
-          color: "#ffffff",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div
-          className="header-top-cta-inner"
-          style={{
-            width: "100%",
-            maxWidth: 1320,
-            margin: "0 auto",
-            padding: "9px 20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-          }}
-        >
-          <div
-            className="header-top-cta-text"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              minWidth: 0,
-              color: "rgba(255,255,255,0.78)",
-              fontSize: 13,
-              fontWeight: 700,
-              lineHeight: 1.45,
-            }}
-          >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 999,
-                background: "#d8bc55",
-                display: "inline-block",
-                flexShrink: 0,
-              }}
-            />
-
-            <span>
-              Planning a hospitality textile purchase? Schedule a wholesale
-              appointment with our team.
-            </span>
+    <header className="lux-header">
+      <div className="lux-topline">
+        <div className="lux-topline__inner">
+          <span>Premium hospitality textiles · Denizli, Türkiye</span>
+          <div>
+            <a href="tel:+902584084757">+90 258 408 47 57</a>
+            <a href="mailto:customerservice@globaltexusa.com">Email us</a>
           </div>
-
-          <Link
-            href="/make-an-appointment"
-            className="header-top-cta-button"
-            style={{
-              minHeight: 34,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0 16px",
-              borderRadius: 999,
-              background: "#d8bc55",
-              color: "#111827",
-              textDecoration: "none",
-              fontSize: 13,
-              fontWeight: 900,
-              whiteSpace: "nowrap",
-              border: "1px solid #d8bc55",
-            }}
-          >
-            Make an Appointment
-          </Link>
         </div>
       </div>
 
-      <div
-        className="header-container"
-        style={{
-          width: "100%",
-          maxWidth: 1320,
-          margin: "0 auto",
-          padding: "0 20px",
-        }}
-      >
-        <div
-          className="header-inner"
-          style={{
-            minHeight: 82,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 20,
-            position: "relative",
-          }}
-        >
-          <Link
-            href="/"
-            onClick={() => setMenuOpen(false)}
-            className="header-logo-link"
-            style={{
-              textDecoration: "none",
-              color: "#171717",
-              display: "inline-flex",
-              alignItems: "center",
-              flexShrink: 0,
-              minWidth: 0,
-            }}
-          >
-            <img
-              src={normalizeImageUrl(SITE_SETTINGS.logo.header)}
-              alt={SITE_SETTINGS.siteName}
-              className="header-logo-image"
-              style={{
-                width: 168,
-                height: "auto",
-                display: "block",
-                objectFit: "contain",
-                flexShrink: 0,
-              }}
-            />
-          </Link>
+      <div className="lux-header__bar">
+        <Link href="/" className="lux-brand" aria-label="Patak Textile home">
+          <img
+            src={normalizeImageUrl(SITE_SETTINGS.logo.header)}
+            alt={SITE_SETTINGS.siteName}
+          />
+        </Link>
 
+        <nav
+          className={`lux-nav ${menuOpen ? "lux-nav--open" : ""}`}
+          aria-label="Main navigation"
+        >
+          {navigation.map((item) => {
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={active ? "is-active" : ""}
+                onClick={() => setMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+          <Link
+            href="/contact-us"
+            className="lux-nav__mobile-cta"
+            onClick={() => setMenuOpen(false)}
+          >
+            Contact us
+          </Link>
+        </nav>
+
+        <div className="lux-header__actions">
+          <Link href="/contact-us" className="lux-header__quote">
+            Contact us <span aria-hidden="true">↗</span>
+          </Link>
           <button
             type="button"
-            className="header-mobile-menu-button"
-            aria-label="Toggle menu"
+            className="lux-menu-button"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((current) => !current)}
-            style={{
-              display: "none",
-              width: 44,
-              height: 44,
-              borderRadius: 999,
-              border: "1px solid #ebe2d5",
-              background: "#ffffff",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "column",
-              gap: 5,
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
+            onClick={() => setMenuOpen((value) => !value)}
           >
-            <span style={mobileLineStyle} />
-            <span style={mobileLineStyle} />
-            <span style={mobileLineStyle} />
+            <span />
+            <span />
           </button>
-
-          <nav
-            className={menuOpen ? "header-nav header-nav-open" : "header-nav"}
-            aria-label="Main navigation"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              flexWrap: "wrap",
-              minWidth: 0,
-            }}
-          >
-            {navigation.map((item) => {
-              const active =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMenuOpen(false)}
-                  style={{
-                    textDecoration: "none",
-                    minHeight: 42,
-                    padding: "0 16px",
-                    borderRadius: 999,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 14,
-                    fontWeight: 800,
-                    letterSpacing: "0.01em",
-                    color: active ? "#ffffff" : "#2f2a24",
-                    background: active ? "#2f7d62" : "transparent",
-                    border: active
-                      ? "1px solid #2f7d62"
-                      : "1px solid transparent",
-                    transition: "all 0.2s ease",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            <div
-              className="header-mobile-search-holder"
-              style={{
-                display: "none",
-                width: "100%",
-                marginTop: 8,
-              }}
-            >
-              {renderSearchBox(true)}
-            </div>
-          </nav>
-
-          <div
-            className="header-desktop-search-holder"
-            style={{
-              width: 230,
-              flexShrink: 0,
-            }}
-          >
-            {renderSearchBox(false)}
-          </div>
         </div>
       </div>
-
-      <style jsx>{`
-        .header-logo-image {
-          max-width: 168px;
-          width: 100%;
-          height: auto;
-          object-fit: contain;
-          display: block;
-        }
-
-        @media (max-width: 1280px) {
-          .header-inner {
-            gap: 14px !important;
-          }
-
-          .header-nav a {
-            padding: 0 12px !important;
-            font-size: 13px !important;
-          }
-
-          .header-desktop-search-holder {
-            width: 190px !important;
-          }
-        }
-
-        @media (max-width: 1120px) {
-          .header-desktop-search-holder {
-            display: none !important;
-          }
-        }
-
-        @media (max-width: 1024px) {
-          .header-inner {
-            min-height: 76px !important;
-          }
-
-          .header-mobile-menu-button {
-            display: inline-flex !important;
-          }
-
-          .header-nav {
-            display: none !important;
-            position: absolute !important;
-            top: 100% !important;
-            left: 0 !important;
-            right: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            background: #ffffff !important;
-            border: 1px solid #ebe2d5 !important;
-            border-top: 0 !important;
-            padding: 14px !important;
-            box-shadow: 0 18px 38px rgba(17, 17, 17, 0.08) !important;
-            z-index: 120 !important;
-            overflow: hidden !important;
-          }
-
-          .header-nav-open {
-            display: grid !important;
-            gap: 8px !important;
-          }
-
-          .header-nav a {
-            width: 100% !important;
-            min-height: 40px !important;
-            justify-content: flex-start !important;
-            padding: 0 14px !important;
-          }
-
-          .header-mobile-search-holder {
-            display: block !important;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .header-top-cta-inner {
-            align-items: flex-start !important;
-            flex-direction: column !important;
-            gap: 9px !important;
-            padding: 10px 16px !important;
-          }
-
-          .header-top-cta-text {
-            font-size: 12px !important;
-          }
-
-          .header-top-cta-button {
-            width: 100% !important;
-            min-height: 36px !important;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .header-container {
-            padding: 0 14px !important;
-          }
-
-          .header-inner {
-            min-height: 70px !important;
-            gap: 10px !important;
-          }
-
-          .header-logo-link {
-            max-width: calc(100vw - 88px) !important;
-            overflow: hidden !important;
-          }
-
-          .header-logo-image {
-            max-width: 138px !important;
-          }
-
-          .header-mobile-menu-button {
-            width: 40px !important;
-            height: 40px !important;
-          }
-        }
-      `}</style>
     </header>
   );
 }
-
-const mobileLineStyle: React.CSSProperties = {
-  width: 18,
-  height: 2,
-  borderRadius: 99,
-  background: "#171717",
-  display: "block",
-};
